@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <title>BUS70 TEST</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Noto Sans KR",
+        sans-serif;
+
+      background: #f4f6f8;
+      color: #1f2937;
+    }
+
+    .app {
+      max-width: 480px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background: white;
+    }
+
+    .header {
+      padding: 28px 22px 24px;
+      background: #153d6f;
+      color: white;
+    }
+
+    .route {
+      font-size: 13px;
+      opacity: .85;
+      margin-bottom: 5px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 27px;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin-top: 7px;
+      font-size: 14px;
+      opacity: .85;
+    }
+
+    .content {
+      padding: 26px 22px;
+    }
+
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      padding: 12px 14px;
+      margin-bottom: 25px;
+
+      border-radius: 10px;
+      background: #f1f5f9;
+
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9ca3af;
+      flex: 0 0 auto;
+    }
+
+    .dot.ok {
+      background: #16a34a;
+    }
+
+    .dot.error {
+      background: #dc2626;
+    }
+
+    .login-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .login-help {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      margin: 17px 0 7px;
+    }
+
+    input {
+      width: 100%;
+      height: 52px;
+
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+
+      padding: 0 14px;
+
+      font-size: 17px;
+      outline: none;
+      background: white;
+    }
+
+    input:focus {
+      border-color: #153d6f;
+      box-shadow: 0 0 0 3px rgba(21,61,111,.10);
+    }
+
+    button {
+      width: 100%;
+      height: 54px;
+
+      margin-top: 25px;
+
+      border: 0;
+      border-radius: 11px;
+
+      background: #153d6f;
+      color: white;
+
+      font-size: 17px;
+      font-weight: 800;
+
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: default;
+    }
+
+    .message {
+      display: none;
+      margin-top: 18px;
+      padding: 13px 14px;
+      border-radius: 10px;
+
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.error {
+      display: block;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    .message.ok {
+      display: block;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .driver-card {
+      display: none;
+
+      margin-top: 24px;
+      padding: 20px;
+
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+
+      background: #fff;
+    }
+
+    .driver-card.show {
+      display: block;
+    }
+
+    .driver-name {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 15px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+
+      padding: 10px 0;
+      border-bottom: 1px solid #f1f5f9;
+
+      font-size: 15px;
+    }
+
+    .info-row:last-child {
+      border-bottom: 0;
+    }
+
+    .info-label {
+      color: #64748b;
+    }
+
+    .info-value {
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .test-badge {
+      display: inline-block;
+      margin-left: 7px;
+      padding: 3px 7px;
+
+      border-radius: 6px;
+      background: #fff7ed;
+      color: #c2410c;
+
+      font-size: 11px;
+      vertical-align: middle;
+    }
+
+    .footer {
+      padding: 30px 20px;
+      text-align: center;
+
+      color: #94a3b8;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <div class="route">소신여객 70번</div>
+    <h1 class="title">BUS70</h1>
+    <div class="subtitle">양성기사 운행관리 TEST</div>
+  </header>
+
+  <main class="content">
+
+    <div class="api-status">
+      <span id="apiDot" class="dot"></span>
+      <span id="apiText">서버 연결 확인 중...</span>
+    </div>
+
+    <section id="loginSection">
+
+      <div class="login-title">기사 로그인</div>
+
+      <div class="login-help">
+        성명과 사원번호를 입력하세요.
+      </div>
+
+      <label for="driverName">성명</label>
+      <input
+        id="driverName"
+        type="text"
+        autocomplete="name"
+        placeholder="예: 박철완">
+
+      <label for="empId">사원번호</label>
+      <input
+        id="empId"
+        type="tel"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="예: 626023">
+
+      <button id="loginButton" type="button">
+        로그인
+      </button>
+
+      <div id="message" class="message"></div>
+
+    </section>
+
+
+    <section id="driverCard" class="driver-card">
+
+      <div class="driver-name">
+        <span id="resultName"></span>
+        <span id="testBadge" class="test-badge">TEST</span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">사원번호</span>
+        <span id="resultEmpId" class="info-value"></span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">근무조</span>
+        <span id="resultShift" class="info-value"></span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">기사구분</span>
+        <span id="resultDriverType" class="info-value"></span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">노선</span>
+        <span id="resultRoute" class="info-value"></span>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">상태</span>
+        <span id="resultStatus" class="info-value"></span>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    BUS70 TEST · Route 70
+  </footer>
+
+</div>
+
+
+<script>
+  /*
+   * STEP 6-1
+   *
+   * 여기에 STEP 5에서 발급받은
+   * Apps Script /exec URL을 넣습니다.
+   *
+   * 반드시 /exec 로 끝나는 원래 주소입니다.
+   */
+
+  const API_URL =
+    "https://script.google.com/macros/s/AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP/exec";
+
+
+  const apiDot =
+    document.getElementById("apiDot");
+
+  const apiText =
+    document.getElementById("apiText");
+
+  const loginButton =
+    document.getElementById("loginButton");
+
+  const message =
+    document.getElementById("message");
+
+
+  function showMessage(text, type) {
+    message.textContent = text;
+    message.className = "message " + type;
+  }
+
+
+  function clearMessage() {
+    message.textContent = "";
+    message.className = "message";
+  }
+
+
+  async function apiRequest(params) {
+
+    const url =
+      API_URL +
+      "?" +
+      new URLSearchParams(params).toString();
+
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        "HTTP " + response.status
+      );
+    }
+
+    return await response.json();
+  }
+
+
+  async function checkServer() {
+
+    if (
+      !API_URL.startsWith("https://script.google.com/")
+    ) {
+      apiDot.className = "dot error";
+      apiText.textContent =
+        "API URL을 먼저 설정하세요.";
+      return;
+    }
+
+    try {
+
+      const data =
+        await apiRequest({
+          action: "ping"
+        });
+
+      if (data.ok) {
+
+        apiDot.className = "dot ok";
+
+        apiText.textContent =
+          "BUS70 서버 연결 정상";
+
+      } else {
+
+        throw new Error(
+          "PING 응답 오류"
+        );
+      }
+
+    } catch (error) {
+
+      console.error(error);
+
+      apiDot.className = "dot error";
+
+      apiText.textContent =
+        "서버 연결 실패";
+    }
+  }
+
+
+  async function login() {
+
+    clearMessage();
+
+    const name =
+      document
+        .getElementById("driverName")
+        .value
+        .trim();
+
+    const empId =
+      document
+        .getElementById("empId")
+        .value
+        .trim();
+
+
+    if (!name) {
+      showMessage(
+        "성명을 입력하세요.",
+        "error"
+      );
+      return;
+    }
+
+
+    if (!empId) {
+      showMessage(
+        "사원번호를 입력하세요.",
+        "error"
+      );
+      return;
+    }
+
+
+    loginButton.disabled = true;
+    loginButton.textContent = "확인 중...";
+
+
+    try {
+
+      const data =
+        await apiRequest({
+          action: "login",
+          name: name,
+          empId: empId
+        });
+
+
+      if (!data.ok) {
+
+        showMessage(
+          data.message ||
+          "로그인 정보를 확인하세요.",
+          "error"
+        );
+
+        return;
+      }
+
+
+      const driver = data.driver;
+
+
+      document
+        .getElementById("resultName")
+        .textContent = driver.name || "";
+
+
+      document
+        .getElementById("resultEmpId")
+        .textContent = driver.empId || "";
+
+
+      document
+        .getElementById("resultShift")
+        .textContent =
+          driver.shift
+            ? driver.shift + "조"
+            : "-";
+
+
+      document
+        .getElementById("resultDriverType")
+        .textContent =
+          driver.driverType || "-";
+
+
+      document
+        .getElementById("resultRoute")
+        .textContent =
+          driver.route
+            ? driver.route + "번"
+            : "-";
+
+
+      document
+        .getElementById("resultStatus")
+        .textContent =
+          driver.status || "-";
+
+
+      document
+        .getElementById("testBadge")
+        .style.display =
+          driver.test === "Y"
+            ? "inline-block"
+            : "none";
+
+
+      document
+        .getElementById("driverCard")
+        .classList.add("show");
+
+
+      showMessage(
+        driver.name +
+        " 기사님 로그인 성공",
+        "ok"
+      );
+
+
+      /*
+       * STEP 6-2 이후 사용
+       * 로그인 기사정보를 임시 저장
+       */
+      localStorage.setItem(
+        "BUS70_TEST_DRIVER",
+        JSON.stringify(driver)
+      );
+
+
+    } catch (error) {
+
+      console.error(error);
+
+      showMessage(
+        "서버와 통신하지 못했습니다.",
+        "error"
+      );
+
+    } finally {
+
+      loginButton.disabled = false;
+      loginButton.textContent = "로그인";
+    }
+  }
+
+
+  loginButton.addEventListener(
+    "click",
+    login
+  );
+
+
+  document
+    .getElementById("empId")
+    .addEventListener(
+      "keydown",
+      function(event) {
+        if (event.key === "Enter") {
+          login();
+        }
+      }
+    );
+
+
+  checkServer();
+
+</script>
+
+</body>
+</html>
