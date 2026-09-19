@@ -5,7 +5,7 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>BUS70 TEST</title>
+  <title>BUS70 TEST · STEP 8-2</title>
   <meta name="theme-color" content="#153d6f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -262,8 +262,19 @@
     .schedule-panel .result { margin-top: 18px; line-height: 1.6; }
     .schedule-panel .trip { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-top: 12px; }
     .schedule-panel .trip h3 { margin: 0 0 8px; font-size: 17px; }
-    .schedule-panel .trip-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 14px; }
-    .schedule-panel .trip-row strong { text-align: right; }
+    .schedule-panel .trip-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 9px 0; font-size: 14px; align-items: center; border-bottom: 1px solid #f1f5f9; }
+    .schedule-panel .trip-row:last-child { border-bottom: 0; }
+    .schedule-panel .trip-row .place { min-width: 0; overflow-wrap: anywhere; }
+    .schedule-panel .trip-row strong { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .schedule-panel .trip-row .time-main { display: block; font-size: 16px; }
+    .schedule-panel .trip-row .time-sub { display: block; color: #64748b; font-size: 12px; font-weight: 500; }
+    .session-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px; }
+    .session-bar button { width: auto; height: auto; margin: 0; padding: 10px 12px; font-size: 13px; background: #e2e8f0; color: #1f2937; }
+    .remember-row { display:flex; align-items:center; gap:9px; margin: 15px 0 0; font-size: 14px; font-weight: 500; }
+    .remember-row input { width: 18px; height: 18px; flex: 0 0 auto; }
+    .remember-help { font-size: 12px; color: #64748b; line-height: 1.5; margin-top: 7px; }
+    @media(max-width:380px) { .content { padding: 20px 14px; } .schedule-panel { padding: 14px; } .schedule-panel .trip { padding: 10px; } }
+
     .schedule-panel .notice { padding: 12px; border-radius: 9px; background: #f1f5f9; margin-top: 12px; }
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
   </style>
@@ -309,6 +320,8 @@
         autocomplete="off"
         placeholder="예: 626023">
 
+      <label class="remember-row" for="rememberDevice"><input id="rememberDevice" type="checkbox" checked> 이 휴대폰에서 다음부터 바로 열기</label>
+      <div class="remember-help">개인 휴대폰의 TEST 화면에서만 선택하세요. 공용 휴대폰에서는 선택을 해제하세요.</div>
       <button id="loginButton" type="button">
         로그인
       </button>
@@ -318,6 +331,7 @@
     </section>
 
 
+    <div id="sessionBar" class="session-bar" hidden><strong id="sessionGreeting"></strong><button id="logoutButton" type="button">로그아웃 · 기사 변경</button></div>
     <section id="driverCard" class="driver-card">
 
       <div class="driver-name">
@@ -479,6 +493,63 @@
 
   let currentDriverId = "";
   let lastSchedule = null;
+  const REMEMBER_KEY = "BUS70_TEST_REMEMBER_V2";
+  const todayLocal = () => {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  };
+
+  function openDriverScreen(driver, automatic = false) {
+    currentDriverId = String(driver.driverId || "");
+    if (!currentDriverId) throw new Error("기사 ID가 없습니다.");
+    const fields = {
+      resultName: driver.name || "기사",
+      resultEmpId: driver.empId || "자동 진입",
+      resultShift: driver.shift ? driver.shift + "조" : "-",
+      resultDriverType: driver.driverType || "-",
+      resultRoute: driver.route ? driver.route + "번" : "-",
+      resultStatus: driver.status || "-"
+    };
+    for (const [id, value] of Object.entries(fields)) document.getElementById(id).textContent = value;
+    document.getElementById("testBadge").style.display = driver.test === "Y" ? "inline-block" : "none";
+    document.getElementById("loginSection").hidden = true;
+    document.getElementById("driverCard").classList.add("show");
+    document.getElementById("sessionBar").hidden = false;
+    document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
+    document.getElementById("schedulePanel").hidden = false;
+    document.getElementById("scheduleResult").replaceChildren();
+    document.getElementById("workDate").value = todayLocal();
+    if (automatic) loadMySchedule();
+  }
+
+  function logout() {
+    localStorage.removeItem(REMEMBER_KEY);
+    localStorage.removeItem("BUS70_TEST_DRIVER");
+    currentDriverId = "";
+    lastSchedule = null;
+    document.getElementById("driverName").value = "";
+    document.getElementById("empId").value = "";
+    document.getElementById("loginSection").hidden = false;
+    document.getElementById("driverCard").classList.remove("show");
+    document.getElementById("sessionBar").hidden = true;
+    document.getElementById("schedulePanel").hidden = true;
+    document.getElementById("scheduleResult").replaceChildren();
+    clearMessage();
+  }
+  document.getElementById("logoutButton").addEventListener("click", logout);
+
+  function restoreRememberedDriver() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null");
+      if (!saved || saved.v !== 2 || !saved.driverId || !saved.name) return;
+      // 편의용 TEST 식별정보입니다. 서버 인증을 대체하지 않습니다.
+      openDriverScreen(saved, true);
+    } catch (error) {
+      console.warn("저장된 기사 화면을 복원하지 못했습니다.", error);
+      localStorage.removeItem(REMEMBER_KEY);
+      logout();
+    }
+  }
 
   async function login() {
 
@@ -542,76 +613,18 @@
 
 
       const driver = data.driver;
-
-
-      document
-        .getElementById("resultName")
-        .textContent = driver.name || "";
-
-
-      document
-        .getElementById("resultEmpId")
-        .textContent = driver.empId || "";
-
-
-      document
-        .getElementById("resultShift")
-        .textContent =
-          driver.shift
-            ? driver.shift + "조"
-            : "-";
-
-
-      document
-        .getElementById("resultDriverType")
-        .textContent =
-          driver.driverType || "-";
-
-
-      document
-        .getElementById("resultRoute")
-        .textContent =
-          driver.route
-            ? driver.route + "번"
-            : "-";
-
-
-      document
-        .getElementById("resultStatus")
-        .textContent =
-          driver.status || "-";
-
-
-      document
-        .getElementById("testBadge")
-        .style.display =
-          driver.test === "Y"
-            ? "inline-block"
-            : "none";
-
-
-      document
-        .getElementById("driverCard")
-        .classList.add("show");
-
-
-      showMessage(
-        driver.name +
-        " 기사님 로그인 성공",
-        "ok"
-      );
-
-
-      /*
-       * STEP 6-2 이후 사용
-       * 로그인 기사정보를 임시 저장
-       */
-      // 화면 조회용 로그인 기사 ID만 메모리에 유지합니다.
-      currentDriverId = driver.driverId;
-      document.getElementById("schedulePanel").hidden = false;
-      document.getElementById("scheduleResult").replaceChildren();
-      document.getElementById("workDate").value = "2026-09-18";
-
+      openDriverScreen(driver);
+      if (document.getElementById("rememberDevice").checked) {
+        // 사원번호와 로그인 입력값은 저장하지 않습니다.
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({
+          v: 2, driverId: driver.driverId, name: driver.name,
+          shift: driver.shift, driverType: driver.driverType,
+          route: driver.route, status: driver.status, test: driver.test
+        }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+      loadMySchedule();
 
     } catch (error) {
 
@@ -674,7 +687,15 @@
 
   function tripRow(label, place, time) {
     const row = el("div", undefined, "trip-row");
-    row.append(el("span", label + (place ? " · " + place : "")), el("strong", displayTime(time)));
+    row.append(el("span", label + (place ? " · " + place : ""), "place"));
+    const t = el("strong");
+    const full = displayTime(time);
+    const mode = document.getElementById("timeMode").value;
+    if (mode === "BOTH" && full.includes(" (")) {
+      const cut = full.indexOf(" (");
+      t.append(el("span", full.slice(0, cut), "time-main"), el("span", full.slice(cut + 2, -1), "time-sub"));
+    } else t.append(el("span", full, "time-main"));
+    row.append(t);
     return row;
   }
 
@@ -751,6 +772,7 @@
   }
 
   checkServer();
+  restoreRememberedDriver();
 
 </script>
 
