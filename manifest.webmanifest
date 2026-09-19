@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "BUS70 TEST 기사 운행관리",
+  "short_name": "BUS70 TEST",
+  "description": "70번 기사 운행시간표 테스트",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#153d6f",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "./icons/bus70-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/bus70-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
