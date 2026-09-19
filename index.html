@@ -6,6 +6,14 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <title>BUS70 TEST</title>
+  <meta name="theme-color" content="#153d6f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="BUS70 TEST">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/bus70-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/bus70-180.png">
 
   <style>
     * {
@@ -734,6 +742,13 @@
     lastSchedule = null;
     document.getElementById("scheduleResult").replaceChildren();
   });
+
+  // 설치된 PWA의 정적 화면 파일만 캐시합니다. 배차 API 응답은 캐시하지 않습니다.
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(error => console.warn("PWA 등록 실패", error));
+    });
+  }
 
   checkServer();
 
