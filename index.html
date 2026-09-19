@@ -241,6 +241,23 @@
       color: #94a3b8;
       font-size: 12px;
     }
+
+    /* STEP 8: 날짜별 운행조회 */
+    .schedule-panel { margin-top: 24px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 14px; }
+    .schedule-panel[hidden], .driver-card[hidden] { display: none !important; }
+    .schedule-panel h2 { font-size: 20px; margin: 0 0 8px; }
+    .schedule-panel .hint { color: #64748b; font-size: 13px; line-height: 1.5; }
+    .schedule-panel .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .schedule-panel .control-row label { margin-top: 14px; }
+    .schedule-panel select { width: 100%; height: 52px; padding: 0 8px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; font-size: 14px; }
+    .schedule-panel button { margin-top: 14px; }
+    .schedule-panel .result { margin-top: 18px; line-height: 1.6; }
+    .schedule-panel .trip { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-top: 12px; }
+    .schedule-panel .trip h3 { margin: 0 0 8px; font-size: 17px; }
+    .schedule-panel .trip-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 14px; }
+    .schedule-panel .trip-row strong { text-align: right; }
+    .schedule-panel .notice { padding: 12px; border-radius: 9px; background: #f1f5f9; margin-top: 12px; }
+    .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
   </style>
 </head>
 
@@ -327,6 +344,17 @@
 
     </section>
 
+
+    <section id="schedulePanel" class="schedule-panel" hidden>
+      <h2>내 운행시간표</h2>
+      <p class="hint">날짜를 선택해 확정 배차를 조회합니다. 배차가 없다는 사실만으로 휴무로 판정하지 않습니다.</p>
+      <div class="control-row">
+        <div><label for="workDate">조회 날짜</label><input id="workDate" type="date" value="2026-09-18"></div>
+        <div><label for="timeMode">시간 표시</label><select id="timeMode"><option value="BOTH">동시 표시</option><option value="24H">24시간</option><option value="12H">오전·오후</option></select></div>
+      </div>
+      <button id="loadSchedule" type="button">운행정보 조회</button>
+      <div id="scheduleResult" class="result" aria-live="polite"></div>
+    </section>
   </main>
 
   <footer class="footer">
@@ -440,6 +468,9 @@
     }
   }
 
+
+  let currentDriverId = "";
+  let lastSchedule = null;
 
   async function login() {
 
@@ -567,10 +598,11 @@
        * STEP 6-2 이후 사용
        * 로그인 기사정보를 임시 저장
        */
-      localStorage.setItem(
-        "BUS70_TEST_DRIVER",
-        JSON.stringify(driver)
-      );
+      // 화면 조회용 로그인 기사 ID만 메모리에 유지합니다.
+      currentDriverId = driver.driverId;
+      document.getElementById("schedulePanel").hidden = false;
+      document.getElementById("scheduleResult").replaceChildren();
+      document.getElementById("workDate").value = "2026-09-18";
 
 
     } catch (error) {
@@ -607,6 +639,101 @@
       }
     );
 
+
+
+  // API 시간 문자열은 시트 표시 형식에 따라 5:05 또는 05:05로 올 수 있습니다.
+  function canonicalTime(value) {
+    const m = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return String(value || "");
+    return m[1].padStart(2, "0") + ":" + m[2];
+  }
+
+  function displayTime(value) {
+    const t = canonicalTime(value);
+    if (!/^\d{2}:\d{2}$/.test(t)) return t || "-";
+    const h = Number(t.slice(0, 2));
+    const korean = (h < 12 ? "오전 " : "오후 ") + (h % 12 || 12) + t.slice(2);
+    const mode = document.getElementById("timeMode").value;
+    return mode === "24H" ? t : mode === "12H" ? korean : t + " (" + korean + ")";
+  }
+
+  function el(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+
+  function tripRow(label, place, time) {
+    const row = el("div", undefined, "trip-row");
+    row.append(el("span", label + (place ? " · " + place : "")), el("strong", displayTime(time)));
+    return row;
+  }
+
+  function renderSchedule() {
+    const root = document.getElementById("scheduleResult");
+    root.replaceChildren();
+    const data = lastSchedule;
+    if (!data) return;
+    if (!data.ok) {
+      root.append(el("div", data.message || "조회에 실패했습니다.", "notice error"));
+      return;
+    }
+    root.append(el("h3", data.date?.label || document.getElementById("workDate").value));
+    if (data.type === "NO_DISPATCH") {
+      root.append(el("div", "확정된 배차가 없습니다. 휴무 여부는 아직 확인되지 않았습니다.", "notice"));
+      return;
+    }
+    if (data.type !== "WORK" || !data.dispatch || !data.vehicle) {
+      root.append(el("div", "배차 응답을 확인할 수 없습니다. 관리자에게 문의하세요.", "notice error"));
+      return;
+    }
+    const d = data.dispatch;
+    const vehicle = data.vehicle;
+    root.append(el("div", "운행 · " + (d.shift || "-") + "조 · " + d.seq + "순차 · " + (vehicle.displayNo || vehicle.vehicleNo || "차량 미확인"), "notice"));
+    if (!Array.isArray(data.trips) || !data.trips.length) {
+      root.append(el("div", "등록된 탕별 시간표가 없습니다.", "notice error"));
+      return;
+    }
+    data.trips.forEach(trip => {
+      const card = el("article", undefined, "trip");
+      card.append(el("h3", trip.trip + "탕"));
+      card.append(tripRow("발차", trip.startPlace, trip.startTime));
+      if (trip.turnPlace || trip.turnTime) card.append(tripRow("회차", trip.turnPlace, trip.turnTime));
+      card.append(tripRow("도착", trip.endPlace, trip.endTime));
+      root.append(card);
+    });
+  }
+
+  async function loadMySchedule() {
+    if (!currentDriverId) return;
+    const date = document.getElementById("workDate").value;
+    const button = document.getElementById("loadSchedule");
+    const root = document.getElementById("scheduleResult");
+    if (!date) { root.replaceChildren(el("div", "날짜를 선택하세요.", "notice error")); return; }
+    lastSchedule = null;
+    root.replaceChildren(el("div", "운행정보 조회 중...", "notice"));
+    button.disabled = true;
+    try {
+      const data = await apiRequest({ action: "mySchedule", driverId: currentDriverId, date });
+      // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
+      if (document.getElementById("workDate").value !== date) return;
+      lastSchedule = data;
+      renderSchedule();
+    } catch (error) {
+      console.error(error);
+      root.replaceChildren(el("div", "서버 조회에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요.", "notice error"));
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  document.getElementById("loadSchedule").addEventListener("click", loadMySchedule);
+  document.getElementById("timeMode").addEventListener("change", renderSchedule);
+  document.getElementById("workDate").addEventListener("change", () => {
+    lastSchedule = null;
+    document.getElementById("scheduleResult").replaceChildren();
+  });
 
   checkServer();
 
