@@ -5,7 +5,7 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>BUS70 TEST · STEP 8-2</title>
+  <title>BUS70 TEST · STEP 9</title>
   <meta name="theme-color" content="#153d6f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -277,6 +277,8 @@
 
     .schedule-panel .notice { padding: 12px; border-radius: 9px; background: #f1f5f9; margin-top: 12px; }
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
+    .schedule-panel .confirm-button { background: #166534; }
+    .schedule-panel .confirm-button[hidden] { display: none; }
   </style>
 </head>
 
@@ -376,6 +378,8 @@
       </div>
       <button id="loadSchedule" type="button">운행정보 조회</button>
       <div id="scheduleResult" class="result" aria-live="polite"></div>
+      <button id="confirmScheduleButton" class="confirm-button" type="button" hidden>이 배차 확인하기</button>
+      <div id="confirmResult" class="result" aria-live="polite"></div>
     </section>
   </main>
 
@@ -493,7 +497,10 @@
 
   let currentDriverId = "";
   let lastSchedule = null;
-  const REMEMBER_KEY = "BUS70_TEST_REMEMBER_V2";
+  const REMEMBER_KEY = "BUS70_TEST_AUTH_V3";
+  const LEGACY_REMEMBER_KEY = "BUS70_TEST_REMEMBER_V2";
+  let authToken = "";
+  let scheduleRequestId = 0;
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -518,36 +525,88 @@
     document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
     document.getElementById("schedulePanel").hidden = false;
     document.getElementById("scheduleResult").replaceChildren();
+    resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
     if (automatic) loadMySchedule();
   }
 
-  function logout() {
+  function resetConfirmation() {
+    document.getElementById("confirmScheduleButton").hidden = true;
+    document.getElementById("confirmScheduleButton").disabled = false;
+    document.getElementById("confirmScheduleButton").textContent = "이 배차 확인하기";
+    document.getElementById("confirmResult").replaceChildren();
+  }
+
+  async function apiPost(body) {
+    // Apps Script 웹앱은 JSON 요청의 CORS 사전 요청을 처리하지 못할 수 있습니다.
+    // text/plain으로 전송하고 서버의 JSON.parse(e.postData.contents)를 사용합니다.
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+      redirect: "follow",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return response.json();
+  }
+
+  function clearLocalAuth() {
     localStorage.removeItem(REMEMBER_KEY);
+    localStorage.removeItem(LEGACY_REMEMBER_KEY);
     localStorage.removeItem("BUS70_TEST_DRIVER");
+    authToken = "";
+  }
+
+  function showLoginScreen(text) {
+    scheduleRequestId++;
+    clearLocalAuth();
     currentDriverId = "";
     lastSchedule = null;
-    document.getElementById("driverName").value = "";
-    document.getElementById("empId").value = "";
     document.getElementById("loginSection").hidden = false;
     document.getElementById("driverCard").classList.remove("show");
     document.getElementById("sessionBar").hidden = true;
     document.getElementById("schedulePanel").hidden = true;
     document.getElementById("scheduleResult").replaceChildren();
-    clearMessage();
+    resetConfirmation();
+    if (text) showMessage(text, "error"); else clearMessage();
+  }
+
+  async function logout() {
+    const token = authToken;
+    showLoginScreen();
+    document.getElementById("driverName").value = "";
+    document.getElementById("empId").value = "";
+    if (token) {
+      try { await apiPost({action:"logout", token}); }
+      catch (error) { console.warn("서버 로그아웃 요청 실패. 기기 저장정보는 삭제했습니다.", error); }
+    }
   }
   document.getElementById("logoutButton").addEventListener("click", logout);
 
-  function restoreRememberedDriver() {
+  async function restoreRememberedDriver() {
+    // 기존 V2 저장정보는 인증 토큰이 아니므로 자동 로그인에 사용하지 않습니다.
+    localStorage.removeItem(LEGACY_REMEMBER_KEY);
+    localStorage.removeItem("BUS70_TEST_DRIVER");
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null"); }
+    catch (_) { clearLocalAuth(); return; }
+    if (!saved || saved.v !== 3 || !saved.token) return;
+    if (!Number.isFinite(Date.parse(saved.expiresAt)) || Date.parse(saved.expiresAt) <= Date.now()) {
+      showLoginScreen("로그인 기간이 만료되었습니다. 다시 로그인하세요.");
+      return;
+    }
     try {
-      const saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null");
-      if (!saved || saved.v !== 2 || !saved.driverId || !saved.name) return;
-      // 편의용 TEST 식별정보입니다. 서버 인증을 대체하지 않습니다.
-      openDriverScreen(saved, true);
+      const result = await apiPost({action:"session", token:saved.token});
+      if (!result.ok || !result.driver) {
+        showLoginScreen(result.message || "로그인이 만료되었습니다. 다시 로그인하세요.");
+        return;
+      }
+      authToken = saved.token;
+      openDriverScreen(result.driver, true);
     } catch (error) {
-      console.warn("저장된 기사 화면을 복원하지 못했습니다.", error);
-      localStorage.removeItem(REMEMBER_KEY);
-      logout();
+      console.error(error);
+      showLoginScreen("자동 로그인 서버 확인에 실패했습니다. 연결 상태를 확인한 뒤 다시 로그인하세요.");
     }
   }
 
@@ -614,17 +673,15 @@
 
       const driver = data.driver;
       openDriverScreen(driver);
-      if (document.getElementById("rememberDevice").checked) {
-        // 사원번호와 로그인 입력값은 저장하지 않습니다.
-        localStorage.setItem(REMEMBER_KEY, JSON.stringify({
-          v: 2, driverId: driver.driverId, name: driver.name,
-          shift: driver.shift, driverType: driver.driverType,
-          route: driver.route, status: driver.status, test: driver.test
-        }));
-      } else {
-        localStorage.removeItem(REMEMBER_KEY);
-      }
-      loadMySchedule();
+             if (document.getElementById("rememberDevice").checked) {
+         localStorage.setItem(REMEMBER_KEY, JSON.stringify({
+           v:3, token:data.token, expiresAt:data.expiresAt
+         }));
+       } else {
+         localStorage.removeItem(REMEMBER_KEY);
+       }
+       localStorage.removeItem(LEGACY_REMEMBER_KEY);
+loadMySchedule();
 
     } catch (error) {
 
@@ -703,6 +760,7 @@
     const root = document.getElementById("scheduleResult");
     root.replaceChildren();
     const data = lastSchedule;
+    resetConfirmation();
     if (!data) return;
     if (!data.ok) {
       root.append(el("div", data.message || "조회에 실패했습니다.", "notice error"));
@@ -740,7 +798,9 @@
     const button = document.getElementById("loadSchedule");
     const root = document.getElementById("scheduleResult");
     if (!date) { root.replaceChildren(el("div", "날짜를 선택하세요.", "notice error")); return; }
+    const requestId = ++scheduleRequestId;
     lastSchedule = null;
+    resetConfirmation();
     root.replaceChildren(el("div", "운행정보 조회 중...", "notice"));
     button.disabled = true;
     try {
