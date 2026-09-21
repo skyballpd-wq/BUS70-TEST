@@ -295,6 +295,22 @@
     .board-value { min-height: 48px; display: flex; align-items: center; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; font-weight: 700; }
     .board-panel button { margin-top: 12px; }
     .board-panel .register-button { background: #166534; }
+    .manager-panel { margin-top:24px; padding:20px; border:2px solid #153d6f; border-radius:14px; }
+    .manager-panel[hidden], .manager-output[hidden] { display:none !important; }
+    .manager-panel h2 { margin:0 0 8px; font-size:20px; }
+    .manager-tools { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .manager-tools input, .manager-tools select { width:100%; min-height:48px; box-sizing:border-box; }
+    .manager-row { display:grid; grid-template-columns:42px minmax(0,1fr) minmax(0,1fr); gap:8px; align-items:center; margin-top:8px; }
+    .manager-row select { width:100%; min-width:0; height:44px; }
+    .manager-row strong { text-align:center; }
+    .manager-panel button { margin-top:12px; }
+    .manager-panel .secondary { background:#475569; }
+    .manager-status .ok { background:#f0fdf4; color:#166534; }
+    .manager-status .error { background:#fef2f2; color:#b91c1c; }
+    .manager-status > div { padding:12px; border-radius:9px; margin-top:12px; }
+    .manager-output { margin-top:14px; }
+    .manager-output img { width:100%; border-radius:10px; border:1px solid #cbd5e1; }
+    @media(max-width:520px) { .manager-tools { grid-template-columns:1fr; } .manager-row { grid-template-columns:36px 1fr; } .manager-row select:last-child { grid-column:2; } }
   </style>
 </head>
 
@@ -424,6 +440,25 @@
         <button id="registerBoardButton" class="register-button" type="button">확인한 배차 등록</button>
       </div>
     </section>
+
+    <section id="managerPanel" class="manager-panel" hidden>
+      <h2>소장 배차 현황 작성</h2>
+      <p class="hint">날짜와 근무조를 선택하고 1~11순차 기사·차량을 저장합니다. 사진 OCR은 저장 데이터와 다른 항목을 찾는 보조 확인입니다.</p>
+      <div class="manager-tools">
+        <div><label for="managerDate">운행 날짜</label><input id="managerDate" type="date"></div>
+        <div><label for="managerShift">근무조</label><select id="managerShift"><option value="A">A조</option><option value="B" selected>B조</option></select></div>
+      </div>
+      <button id="managerLoad" type="button">기사·차량 불러오기</button>
+      <div id="managerRows"></div>
+      <button id="managerSave" type="button" hidden>11개 순차 저장</button>
+      <hr>
+      <label for="managerBoardPhoto">배차 상황판 사진</label><input id="managerBoardPhoto" type="file" accept="image/*" capture="environment">
+      <label for="managerTimePhoto">배차 시간표 사진</label><input id="managerTimePhoto" type="file" accept="image/*" capture="environment">
+      <button id="managerOcr" class="secondary" type="button" hidden>사진 OCR 대조</button>
+      <button id="managerGenerate" class="secondary" type="button" hidden>배차 현황 이미지 생성</button>
+      <div id="managerStatus" class="manager-status" aria-live="polite"></div>
+      <div id="managerOutput" class="manager-output" hidden><img id="managerResultImage" alt="생성된 날짜별 배차 현황"><button id="managerShare" type="button">카카오톡·단톡방에 공유</button></div>
+    </section>
   </main>
 
   <footer class="footer">
@@ -548,12 +583,15 @@
   let scheduleRequestId = 0;
   let boardCandidateId = "";
   let boardImageUrl = "";
+  let currentIsManager = false;
+  let managerData = null;
+  let managerImageBlob = null;
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
 
-  function openDriverScreen(driver, automatic = false) {
+  function openDriverScreen(driver, automatic = false, isManager = false) {
     currentDriverId = String(driver.driverId || "");
     if (!currentDriverId) throw new Error("기사 ID가 없습니다.");
     const fields = {
@@ -572,10 +610,13 @@
     document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
     document.getElementById("schedulePanel").hidden = false;
     document.getElementById("boardPanel").hidden = !BOARD_ENTRY_ENABLED;
+    currentIsManager = Boolean(isManager);
+    document.getElementById("managerPanel").hidden = !currentIsManager;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
     document.getElementById("boardDate").value = todayLocal();
+    document.getElementById("managerDate").value = todayLocal();
     if (automatic) loadMySchedule();
   }
 
@@ -641,6 +682,7 @@
     document.getElementById("sessionBar").hidden = true;
     document.getElementById("schedulePanel").hidden = true;
     document.getElementById("boardPanel").hidden = true;
+    document.getElementById("managerPanel").hidden = true;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     if (text) showMessage(text, "error"); else clearMessage();
@@ -679,7 +721,7 @@
         if (result.ok && result.driver) {
           authToken = saved.token;
           saveLegacyDriver(result.driver);
-          openDriverScreen(result.driver, false);
+          openDriverScreen(result.driver, false, result.manager);
           if (result.schedule) {
             lastSchedule = result.schedule;
             renderSchedule();
@@ -700,7 +742,7 @@
     }
     localStorage.removeItem(REMEMBER_KEY);
     const legacy = readLegacyDriver();
-    if (legacy) openDriverScreen(legacy, true);
+      if (legacy) openDriverScreen(legacy, true, false);
   }
 
   async function login() {
@@ -738,7 +780,7 @@
         localStorage.removeItem(REMEMBER_KEY);
         localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
-      openDriverScreen(data.driver, false);
+      openDriverScreen(data.driver, false, data.manager);
       if (data.schedule) {
         lastSchedule = data.schedule;
         renderSchedule();
@@ -1031,6 +1073,141 @@
   });
   document.getElementById("analyzeBoardButton").addEventListener("click", analyzeBoard);
   document.getElementById("registerBoardButton").addEventListener("click", registerBoardDispatch);
+
+  function managerNotice(text, error = false) {
+    document.getElementById("managerStatus").replaceChildren(el("div", text, error ? "error" : "ok"));
+  }
+
+  function managerAssignments() {
+    return [...document.querySelectorAll(".manager-row")].map((row, index) => ({
+      sequence:index + 1,
+      driverId:row.querySelector(".manager-driver").value,
+      vehicleId:row.querySelector(".manager-vehicle").value
+    }));
+  }
+
+  function renderManagerRows(data) {
+    const root = document.getElementById("managerRows"); root.replaceChildren();
+    const selected = Object.fromEntries((data.assignments || []).filter(v => v.shift === document.getElementById("managerShift").value).map(v => [v.sequence,v]));
+    for (let seq = 1; seq <= 11; seq++) {
+      const row = el("div", undefined, "manager-row"); row.dataset.sequence = String(seq);
+      row.append(el("strong", seq));
+      const driver = el("select", undefined, "manager-driver"); driver.append(new Option("기사 선택", ""));
+      data.drivers.filter(v => v.shift === document.getElementById("managerShift").value).forEach(v => driver.append(new Option(v.name, v.id)));
+      const vehicle = el("select", undefined, "manager-vehicle"); vehicle.append(new Option("차량 선택", ""));
+      data.vehicles.forEach(v => vehicle.append(new Option(v.last3 + " · " + v.displayNo, v.id)));
+      if (selected[seq]) { driver.value = selected[seq].driverId; vehicle.value = selected[seq].vehicleId; }
+      row.append(driver, vehicle); root.append(row);
+    }
+    document.getElementById("managerSave").hidden = false;
+    document.getElementById("managerOcr").hidden = false;
+    document.getElementById("managerGenerate").hidden = false;
+  }
+
+  async function loadManagerData() {
+    const date = document.getElementById("managerDate").value;
+    if (!date) return managerNotice("운행 날짜를 선택하세요.", true);
+    const button = document.getElementById("managerLoad"); button.disabled = true; button.textContent = "불러오는 중...";
+    try {
+      const result = await apiPost({action:"managerDispatchBootstrap",token:authToken,date});
+      if (!result.ok) return managerNotice(result.message || "배차 자료를 불러오지 못했습니다.", true);
+      managerData = result; renderManagerRows(result); managerNotice("기사·차량·시간표를 불러왔습니다.");
+    } catch (error) { console.error(error); managerNotice("서버에서 소장 자료를 불러오지 못했습니다.", true); }
+    finally { button.disabled = false; button.textContent = "기사·차량 불러오기"; }
+  }
+
+  async function saveManagerDay() {
+    if (!managerData) return managerNotice("먼저 기사·차량을 불러오세요.", true);
+    const assignments = managerAssignments();
+    if (assignments.some(v => !v.driverId || !v.vehicleId)) return managerNotice("1~11순차의 기사와 차량을 모두 선택하세요.", true);
+    const button = document.getElementById("managerSave"); button.disabled = true; button.textContent = "저장 중...";
+    try {
+      const result = await apiPost({action:"saveManagerDispatchDay",token:authToken,date:document.getElementById("managerDate").value,
+        shift:document.getElementById("managerShift").value,assignments});
+      if (!result.ok) return managerNotice(result.message || "배차를 저장하지 못했습니다.", true);
+      managerData = result.data || managerData; managerNotice(result.message || "배차를 저장했습니다.");
+    } catch (error) { console.error(error); managerNotice("저장 결과를 확인하지 못했습니다. 다시 불러와 중복 여부를 확인하세요.", true); }
+    finally { button.disabled = false; button.textContent = "11개 순차 저장"; }
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      script.onload = () => resolve(window.Tesseract); script.onerror = () => reject(new Error("OCR 모듈 로드 실패"));
+      document.head.append(script);
+    });
+  }
+
+  async function compareManagerOcr() {
+    if (!managerData) return managerNotice("먼저 기사·차량을 불러오세요.", true);
+    const board = document.getElementById("managerBoardPhoto").files[0];
+    const timetable = document.getElementById("managerTimePhoto").files[0];
+    if (!board || !timetable) return managerNotice("상황판과 시간표 사진 2장을 선택하세요.", true);
+    const button = document.getElementById("managerOcr"); button.disabled = true; button.textContent = "휴대폰에서 OCR 판독 중...";
+    try {
+      const Tesseract = await loadTesseract();
+      const boardResult = await Tesseract.recognize(board, "kor+eng");
+      const timeResult = await Tesseract.recognize(timetable, "kor+eng");
+      const boardText = String(boardResult.data.text || "").replace(/\s/g, "");
+      const timeText = String(timeResult.data.text || "").replace(/\D/g, "");
+      const drivers = Object.fromEntries(managerData.drivers.map(v => [v.id,v]));
+      const vehicles = Object.fromEntries(managerData.vehicles.map(v => [v.id,v]));
+      const mismatches = [];
+      managerAssignments().forEach(v => {
+        const d=drivers[v.driverId], car=vehicles[v.vehicleId], dep=managerData.departures[v.sequence] || {};
+        if (!d || !boardText.includes(d.name.replace(/\s/g,""))) mismatches.push(v.sequence + "순차 기사명");
+        if (!car || !boardText.includes(car.last3)) mismatches.push(v.sequence + "순차 차량");
+        const digits=String(dep.time || "").replace(/\D/g,"");
+        if (digits && !timeText.includes(digits)) mismatches.push(v.sequence + "순차 출발시간");
+      });
+      managerNotice(mismatches.length ? "OCR 대조 필요: " + mismatches.join(", ") : "OCR에서 저장 배차와 같은 기사·차량·출발시간을 확인했습니다.", Boolean(mismatches.length));
+    } catch (error) { console.error(error); managerNotice("OCR 판독에 실패했습니다. 사진 방향·초점·전체 표 포함 여부를 확인하세요.", true); }
+    finally { button.disabled=false; button.textContent="사진 OCR 대조"; }
+  }
+
+  function verticalText(ctx, text, x, y, lineHeight) {
+    [...String(text || "")].forEach((ch,i) => ctx.fillText(ch,x,y+i*lineHeight));
+  }
+
+  async function generateManagerImage() {
+    if (!managerData) return managerNotice("먼저 기사·차량을 불러오세요.", true);
+    const assignments=managerAssignments(), drivers=Object.fromEntries(managerData.drivers.map(v=>[v.id,v])), vehicles=Object.fromEntries(managerData.vehicles.map(v=>[v.id,v]));
+    if (assignments.some(v=>!drivers[v.driverId]||!vehicles[v.vehicleId])) return managerNotice("1~11순차의 기사와 차량을 모두 선택하세요.", true);
+    const canvas=document.createElement("canvas"); canvas.width=1100; canvas.height=670; const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#143f35"; ctx.fillRect(0,0,1100,670); ctx.strokeStyle="#b7c7c4"; ctx.lineWidth=3; ctx.strokeRect(10,10,1080,650);
+    ctx.fillStyle="#fff"; ctx.font="bold 34px sans-serif"; ctx.textAlign="center"; ctx.fillText("소신여객 70번 배차 현황 ("+document.getElementById("managerDate").value+")",550,72);
+    ctx.strokeStyle="#8ba9a2"; ctx.beginPath(); ctx.moveTo(45,98); ctx.lineTo(1055,98); ctx.stroke();
+    assignments.forEach((a,i)=>{ const x=45+i*92, d=drivers[a.driverId], car=vehicles[a.vehicleId], dep=managerData.departures[a.sequence]||{};
+      ctx.strokeStyle="#55796f"; ctx.strokeRect(x,132,78,490); ctx.fillStyle="#b91c1c"; ctx.fillRect(x+8,146,62,155);
+      ctx.fillStyle="#fff"; ctx.font="bold 25px sans-serif"; ctx.fillText(String(a.sequence),x+39,184); ctx.font="15px sans-serif"; ctx.fillText(String(dep.time||"-"),x+39,214);
+      ctx.fillStyle="#ffe48a"; ctx.font="bold 17px sans-serif"; verticalText(ctx,(dep.place||"출발").replace("동차고지",""),x+39,243,23);
+      ctx.fillStyle="#fff"; ctx.fillRect(x+8,312,62,126); ctx.fillStyle="#111"; ctx.font="bold 25px sans-serif"; verticalText(ctx,d.name,x+39,345,27);
+      ctx.fillStyle="#23448d"; ctx.fillRect(x+8,449,62,157); ctx.fillStyle="#fff"; ctx.font="bold 25px sans-serif"; verticalText(ctx,car.no,x+39,478,27);
+    });
+    managerImageBlob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+    const image=document.getElementById("managerResultImage"); image.src=URL.createObjectURL(managerImageBlob); document.getElementById("managerOutput").hidden=false;
+    managerNotice("배차 현황 이미지를 생성했습니다. 원본 사진과 최종 확인한 뒤 공유하세요.");
+  }
+
+  async function shareManagerImage() {
+    if (!managerImageBlob) return;
+    const file=new File([managerImageBlob],"BUS70-"+document.getElementById("managerDate").value+".png",{type:"image/png"});
+    if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+      try { await navigator.share({files:[file],title:"소신여객 70번 배차 현황"}); return; } catch (error) { if (error.name === "AbortError") return; }
+    }
+    const link=document.createElement("a"); link.href=URL.createObjectURL(managerImageBlob); link.download=file.name; link.click();
+    managerNotice("이미지를 저장했습니다. 카카오톡 단톡방에 첨부하세요.");
+  }
+
+  document.getElementById("managerLoad").addEventListener("click",loadManagerData);
+  document.getElementById("managerSave").addEventListener("click",saveManagerDay);
+  document.getElementById("managerOcr").addEventListener("click",compareManagerOcr);
+  document.getElementById("managerGenerate").addEventListener("click",generateManagerImage);
+  document.getElementById("managerShare").addEventListener("click",shareManagerImage);
+  document.getElementById("managerShift").addEventListener("change",()=>{if(managerData)renderManagerRows(managerData);});
+  document.getElementById("managerDate").addEventListener("change",()=>{managerData=null;document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
   // 설치된 PWA의 정적 화면 파일만 캐시합니다. 배차 API 응답은 캐시하지 않습니다.
   if ("serviceWorker" in navigator && location.protocol === "https:") {
