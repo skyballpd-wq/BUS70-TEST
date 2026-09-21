@@ -48,14 +48,24 @@ function bus70AuthAction_(body) {
     const result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
     const session = bus70IssueSession_(result.driver.driverId);
-    return {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt};
+    const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt};
+    if (body.date) {
+      response.schedule = apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}});
+    }
+    return response;
   }
   const driverId = bus70AuthDriver_(body.token);
   if (!driverId) return {ok:false, error:'AUTH_REQUIRED', message:'로그인이 만료되었습니다. 다시 로그인하세요.'};
   if (action === 'session') {
     const result = apiGetDriver_(driverId);
-    return result.ok ? {ok:true, driver:result.driver} :
-      {ok:false, error:'DRIVER_UNAVAILABLE', message:'기사정보를 확인할 수 없습니다.'};
+    if (!result.ok) {
+      return {ok:false, error:'DRIVER_UNAVAILABLE', message:'기사정보를 확인할 수 없습니다.'};
+    }
+    const response = {ok:true, driver:result.driver};
+    if (body.date) {
+      response.schedule = apiMySchedule_({parameter:{driverId:driverId, date:body.date}});
+    }
+    return response;
   }
   if (action === 'logout') {
     bus70RevokeSession_(body.token);

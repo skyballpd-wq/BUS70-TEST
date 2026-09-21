@@ -618,12 +618,26 @@
     }
     if (saved && saved.v === 3 && saved.token && Number.isFinite(Date.parse(saved.expiresAt)) &&
         Date.parse(saved.expiresAt) > Date.now()) {
+      const cachedDriver = readLegacyDriver();
+      if (cachedDriver) {
+        authToken = saved.token;
+        openDriverScreen(cachedDriver, false);
+        document.getElementById("scheduleResult").replaceChildren(
+          el("div", "로그인과 오늘 운행정보를 확인 중...", "notice")
+        );
+      }
       try {
-        const result = await apiPost({action:"session", token:saved.token});
+        const result = await apiPost({action:"session", token:saved.token, date:todayLocal()});
         if (result.ok && result.driver) {
           authToken = saved.token;
           saveLegacyDriver(result.driver);
-          openDriverScreen(result.driver, true);
+          openDriverScreen(result.driver, false);
+          if (result.schedule) {
+            lastSchedule = result.schedule;
+            renderSchedule();
+          } else {
+            loadMySchedule();
+          }
           return;
         }
         if (result.error === "AUTH_REQUIRED" || result.error === "DRIVER_UNAVAILABLE") {
@@ -654,7 +668,7 @@
     try {
       let data = null;
       try {
-        const secure = await apiPost({action:"loginSecure", name, empId});
+        const secure = await apiPost({action:"loginSecure", name, empId, date:todayLocal()});
         if (secure.ok || !["UNKNOWN_ACTION", "SERVER_ERROR"].includes(secure.error)) data = secure;
       } catch (error) {
         console.warn("보안 로그인 API 미사용. 기존 로그인 API로 복구합니다.", error);
@@ -676,7 +690,13 @@
         localStorage.removeItem(REMEMBER_KEY);
         localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
-      openDriverScreen(data.driver, true);
+      openDriverScreen(data.driver, false);
+      if (data.schedule) {
+        lastSchedule = data.schedule;
+        renderSchedule();
+      } else {
+        loadMySchedule();
+      }
     } catch (error) {
       console.error("로그인 통신 실패", error);
       showMessage("로그인 서버 통신에 실패했습니다. 잠시 후 다시 시도하세요.", "error");

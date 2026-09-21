@@ -42,7 +42,8 @@ const context = {
   newId_: () => 'CONF-NEW',
   formatDateTime_: () => '2026-09-21 10:00:00',
   apiLogin_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
-  apiGetDriver_: () => ({ok:true,driver:{driverId:'DRV-1'}})
+  apiGetDriver_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
+  apiMySchedule_: e => ({ok:true,type:'WORK',driverId:e.parameter.driverId,date:e.parameter.date})
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'), context);
@@ -50,6 +51,12 @@ vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'), context);
 const session = context.bus70AuthAction_({action:'loginSecure',name:'테스트',empId:'1'});
 assert.equal(session.ok, true);
 assert.equal(session.token.length, 72);
+
+const combinedLogin = context.bus70AuthAction_({action:'loginSecure',name:'테스트',empId:'1',date:'2026-09-21'});
+assert.equal(combinedLogin.schedule.type, 'WORK');
+const combinedSession = context.bus70AuthAction_({action:'session',token:combinedLogin.token,date:'2026-09-21'});
+assert.equal(combinedSession.ok, true);
+assert.equal(combinedSession.schedule.date, '2026-09-21');
 
 const body = {action:'confirmSchedule',token:session.token,driverId:'DRV-1',date:'2026-09-18',dispatchId:'DSP-1',scheduleVersion:'WD-V1'};
 const first = context.bus70AuthAction_(body);
