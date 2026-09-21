@@ -445,6 +445,8 @@
 
   const API_URL =
     "https://script.google.com/macros/s/AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP/exec";
+  // OCR API 키와 Apps Script 배포가 준비된 뒤 true로 전환합니다.
+  const BOARD_OCR_ENABLED = false;
 
 
   const apiDot =
@@ -569,7 +571,7 @@
     document.getElementById("sessionBar").hidden = false;
     document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
     document.getElementById("schedulePanel").hidden = false;
-    document.getElementById("boardPanel").hidden = false;
+    document.getElementById("boardPanel").hidden = !BOARD_OCR_ENABLED;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
