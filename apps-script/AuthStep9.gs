@@ -77,6 +77,9 @@ function bus70AuthAction_(body) {
     }
     return bus70ConfirmCurrentDispatch_(Object.assign({}, body, {driverId:driverId}));
   }
+  if (action === 'analyzeDispatchBoard' || action === 'registerDispatchBoard') {
+    return bus70BoardAction_(body, driverId);
+  }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
 }
 

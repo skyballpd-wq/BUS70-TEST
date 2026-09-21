@@ -281,6 +281,22 @@
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
     .schedule-panel .confirm-button { background: #166534; }
     .schedule-panel .confirm-button[hidden] { display: none; }
+    .board-panel { margin-top: 24px; padding: 20px; border: 1px solid #dbe3ec; border-radius: 14px; }
+    .board-panel[hidden], .board-review[hidden] { display: none !important; }
+    .board-panel h2 { font-size: 20px; margin: 0 0 8px; }
+    .board-panel .hint { color: #64748b; font-size: 13px; line-height: 1.5; }
+    .board-panel input, .board-panel select { width: 100%; min-height: 48px; box-sizing: border-box; }
+    .board-panel input[type="file"] { height: auto; padding: 12px 8px; background: #f8fafc; }
+    .board-consent { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; color: #475569; font-size: 12px; line-height: 1.45; }
+    .board-consent input { width: 20px; min-height: 20px; margin: 0; flex: 0 0 auto; }
+    .board-preview { width: 100%; max-height: 280px; object-fit: contain; margin-top: 12px; border-radius: 10px; background: #f1f5f9; }
+    .board-preview[hidden] { display: none; }
+    .board-review { margin-top: 16px; padding: 14px; border: 1px solid #bbd2c0; border-radius: 10px; background: #f0fdf4; }
+    .board-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .board-grid .wide { grid-column: 1 / -1; }
+    .board-value { min-height: 48px; display: flex; align-items: center; padding: 0 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; font-weight: 700; }
+    .board-panel button { margin-top: 12px; }
+    .board-panel .register-button { background: #166534; }
   </style>
 </head>
 
@@ -382,6 +398,31 @@
       <div id="scheduleResult" class="result" aria-live="polite"></div>
       <button id="confirmScheduleButton" class="confirm-button" type="button" hidden>이 배차 확인하기</button>
       <div id="confirmResult" class="result" aria-live="polite"></div>
+    </section>
+
+    <section id="boardPanel" class="board-panel" hidden>
+      <h2>배차판 사진 판독</h2>
+      <p class="hint">배차 상황판 사진에서 내 순차와 차량번호 뒤 3자리를 판독합니다. 판독 결과를 확인해야만 배차DB에 등록됩니다.</p>
+      <label for="boardDate">배차 날짜</label>
+      <input id="boardDate" type="date">
+      <label for="boardImage">배차 상황판 사진</label>
+      <input id="boardImage" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
+      <img id="boardPreview" class="board-preview" alt="선택한 배차 상황판 미리보기" hidden>
+      <label class="board-consent"><input id="boardImageConsent" type="checkbox"><span>사진이 자동 판독을 위해 Google Gemini API로 전송되며, BUS70 서버에는 사진 파일을 저장하지 않는 것에 동의합니다.</span></label>
+      <button id="analyzeBoardButton" type="button">사진 자동 판독</button>
+      <div id="boardStatus" class="result" aria-live="polite"></div>
+
+      <div id="boardReview" class="board-review" hidden>
+        <div class="board-grid">
+          <div class="wide"><label>기사</label><div id="boardDriver" class="board-value"></div></div>
+          <div><label>근무조</label><div id="boardShift" class="board-value"></div></div>
+          <div><label>판독 신뢰도</label><div id="boardConfidence" class="board-value"></div></div>
+          <div><label for="boardSequence">순차</label><select id="boardSequence"></select></div>
+          <div><label for="boardVehicleLast3">차량번호 뒤 3자리</label><input id="boardVehicleLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}"></div>
+        </div>
+        <div id="boardWarnings" class="result"></div>
+        <button id="registerBoardButton" class="register-button" type="button">확인한 배차 등록</button>
+      </div>
     </section>
   </main>
 
@@ -503,6 +544,8 @@
   const LEGACY_REMEMBER_KEY = "BUS70_TEST_REMEMBER_V2";
   let authToken = "";
   let scheduleRequestId = 0;
+  let boardCandidateId = "";
+  let boardImagePayload = null;
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -526,9 +569,11 @@
     document.getElementById("sessionBar").hidden = false;
     document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
     document.getElementById("schedulePanel").hidden = false;
+    document.getElementById("boardPanel").hidden = false;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
+    document.getElementById("boardDate").value = todayLocal();
     if (automatic) loadMySchedule();
   }
 
@@ -593,6 +638,7 @@
     document.getElementById("driverCard").classList.remove("show");
     document.getElementById("sessionBar").hidden = true;
     document.getElementById("schedulePanel").hidden = true;
+    document.getElementById("boardPanel").hidden = true;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     if (text) showMessage(text, "error"); else clearMessage();
@@ -876,6 +922,138 @@
     resetConfirmation();
     document.getElementById("scheduleResult").replaceChildren();
   });
+
+  function resetBoardReview(keepStatus = false) {
+    boardCandidateId = "";
+    document.getElementById("boardReview").hidden = true;
+    if (!keepStatus) document.getElementById("boardStatus").replaceChildren();
+  }
+
+  function resizeBoardImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("사진을 읽을 수 없습니다."));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("지원하지 않는 사진입니다."));
+        img.onload = () => {
+          const maxSide = 1800;
+          const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.84);
+          resolve({mimeType:"image/jpeg", imageBase64:dataUrl.split(",")[1], preview:dataUrl});
+        };
+        img.src = String(reader.result || "");
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleBoardImage() {
+    const file = document.getElementById("boardImage").files[0];
+    boardImagePayload = null;
+    resetBoardReview();
+    const preview = document.getElementById("boardPreview");
+    preview.hidden = true;
+    if (!file) return;
+    const status = document.getElementById("boardStatus");
+    status.replaceChildren(el("div", "사진을 준비 중...", "notice"));
+    try {
+      boardImagePayload = await resizeBoardImage(file);
+      preview.src = boardImagePayload.preview;
+      preview.hidden = false;
+      status.replaceChildren(el("div", "사진이 준비되었습니다. 자동 판독을 누르세요.", "notice"));
+    } catch (error) {
+      status.replaceChildren(el("div", error.message || "사진을 준비하지 못했습니다.", "notice error"));
+    }
+  }
+
+  async function analyzeBoard() {
+    const status = document.getElementById("boardStatus");
+    const button = document.getElementById("analyzeBoardButton");
+    const date = document.getElementById("boardDate").value;
+    resetBoardReview(true);
+    if (!authToken) { status.replaceChildren(el("div", "보안 로그인이 필요합니다. 다시 로그인하세요.", "notice error")); return; }
+    if (!date || !boardImagePayload) { status.replaceChildren(el("div", "배차 날짜와 사진을 선택하세요.", "notice error")); return; }
+    if (!document.getElementById("boardImageConsent").checked) { status.replaceChildren(el("div", "사진 자동 판독 전송 동의를 확인하세요.", "notice error")); return; }
+    button.disabled = true;
+    button.textContent = "사진 판독 중...";
+    status.replaceChildren(el("div", "기사 이름·순차·차량번호를 확인 중입니다...", "notice"));
+    try {
+      const result = await apiPost({action:"analyzeDispatchBoard", token:authToken, date,
+        imageConsent:true, mimeType:boardImagePayload.mimeType, imageBase64:boardImagePayload.imageBase64});
+      if (!result.ok || !result.candidate) {
+        status.replaceChildren(el("div", result.message || "사진을 판독하지 못했습니다.", "notice error"));
+        if (result.error === "AUTH_REQUIRED") showLoginScreen("로그인이 만료되었습니다. 다시 로그인하세요.");
+        return;
+      }
+      const c = result.candidate;
+      boardCandidateId = result.candidateId;
+      document.getElementById("boardDriver").textContent = c.driverName || "-";
+      document.getElementById("boardShift").textContent = (c.shift || "-") + "조";
+      document.getElementById("boardConfidence").textContent = Math.round(Number(c.confidence || 0) * 100) + "%";
+      document.getElementById("boardSequence").value = String(c.sequence);
+      document.getElementById("boardVehicleLast3").value = c.vehicleLast3 || "";
+      const warnings = Array.isArray(c.warnings) ? c.warnings : [];
+      document.getElementById("boardWarnings").replaceChildren(
+        el("div", warnings.length ? "주의: " + warnings.join(" / ") : "사진 판독값과 원본 사진을 비교해 주세요.", warnings.length ? "notice error" : "notice")
+      );
+      document.getElementById("boardReview").hidden = false;
+      status.replaceChildren(el("div", result.message || "판독 결과를 확인하세요.", "notice"));
+    } catch (error) {
+      console.error("배차판 판독 실패", error);
+      status.replaceChildren(el("div", "자동 판독 서버에 연결하지 못했습니다.", "notice error"));
+    } finally {
+      button.disabled = false;
+      button.textContent = "사진 자동 판독";
+    }
+  }
+
+  async function registerBoardDispatch() {
+    const status = document.getElementById("boardStatus");
+    const button = document.getElementById("registerBoardButton");
+    const date = document.getElementById("boardDate").value;
+    const sequence = Number(document.getElementById("boardSequence").value);
+    const vehicleLast3 = document.getElementById("boardVehicleLast3").value.replace(/\D/g, "").slice(-3);
+    if (!boardCandidateId || !date || !Number.isInteger(sequence) || !/^\d{3}$/.test(vehicleLast3)) {
+      status.replaceChildren(el("div", "날짜·순차·차량번호 뒤 3자리를 확인하세요.", "notice error"));
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "배차 등록 중...";
+    try {
+      const result = await apiPost({action:"registerDispatchBoard", token:authToken, candidateId:boardCandidateId,
+        confirmed:true, date, sequence, vehicleLast3});
+      if (!result.ok) {
+        status.replaceChildren(el("div", result.message || "배차를 등록하지 못했습니다.", "notice error"));
+        return;
+      }
+      resetBoardReview(true);
+      status.replaceChildren(el("div", result.message || "배차가 등록되었습니다.", "notice"));
+      if (result.schedule) {
+        document.getElementById("workDate").value = date;
+        lastSchedule = result.schedule;
+        renderSchedule();
+        document.getElementById("schedulePanel").scrollIntoView({behavior:"smooth", block:"start"});
+      }
+    } catch (error) {
+      console.error("배차 등록 실패", error);
+      status.replaceChildren(el("div", "서버 응답을 확인하지 못했습니다. 중복 등록 여부를 다시 조회하세요.", "notice error"));
+    } finally {
+      button.disabled = false;
+      button.textContent = "확인한 배차 등록";
+    }
+  }
+
+  const sequenceSelect = document.getElementById("boardSequence");
+  for (let seq = 1; seq <= 11; seq++) sequenceSelect.append(new Option(seq + "순차", String(seq)));
+  document.getElementById("boardImage").addEventListener("change", handleBoardImage);
+  document.getElementById("boardDate").addEventListener("change", () => resetBoardReview());
+  document.getElementById("analyzeBoardButton").addEventListener("click", analyzeBoard);
+  document.getElementById("registerBoardButton").addEventListener("click", registerBoardDispatch);
 
   // 설치된 PWA의 정적 화면 파일만 캐시합니다. 배차 API 응답은 캐시하지 않습니다.
   if ("serviceWorker" in navigator && location.protocol === "https:") {
