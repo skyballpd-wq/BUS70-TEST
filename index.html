@@ -287,8 +287,6 @@
     .board-panel .hint { color: #64748b; font-size: 13px; line-height: 1.5; }
     .board-panel input, .board-panel select { width: 100%; min-height: 48px; box-sizing: border-box; }
     .board-panel input[type="file"] { height: auto; padding: 12px 8px; background: #f8fafc; }
-    .board-consent { display: flex; gap: 9px; align-items: flex-start; margin-top: 12px; color: #475569; font-size: 12px; line-height: 1.45; }
-    .board-consent input { width: 20px; min-height: 20px; margin: 0; flex: 0 0 auto; }
     .board-preview { width: 100%; max-height: 280px; object-fit: contain; margin-top: 12px; border-radius: 10px; background: #f1f5f9; }
     .board-preview[hidden] { display: none; }
     .board-review { margin-top: 16px; padding: 14px; border: 1px solid #bbd2c0; border-radius: 10px; background: #f0fdf4; }
@@ -401,24 +399,26 @@
     </section>
 
     <section id="boardPanel" class="board-panel" hidden>
-      <h2>배차판 사진 판독</h2>
-      <p class="hint">배차 상황판 사진에서 내 순차와 차량번호 뒤 3자리를 판독합니다. 판독 결과를 확인해야만 배차DB에 등록됩니다.</p>
+      <h2>배차판 사진 등록</h2>
+      <p class="hint">사진을 화면에서 확대해 확인한 뒤 순차와 차량번호 뒤 3자리를 입력하세요. 사진은 휴대폰 밖으로 전송되거나 저장되지 않습니다.</p>
       <label for="boardDate">배차 날짜</label>
       <input id="boardDate" type="date">
       <label for="boardImage">배차 상황판 사진</label>
       <input id="boardImage" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
       <img id="boardPreview" class="board-preview" alt="선택한 배차 상황판 미리보기" hidden>
-      <label class="board-consent"><input id="boardImageConsent" type="checkbox"><span>사진이 자동 판독을 위해 Google Gemini API로 전송되며, BUS70 서버에는 사진 파일을 저장하지 않는 것에 동의합니다.</span></label>
-      <button id="analyzeBoardButton" type="button">사진 자동 판독</button>
+      <div class="board-grid">
+        <div><label for="boardSequence">순차</label><select id="boardSequence"></select></div>
+        <div><label for="boardVehicleLast3">차량번호 뒤 3자리</label><input id="boardVehicleLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}"></div>
+      </div>
+      <button id="analyzeBoardButton" type="button">입력 내용 검증</button>
       <div id="boardStatus" class="result" aria-live="polite"></div>
 
       <div id="boardReview" class="board-review" hidden>
         <div class="board-grid">
           <div class="wide"><label>기사</label><div id="boardDriver" class="board-value"></div></div>
           <div><label>근무조</label><div id="boardShift" class="board-value"></div></div>
-          <div><label>판독 신뢰도</label><div id="boardConfidence" class="board-value"></div></div>
-          <div><label for="boardSequence">순차</label><select id="boardSequence"></select></div>
-          <div><label for="boardVehicleLast3">차량번호 뒤 3자리</label><input id="boardVehicleLast3" type="text" inputmode="numeric" maxlength="3" pattern="[0-9]{3}"></div>
+          <div><label>시간표</label><div id="boardScheduleType" class="board-value"></div></div>
+          <div class="wide"><label>확인 차량</label><div id="boardVehicleFull" class="board-value"></div></div>
         </div>
         <div id="boardWarnings" class="result"></div>
         <button id="registerBoardButton" class="register-button" type="button">확인한 배차 등록</button>
@@ -445,8 +445,7 @@
 
   const API_URL =
     "https://script.google.com/macros/s/AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP/exec";
-  // OCR API 키와 Apps Script 배포가 준비된 뒤 true로 전환합니다.
-  const BOARD_OCR_ENABLED = false;
+  const BOARD_ENTRY_ENABLED = true;
 
 
   const apiDot =
@@ -547,7 +546,7 @@
   let authToken = "";
   let scheduleRequestId = 0;
   let boardCandidateId = "";
-  let boardImagePayload = null;
+  let boardImageUrl = "";
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -571,7 +570,7 @@
     document.getElementById("sessionBar").hidden = false;
     document.getElementById("sessionGreeting").textContent = (driver.name || "기사") + " 기사님";
     document.getElementById("schedulePanel").hidden = false;
-    document.getElementById("boardPanel").hidden = !BOARD_OCR_ENABLED;
+    document.getElementById("boardPanel").hidden = !BOARD_ENTRY_ENABLED;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
@@ -931,64 +930,39 @@
     if (!keepStatus) document.getElementById("boardStatus").replaceChildren();
   }
 
-  function resizeBoardImage(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("사진을 읽을 수 없습니다."));
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = () => reject(new Error("지원하지 않는 사진입니다."));
-        img.onload = () => {
-          const maxSide = 1800;
-          const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.84);
-          resolve({mimeType:"image/jpeg", imageBase64:dataUrl.split(",")[1], preview:dataUrl});
-        };
-        img.src = String(reader.result || "");
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function handleBoardImage() {
+  function handleBoardImage() {
     const file = document.getElementById("boardImage").files[0];
-    boardImagePayload = null;
     resetBoardReview();
     const preview = document.getElementById("boardPreview");
+    if (boardImageUrl) URL.revokeObjectURL(boardImageUrl);
+    boardImageUrl = "";
     preview.hidden = true;
     if (!file) return;
     const status = document.getElementById("boardStatus");
-    status.replaceChildren(el("div", "사진을 준비 중...", "notice"));
-    try {
-      boardImagePayload = await resizeBoardImage(file);
-      preview.src = boardImagePayload.preview;
-      preview.hidden = false;
-      status.replaceChildren(el("div", "사진이 준비되었습니다. 자동 판독을 누르세요.", "notice"));
-    } catch (error) {
-      status.replaceChildren(el("div", error.message || "사진을 준비하지 못했습니다.", "notice error"));
-    }
+    boardImageUrl = URL.createObjectURL(file);
+    preview.src = boardImageUrl;
+    preview.hidden = false;
+    status.replaceChildren(el("div", "사진을 확대해 순차와 차량번호 뒤 3자리를 입력하세요. 사진은 서버로 전송되지 않습니다.", "notice"));
   }
 
   async function analyzeBoard() {
     const status = document.getElementById("boardStatus");
     const button = document.getElementById("analyzeBoardButton");
     const date = document.getElementById("boardDate").value;
+    const sequence = Number(document.getElementById("boardSequence").value);
+    const vehicleLast3 = document.getElementById("boardVehicleLast3").value.replace(/\D/g, "").slice(-3);
     resetBoardReview(true);
     if (!authToken) { status.replaceChildren(el("div", "보안 로그인이 필요합니다. 다시 로그인하세요.", "notice error")); return; }
-    if (!date || !boardImagePayload) { status.replaceChildren(el("div", "배차 날짜와 사진을 선택하세요.", "notice error")); return; }
-    if (!document.getElementById("boardImageConsent").checked) { status.replaceChildren(el("div", "사진 자동 판독 전송 동의를 확인하세요.", "notice error")); return; }
+    if (!date || !boardImageUrl || !Number.isInteger(sequence) || !/^\d{3}$/.test(vehicleLast3)) {
+      status.replaceChildren(el("div", "배차 사진·날짜·순차·차량번호 뒤 3자리를 확인하세요.", "notice error")); return;
+    }
     button.disabled = true;
-    button.textContent = "사진 판독 중...";
-    status.replaceChildren(el("div", "기사 이름·순차·차량번호를 확인 중입니다...", "notice"));
+    button.textContent = "차량·배차 검증 중...";
+    status.replaceChildren(el("div", "차량DB·시간표·중복 배차를 확인 중입니다...", "notice"));
     try {
-      const result = await apiPost({action:"analyzeDispatchBoard", token:authToken, date,
-        imageConsent:true, mimeType:boardImagePayload.mimeType, imageBase64:boardImagePayload.imageBase64});
+      const result = await apiPost({action:"validateDispatchBoard", token:authToken, date, sequence, vehicleLast3});
       if (!result.ok || !result.candidate) {
-        status.replaceChildren(el("div", result.message || "사진을 판독하지 못했습니다.", "notice error"));
+        status.replaceChildren(el("div", result.message || "입력 내용을 검증하지 못했습니다.", "notice error"));
         if (result.error === "AUTH_REQUIRED") showLoginScreen("로그인이 만료되었습니다. 다시 로그인하세요.");
         return;
       }
@@ -996,21 +970,19 @@
       boardCandidateId = result.candidateId;
       document.getElementById("boardDriver").textContent = c.driverName || "-";
       document.getElementById("boardShift").textContent = (c.shift || "-") + "조";
-      document.getElementById("boardConfidence").textContent = Math.round(Number(c.confidence || 0) * 100) + "%";
-      document.getElementById("boardSequence").value = String(c.sequence);
-      document.getElementById("boardVehicleLast3").value = c.vehicleLast3 || "";
-      const warnings = Array.isArray(c.warnings) ? c.warnings : [];
+      document.getElementById("boardScheduleType").textContent = c.scheduleVersion?.startsWith("HD-") ? "토·휴일" : "평일";
+      document.getElementById("boardVehicleFull").textContent = (c.vehicleDisplayNo || c.vehicleNo || "-") + " · " + c.sequence + "순차";
       document.getElementById("boardWarnings").replaceChildren(
-        el("div", warnings.length ? "주의: " + warnings.join(" / ") : "사진 판독값과 원본 사진을 비교해 주세요.", warnings.length ? "notice error" : "notice")
+        el("div", "원본 사진과 위 내용을 마지막으로 비교한 뒤 등록하세요.", "notice")
       );
       document.getElementById("boardReview").hidden = false;
       status.replaceChildren(el("div", result.message || "판독 결과를 확인하세요.", "notice"));
     } catch (error) {
-      console.error("배차판 판독 실패", error);
-      status.replaceChildren(el("div", "자동 판독 서버에 연결하지 못했습니다.", "notice error"));
+      console.error("배차 입력 검증 실패", error);
+      status.replaceChildren(el("div", "배차 검증 서버에 연결하지 못했습니다.", "notice error"));
     } finally {
       button.disabled = false;
-      button.textContent = "사진 자동 판독";
+      button.textContent = "입력 내용 검증";
     }
   }
 
@@ -1018,17 +990,14 @@
     const status = document.getElementById("boardStatus");
     const button = document.getElementById("registerBoardButton");
     const date = document.getElementById("boardDate").value;
-    const sequence = Number(document.getElementById("boardSequence").value);
-    const vehicleLast3 = document.getElementById("boardVehicleLast3").value.replace(/\D/g, "").slice(-3);
-    if (!boardCandidateId || !date || !Number.isInteger(sequence) || !/^\d{3}$/.test(vehicleLast3)) {
-      status.replaceChildren(el("div", "날짜·순차·차량번호 뒤 3자리를 확인하세요.", "notice error"));
+    if (!boardCandidateId || !date) {
+      status.replaceChildren(el("div", "먼저 입력 내용을 검증하세요.", "notice error"));
       return;
     }
     button.disabled = true;
     button.textContent = "배차 등록 중...";
     try {
-      const result = await apiPost({action:"registerDispatchBoard", token:authToken, candidateId:boardCandidateId,
-        confirmed:true, date, sequence, vehicleLast3});
+      const result = await apiPost({action:"registerDispatchBoard", token:authToken, candidateId:boardCandidateId, confirmed:true});
       if (!result.ok) {
         status.replaceChildren(el("div", result.message || "배차를 등록하지 못했습니다.", "notice error"));
         return;
@@ -1054,6 +1023,11 @@
   for (let seq = 1; seq <= 11; seq++) sequenceSelect.append(new Option(seq + "순차", String(seq)));
   document.getElementById("boardImage").addEventListener("change", handleBoardImage);
   document.getElementById("boardDate").addEventListener("change", () => resetBoardReview());
+  document.getElementById("boardSequence").addEventListener("change", () => resetBoardReview());
+  document.getElementById("boardVehicleLast3").addEventListener("input", event => {
+    event.target.value = event.target.value.replace(/\D/g, "").slice(0, 3);
+    resetBoardReview();
+  });
   document.getElementById("analyzeBoardButton").addEventListener("click", analyzeBoard);
   document.getElementById("registerBoardButton").addEventListener("click", registerBoardDispatch);
 
