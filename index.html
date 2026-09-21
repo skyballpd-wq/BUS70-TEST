@@ -5,7 +5,7 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>BUS70 TEST · STEP 9</title>
+  <title>BUS70 TEST · STEP 9-1</title>
   <meta name="theme-color" content="#153d6f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -183,9 +183,7 @@
       color: #166534;
     }
 
-[hidden] {
-  display: none !important;
-}
+    [hidden] { display: none !important; }
 
     .driver-card {
       display: none;
@@ -610,105 +608,46 @@
       openDriverScreen(result.driver, true);
     } catch (error) {
       console.error(error);
-      showLoginScreen("자동 로그인 서버 확인에 실패했습니다. 연결 상태를 확인한 뒤 다시 로그인하세요.");
+      showMessage("자동 로그인 확인 중 통신에 실패했습니다. 인터넷 연결 후 앱을 다시 열어 주세요.", "error");
     }
   }
 
   async function login() {
-
     clearMessage();
-
-    const name =
-      document
-        .getElementById("driverName")
-        .value
-        .trim();
-
-    const empId =
-      document
-        .getElementById("empId")
-        .value
-        .trim();
-
-
-    if (!name) {
-      showMessage(
-        "성명을 입력하세요.",
-        "error"
-      );
+    const name = document.getElementById("driverName").value.trim();
+    const empId = document.getElementById("empId").value.trim();
+    if (!name || !empId) {
+      showMessage("성명과 사원번호를 입력하세요.", "error");
       return;
     }
-
-
-    if (!empId) {
-      showMessage(
-        "사원번호를 입력하세요.",
-        "error"
-      );
-      return;
-    }
-
-
     loginButton.disabled = true;
     loginButton.textContent = "확인 중...";
-
-
     try {
-
-      const data = await apiPost({
-  	action: "loginSecure",
-  	name: name,
-  	empId: empId
-	});
-
-
+      const data = await apiPost({action:"loginSecure", name, empId});
       if (!data.ok) {
-
-        showMessage(
-          data.message ||
-          "로그인 정보를 확인하세요.",
-          "error"
-        );
-
+        showMessage(data.message || "로그인 정보를 확인하세요.", "error");
         return;
       }
-
-
-      if (!data.token || !data.expiresAt || !data.driver) {
-  showMessage("인증 정보가 누락되었습니다. 서버 배포 상태를 확인하세요.", "error");
-  return;
-}
-
-authToken = data.token;
-const driver = data.driver;
-openDriverScreen(driver);
-
-             if (document.getElementById("rememberDevice").checked) {
-         localStorage.setItem(REMEMBER_KEY, JSON.stringify({
-           v:3, token:data.token, expiresAt:data.expiresAt
-         }));
-       } else {
-         localStorage.removeItem(REMEMBER_KEY);
-       }
-       localStorage.removeItem(LEGACY_REMEMBER_KEY);
-loadMySchedule();
-
+      if (!data.driver || !data.token || !data.expiresAt) {
+        showMessage("서버 인증 응답에 필수 정보가 없습니다.", "error");
+        return;
+      }
+      authToken = data.token;
+      if (document.getElementById("rememberDevice").checked) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+      localStorage.removeItem(LEGACY_REMEMBER_KEY);
+      openDriverScreen(data.driver, true);
     } catch (error) {
-
-      console.error(error);
-
-      showMessage(
-        "서버와 통신하지 못했습니다.",
-        "error"
-      );
-
+      console.error("로그인 통신 실패", error);
+      showMessage("로그인 서버 통신에 실패했습니다. 잠시 후 다시 시도하세요.", "error");
     } finally {
-
       loginButton.disabled = false;
       loginButton.textContent = "로그인";
     }
   }
-
 
   loginButton.addEventListener(
     "click",
@@ -800,7 +739,52 @@ loadMySchedule();
       card.append(tripRow("도착", trip.endPlace, trip.endTime));
       root.append(card);
     });
+    if (authToken && d.dispatchId && d.scheduleVersion) {
+      document.getElementById("confirmScheduleButton").hidden = false;
+    }
   }
+
+  async function confirmMySchedule() {
+    const button = document.getElementById("confirmScheduleButton");
+    const root = document.getElementById("confirmResult");
+    const data = lastSchedule;
+    if (!authToken || !currentDriverId || !data || !data.ok || data.type !== "WORK" ||
+        !data.dispatch?.dispatchId || !data.dispatch?.scheduleVersion || button.hidden) return;
+    const date = document.getElementById("workDate").value;
+    const dispatchId = String(data.dispatch.dispatchId);
+    const scheduleVersion = String(data.dispatch.scheduleVersion);
+    const driverId = currentDriverId;
+    const token = authToken;
+    button.disabled = true;
+    button.textContent = "배차 확인 저장 중...";
+    root.replaceChildren(el("div", "확인 결과를 기다리는 중...", "notice"));
+    try {
+      const result = await apiPost({action:"confirmSchedule", token, driverId, date, dispatchId, scheduleVersion});
+      if (token !== authToken || driverId !== currentDriverId || date !== document.getElementById("workDate").value ||
+          lastSchedule !== data) return;
+      if (!result.ok) {
+        root.replaceChildren(el("div", result.message || "배차 확인을 저장하지 못했습니다.", "notice error"));
+        if (result.error === "AUTH_REQUIRED") {
+          showLoginScreen("로그인이 만료되었습니다. 다시 로그인하세요.");
+        } else if (result.error === "DISPATCH_CHANGED") {
+          button.hidden = true;
+        }
+        return;
+      }
+      button.hidden = true;
+      root.replaceChildren(el("div", result.alreadyConfirmed ? "이미 확인한 배차입니다." : "배차 확인이 저장되었습니다.", "notice"));
+    } catch (error) {
+      console.error("배차 확인 통신 실패", error);
+      if (token === authToken && date === document.getElementById("workDate").value) {
+        root.replaceChildren(el("div", "서버 응답을 확인하지 못했습니다. 배차가 저장되었을 수 있으니 다시 확인해 주세요.", "notice error"));
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = "이 배차 확인하기";
+    }
+  }
+
+  document.getElementById("confirmScheduleButton").addEventListener("click", confirmMySchedule);
 
   async function loadMySchedule() {
     if (!currentDriverId) return;
@@ -816,12 +800,12 @@ loadMySchedule();
     try {
       const data = await apiRequest({ action: "mySchedule", driverId: currentDriverId, date });
       // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
-      if (document.getElementById("workDate").value !== date) return;
+      if (requestId !== scheduleRequestId || document.getElementById("workDate").value !== date || !authToken) return;
       lastSchedule = data;
       renderSchedule();
     } catch (error) {
       console.error(error);
-      root.replaceChildren(el("div", "서버 조회에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요.", "notice error"));
+      if (requestId === scheduleRequestId) root.replaceChildren(el("div", "서버 조회에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요.", "notice error"));
     } finally {
       button.disabled = false;
     }
@@ -830,7 +814,9 @@ loadMySchedule();
   document.getElementById("loadSchedule").addEventListener("click", loadMySchedule);
   document.getElementById("timeMode").addEventListener("change", renderSchedule);
   document.getElementById("workDate").addEventListener("change", () => {
+    scheduleRequestId++;
     lastSchedule = null;
+    resetConfirmation();
     document.getElementById("scheduleResult").replaceChildren();
   });
 
