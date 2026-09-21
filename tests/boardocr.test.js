@@ -19,22 +19,12 @@ const dispatch = sheet([
   ['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']
 ]);
 const cache = new Map();
-const scriptProperties = new Map([['BUS70_GEMINI_API_KEY','test-key']]);
-const responseJson = {
-  candidates:[{content:{parts:[{text:JSON.stringify({
-    driverName:'박철완', shift:'B', sequence:6, vehicleLast3:'499', confidence:0.97,
-    warnings:[], evidence:'B조의 6순차 열과 499 차량표 확인'
-  })}]}}]
-};
 const context = {
   console, JSON, Date, Math, Number, String, Object, Array, RegExp,
-  encodeURIComponent,
-  PropertiesService:{getScriptProperties:() => ({getProperty:k => scriptProperties.get(k) || null})},
   CacheService:{getScriptCache:() => ({
     put:(k,v) => cache.set(k,v), get:k => cache.get(k) || null, remove:k => cache.delete(k)
   })},
   Utilities:{getUuid:() => 'candidate-1'},
-  UrlFetchApp:{fetch:() => ({getResponseCode:() => 200, getContentText:() => JSON.stringify(responseJson)})},
   SpreadsheetApp:{getActiveSpreadsheet:() => ({getSheetByName:n => n === '차량DB' ? vehicles : n === '배차DB' ? dispatch : null})},
   LockService:{getScriptLock:() => ({waitLock(){},releaseLock(){}})},
   normalizeDate_:v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '',
@@ -43,15 +33,15 @@ const context = {
   apiMySchedule_:({parameter}) => ({ok:true,type:'WORK',date:parameter.date})
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('apps-script/BoardOcr.gs','utf8'), context);
+vm.runInContext(fs.readFileSync('apps-script/BoardEntry.gs','utf8'), context);
 
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-20'), 'HD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-22'), 'WD-TEST-V001');
 assert.equal(context.bus70FindVehicleByLast3_('499').vehicleId, 'VEH-1499');
 assert.equal(context.bus70FindVehicleByLast3_('999').error, 'VEHICLE_NOT_FOUND');
 
-const analyzed = context.bus70AnalyzeDispatchBoard_({
-  action:'analyzeDispatchBoard', imageConsent:true, date:'2026-09-20', mimeType:'image/jpeg', imageBase64:'AAAA'
+const analyzed = context.bus70ValidateDispatchBoard_({
+  action:'validateDispatchBoard', date:'2026-09-20', sequence:6, vehicleLast3:'499'
 }, 'DRV-B-TEST-002');
 assert.equal(analyzed.ok, true);
 assert.equal(analyzed.candidate.sequence, 6);
@@ -62,7 +52,7 @@ const rejected = context.bus70RegisterDispatchBoard_({candidateId:'candidate-1',
 assert.equal(rejected.error, 'CONFIRM_REQUIRED');
 
 const registered = context.bus70RegisterDispatchBoard_({
-  candidateId:'candidate-1', confirmed:true, date:'2026-09-20', sequence:6, vehicleLast3:'499'
+  candidateId:'candidate-1', confirmed:true
 }, 'DRV-B-TEST-002');
 assert.equal(registered.ok, true);
 assert.equal(dispatch.rows.length, 2);
@@ -70,4 +60,4 @@ assert.equal(dispatch.rows[1][0], 'DSP-20260920-B-06');
 assert.equal(dispatch.rows[1][5], 'VEH-1499');
 assert.equal(dispatch.rows[1][6], 'HD-TEST-V001');
 
-console.log('BoardOcr tests passed');
+console.log('BoardEntry tests passed');
