@@ -183,6 +183,10 @@
       color: #166534;
     }
 
+[hidden] {
+  display: none !important;
+}
+
     .driver-card {
       display: none;
 
@@ -651,12 +655,11 @@
 
     try {
 
-      const data =
-        await apiRequest({
-          action: "login",
-          name: name,
-          empId: empId
-        });
+      const data = await apiPost({
+  	action: "loginSecure",
+  	name: name,
+  	empId: empId
+	});
 
 
       if (!data.ok) {
@@ -671,8 +674,15 @@
       }
 
 
-      const driver = data.driver;
-      openDriverScreen(driver);
+      if (!data.token || !data.expiresAt || !data.driver) {
+  showMessage("인증 정보가 누락되었습니다. 서버 배포 상태를 확인하세요.", "error");
+  return;
+}
+
+authToken = data.token;
+const driver = data.driver;
+openDriverScreen(driver);
+
              if (document.getElementById("rememberDevice").checked) {
          localStorage.setItem(REMEMBER_KEY, JSON.stringify({
            v:3, token:data.token, expiresAt:data.expiresAt
