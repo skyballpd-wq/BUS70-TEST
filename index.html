@@ -5,7 +5,7 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <title>BUS70 TEST · STEP 9-1</title>
+  <title>BUS70 TEST · STEP 9 복구</title>
   <meta name="theme-color" content="#153d6f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -560,6 +560,30 @@
     authToken = "";
   }
 
+  function saveLegacyDriver(driver) {
+    localStorage.setItem(LEGACY_REMEMBER_KEY, JSON.stringify({
+      v: 2,
+      driverId: driver.driverId,
+      name: driver.name,
+      empId: driver.empId,
+      shift: driver.shift,
+      driverType: driver.driverType,
+      route: driver.route,
+      status: driver.status,
+      test: driver.test
+    }));
+  }
+
+  function readLegacyDriver() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LEGACY_REMEMBER_KEY) || "null");
+      return saved && saved.v === 2 && saved.driverId && saved.name ? saved : null;
+    } catch (_) {
+      localStorage.removeItem(LEGACY_REMEMBER_KEY);
+      return null;
+    }
+  }
+
   function showLoginScreen(text) {
     scheduleRequestId++;
     clearLocalAuth();
@@ -587,29 +611,34 @@
   document.getElementById("logoutButton").addEventListener("click", logout);
 
   async function restoreRememberedDriver() {
-    // 기존 V2 저장정보는 인증 토큰이 아니므로 자동 로그인에 사용하지 않습니다.
-    localStorage.removeItem(LEGACY_REMEMBER_KEY);
     localStorage.removeItem("BUS70_TEST_DRIVER");
     let saved;
-    try { saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null"); }
-    catch (_) { clearLocalAuth(); return; }
-    if (!saved || saved.v !== 3 || !saved.token) return;
-    if (!Number.isFinite(Date.parse(saved.expiresAt)) || Date.parse(saved.expiresAt) <= Date.now()) {
-      showLoginScreen("로그인 기간이 만료되었습니다. 다시 로그인하세요.");
-      return;
+    try { saved = JSON.parse(localStorage.getItem(REMEMBER_KEY) || "null"); } catch (_) {
+      localStorage.removeItem(REMEMBER_KEY);
     }
-    try {
-      const result = await apiPost({action:"session", token:saved.token});
-      if (!result.ok || !result.driver) {
-        showLoginScreen(result.message || "로그인이 만료되었습니다. 다시 로그인하세요.");
-        return;
+    if (saved && saved.v === 3 && saved.token && Number.isFinite(Date.parse(saved.expiresAt)) &&
+        Date.parse(saved.expiresAt) > Date.now()) {
+      try {
+        const result = await apiPost({action:"session", token:saved.token});
+        if (result.ok && result.driver) {
+          authToken = saved.token;
+          saveLegacyDriver(result.driver);
+          openDriverScreen(result.driver, true);
+          return;
+        }
+        if (result.error === "AUTH_REQUIRED" || result.error === "DRIVER_UNAVAILABLE") {
+          localStorage.removeItem(REMEMBER_KEY);
+          localStorage.removeItem(LEGACY_REMEMBER_KEY);
+          showMessage(result.message || "로그인이 만료되었습니다. 다시 로그인하세요.", "error");
+          return;
+        }
+      } catch (error) {
+        console.warn("보안 세션 확인 실패. STEP 8 호환 자동 진입을 시도합니다.", error);
       }
-      authToken = saved.token;
-      openDriverScreen(result.driver, true);
-    } catch (error) {
-      console.error(error);
-      showMessage("자동 로그인 확인 중 통신에 실패했습니다. 인터넷 연결 후 앱을 다시 열어 주세요.", "error");
     }
+    localStorage.removeItem(REMEMBER_KEY);
+    const legacy = readLegacyDriver();
+    if (legacy) openDriverScreen(legacy, true);
   }
 
   async function login() {
@@ -623,22 +652,30 @@
     loginButton.disabled = true;
     loginButton.textContent = "확인 중...";
     try {
-      const data = await apiPost({action:"loginSecure", name, empId});
-      if (!data.ok) {
+      let data = null;
+      try {
+        const secure = await apiPost({action:"loginSecure", name, empId});
+        if (secure.ok || !["UNKNOWN_ACTION", "SERVER_ERROR"].includes(secure.error)) data = secure;
+      } catch (error) {
+        console.warn("보안 로그인 API 미사용. 기존 로그인 API로 복구합니다.", error);
+      }
+      if (!data) data = await apiRequest({action:"login", name, empId});
+      if (!data.ok || !data.driver) {
         showMessage(data.message || "로그인 정보를 확인하세요.", "error");
         return;
       }
-      if (!data.driver || !data.token || !data.expiresAt) {
-        showMessage("서버 인증 응답에 필수 정보가 없습니다.", "error");
-        return;
-      }
-      authToken = data.token;
+      authToken = data.token || "";
       if (document.getElementById("rememberDevice").checked) {
-        localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
+        saveLegacyDriver(data.driver);
+        if (data.token && data.expiresAt) {
+          localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
+        } else {
+          localStorage.removeItem(REMEMBER_KEY);
+        }
       } else {
         localStorage.removeItem(REMEMBER_KEY);
+        localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
-      localStorage.removeItem(LEGACY_REMEMBER_KEY);
       openDriverScreen(data.driver, true);
     } catch (error) {
       console.error("로그인 통신 실패", error);
@@ -800,7 +837,7 @@
     try {
       const data = await apiRequest({ action: "mySchedule", driverId: currentDriverId, date });
       // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
-      if (requestId !== scheduleRequestId || document.getElementById("workDate").value !== date || !authToken) return;
+      if (requestId !== scheduleRequestId || document.getElementById("workDate").value !== date) return;
       lastSchedule = data;
       renderSchedule();
     } catch (error) {
