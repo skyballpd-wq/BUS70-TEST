@@ -49,8 +49,9 @@ function bus70AuthAction_(body) {
     const result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
     const session = bus70IssueSession_(result.driver.driverId);
+    const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(result.driver.driverId) : '';
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
-      manager:typeof bus70IsManager_ === 'function' && bus70IsManager_(result.driver.driverId)};
+      manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date) {
       response.schedule = apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}});
     }
@@ -63,8 +64,9 @@ function bus70AuthAction_(body) {
     if (!result.ok) {
       return {ok:false, error:'DRIVER_UNAVAILABLE', message:'기사정보를 확인할 수 없습니다.'};
     }
+    const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(driverId) : '';
     const response = {ok:true, driver:result.driver,
-      manager:typeof bus70IsManager_ === 'function' && bus70IsManager_(driverId)};
+      manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date) {
       response.schedule = apiMySchedule_({parameter:{driverId:driverId, date:body.date}});
     }
