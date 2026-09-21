@@ -176,19 +176,23 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
   const date = normalizeDate_(body.date);
   const shift = String(body.shift || '').trim().toUpperCase();
   const input = Array.isArray(body.assignments) ? body.assignments : [];
-  if (!date || (shift !== 'A' && shift !== 'B') || input.length !== 11) {
-    return {ok:false, error:'PARAM_REQUIRED', message:'날짜·근무조와 11개 순차를 모두 확인하세요.'};
+  if (!date || (shift !== 'A' && shift !== 'B')) {
+    return {ok:false, error:'PARAM_REQUIRED', message:'날짜와 근무조를 확인하세요.'};
   }
   const bootstrap = bus70ManagerBootstrap_(date);
   if (!bootstrap.ok) return bootstrap;
+  const expectedSequences = Object.keys(bootstrap.departures).map(Number).filter(Number.isInteger).sort(function (a,b) { return a-b; });
+  if (!expectedSequences.length || input.length !== expectedSequences.length) {
+    return {ok:false, error:'SEQUENCE_COUNT_MISMATCH', message:'선택한 날짜의 운행 순차 ' + expectedSequences.length + '개를 모두 확인하세요.'};
+  }
   const driverMap = {}; bootstrap.drivers.forEach(function (v) { driverMap[v.id] = v; });
   const vehicleMap = {}; bootstrap.vehicles.forEach(function (v) { vehicleMap[v.id] = v; });
   const seenDrivers = {}, seenVehicles = {}, normalized = [];
   for (let i = 0; i < input.length; i++) {
     const seq = Number(input[i].sequence), driverId = String(input[i].driverId || '').trim();
     const vehicleId = String(input[i].vehicleId || '').trim();
-    if (seq !== i + 1 || !driverMap[driverId] || driverMap[driverId].shift !== shift || !vehicleMap[vehicleId]) {
-      return {ok:false, error:'ROW_INVALID', message:(i + 1) + '순차의 기사 또는 차량을 확인하세요.'};
+    if (seq !== expectedSequences[i] || !driverMap[driverId] || driverMap[driverId].shift !== shift || !vehicleMap[vehicleId]) {
+      return {ok:false, error:'ROW_INVALID', message:expectedSequences[i] + '순차의 기사 또는 차량을 확인하세요.'};
     }
     if (seenDrivers[driverId] || seenVehicles[vehicleId]) {
       return {ok:false, error:'DUPLICATE_ASSIGNMENT', message:'같은 기사 또는 차량을 두 순차에 배정할 수 없습니다.'};
@@ -214,6 +218,6 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
       else sheet.appendRow(values);
     });
     writeAudit_(managerId, '소장', '배차DB', date + '-' + shift, '일괄저장', bootstrap.assignments, normalized, '소장 배차 편집');
-    return {ok:true, message:'11개 순차 배차를 저장했습니다.', data:bus70ManagerBootstrap_(date)};
+    return {ok:true, message:expectedSequences.length + '개 순차 배차를 저장했습니다.', data:bus70ManagerBootstrap_(date)};
   } finally { lock.releaseLock(); }
 }
