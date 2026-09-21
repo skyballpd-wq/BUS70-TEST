@@ -45,6 +45,7 @@ function bus70AuthAction_(body) {
   body = body || {};
   const action = String(body.action || '').trim();
   if (action === 'loginSecure') {
+    if (typeof bus70EnsureInitialAccounts_ === 'function') bus70EnsureInitialAccounts_();
     const result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
     const session = bus70IssueSession_(result.driver.driverId);
@@ -83,6 +84,9 @@ function bus70AuthAction_(body) {
     return bus70BoardAction_(body, driverId);
   }
   if (action === 'managerDispatchBootstrap' || action === 'saveManagerDispatchDay') {
+    return bus70ManagerAction_(body, driverId);
+  }
+  if (action === 'managerAccountList' || action === 'managerAccountUpsert') {
     return bus70ManagerAction_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
