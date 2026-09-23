@@ -333,26 +333,26 @@
 
     <section id="loginSection">
 
-      <div class="login-title">기사 로그인</div>
+      <div class="login-title">BUS70 로그인</div>
 
       <div class="login-help">
-        성명과 사원번호를 입력하세요.
+        기사는 성명·사원번호, 운영계정은 계정명·비밀번호를 입력하세요.
       </div>
 
-      <label for="driverName">성명</label>
+      <label for="driverName">성명 또는 계정명</label>
       <input
         id="driverName"
         type="text"
         autocomplete="name"
-        placeholder="예: 박철완">
+        placeholder="예: 박철완 / Master / Major / Center">
 
-      <label for="empId">사원번호</label>
+      <label for="empId">사원번호 또는 비밀번호</label>
       <input
         id="empId"
-        type="tel"
+        type="password"
         inputmode="numeric"
-        autocomplete="off"
-        placeholder="예: 626023">
+        autocomplete="current-password"
+        placeholder="기사 사원번호 / 운영계정 비밀번호">
 
       <label class="remember-row" for="rememberDevice"><input id="rememberDevice" type="checkbox" checked> 이 휴대폰에서 다음부터 바로 열기</label>
       <div class="remember-help">개인 휴대폰의 TEST 화면에서만 선택하세요. 공용 휴대폰에서는 선택을 해제하세요.</div>
@@ -458,6 +458,20 @@
       <button id="managerGenerate" class="secondary" type="button" hidden>배차 현황 이미지 생성</button>
       <div id="managerStatus" class="manager-status" aria-live="polite"></div>
       <div id="managerOutput" class="manager-output" hidden><img id="managerResultImage" alt="생성된 날짜별 배차 현황"><button id="managerShare" type="button">카카오톡·단톡방에 공유</button></div>
+    </section>
+
+    <section id="centerPanel" class="manager-panel" hidden>
+      <h2>정비소 화면</h2>
+      <p class="hint">정비 요청과 차량 상태 관리 기능을 연결할 준비가 되었습니다.</p>
+    </section>
+
+    <section id="staffAccountPanel" class="manager-panel" hidden>
+      <h2>운영계정 비밀번호 변경</h2>
+      <label for="staffCurrentPassword">현재 비밀번호</label><input id="staffCurrentPassword" type="password" inputmode="numeric" autocomplete="current-password">
+      <label for="staffNewPassword">새 비밀번호</label><input id="staffNewPassword" type="password" autocomplete="new-password" minlength="5" maxlength="20">
+      <label for="staffNewPasswordConfirm">새 비밀번호 확인</label><input id="staffNewPasswordConfirm" type="password" autocomplete="new-password" minlength="5" maxlength="20">
+      <button id="staffPasswordButton" type="button">비밀번호 변경</button>
+      <div id="staffPasswordStatus" class="manager-status" aria-live="polite"></div>
     </section>
   </main>
 
@@ -607,20 +621,23 @@
     document.getElementById("testBadge").style.display = driver.test === "Y" ? "inline-block" : "none";
     document.getElementById("loginSection").hidden = true;
     currentRole = role || (isManager ? "MANAGER" : "");
-    document.getElementById("driverCard").classList.toggle("show", !isManager);
+    const isStaff = Boolean(currentRole);
+    currentIsManager = currentRole === "MASTER" || currentRole === "MANAGER";
+    document.getElementById("driverCard").classList.toggle("show", !isStaff);
     document.getElementById("sessionBar").hidden = false;
-    const roleLabel = currentRole === "MASTER" ? "마스터님" : currentRole === "MANAGER" ? "소장님" : "기사님";
+    const roleLabel = currentRole === "MASTER" ? "마스터님" : currentRole === "MANAGER" ? "소장님" : currentRole === "CENTER" ? "정비소님" : "기사님";
     document.getElementById("sessionGreeting").textContent = (driver.name || "") + " " + roleLabel;
-    document.getElementById("schedulePanel").hidden = isManager;
-    document.getElementById("boardPanel").hidden = isManager || !BOARD_ENTRY_ENABLED;
-    currentIsManager = Boolean(isManager);
+    document.getElementById("schedulePanel").hidden = isStaff;
+    document.getElementById("boardPanel").hidden = isStaff || !BOARD_ENTRY_ENABLED;
     document.getElementById("managerPanel").hidden = !currentIsManager;
+    document.getElementById("centerPanel").hidden = currentRole !== "CENTER";
+    document.getElementById("staffAccountPanel").hidden = !isStaff;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     document.getElementById("workDate").value = todayLocal();
     document.getElementById("boardDate").value = todayLocal();
     document.getElementById("managerDate").value = todayLocal();
-    if (automatic && !isManager) loadMySchedule();
+    if (automatic && !isStaff) loadMySchedule();
   }
 
   function resetConfirmation() {
@@ -651,7 +668,7 @@
     authToken = "";
   }
 
-  function saveLegacyDriver(driver) {
+  function saveLegacyDriver(driver, role = "") {
     localStorage.setItem(LEGACY_REMEMBER_KEY, JSON.stringify({
       v: 2,
       driverId: driver.driverId,
@@ -661,7 +678,8 @@
       driverType: driver.driverType,
       route: driver.route,
       status: driver.status,
-      test: driver.test
+      test: driver.test,
+      role
     }));
   }
 
@@ -686,6 +704,8 @@
     document.getElementById("schedulePanel").hidden = true;
     document.getElementById("boardPanel").hidden = true;
     document.getElementById("managerPanel").hidden = true;
+    document.getElementById("centerPanel").hidden = true;
+    document.getElementById("staffAccountPanel").hidden = true;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
     if (text) showMessage(text, "error"); else clearMessage();
@@ -714,8 +734,8 @@
       const cachedDriver = readLegacyDriver();
       if (cachedDriver) {
         authToken = saved.token;
-        openDriverScreen(cachedDriver, false);
-        document.getElementById("scheduleResult").replaceChildren(
+        openDriverScreen(cachedDriver, false, cachedDriver.role === "MASTER" || cachedDriver.role === "MANAGER", cachedDriver.role || "");
+        if (!cachedDriver.role) document.getElementById("scheduleResult").replaceChildren(
           el("div", "로그인과 오늘 운행정보를 확인 중...", "notice")
         );
       }
@@ -723,12 +743,12 @@
         const result = await apiPost({action:"session", token:saved.token, date:todayLocal()});
         if (result.ok && result.driver) {
           authToken = saved.token;
-          saveLegacyDriver(result.driver);
+          saveLegacyDriver(result.driver, result.role || "");
           openDriverScreen(result.driver, false, result.manager, result.role);
-          if (!result.manager && result.schedule) {
+          if (!result.role && result.schedule) {
             lastSchedule = result.schedule;
             renderSchedule();
-          } else if (!result.manager) {
+          } else if (!result.role) {
             loadMySchedule();
           }
           return;
@@ -745,7 +765,7 @@
     }
     localStorage.removeItem(REMEMBER_KEY);
     const legacy = readLegacyDriver();
-      if (legacy) openDriverScreen(legacy, true, false);
+      if (legacy && !legacy.role) openDriverScreen(legacy, true, false);
   }
 
   async function login() {
@@ -753,7 +773,7 @@
     const name = document.getElementById("driverName").value.trim();
     const empId = document.getElementById("empId").value.trim();
     if (!name || !empId) {
-      showMessage("성명과 사원번호를 입력하세요.", "error");
+      showMessage("성명·사원번호 또는 계정명·비밀번호를 입력하세요.", "error");
       return;
     }
     loginButton.disabled = true;
@@ -773,7 +793,7 @@
       }
       authToken = data.token || "";
       if (document.getElementById("rememberDevice").checked) {
-        saveLegacyDriver(data.driver);
+        saveLegacyDriver(data.driver, data.role || "");
         if (data.token && data.expiresAt) {
           localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
         } else {
@@ -784,10 +804,10 @@
         localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
       openDriverScreen(data.driver, false, data.manager, data.role);
-      if (!data.manager && data.schedule) {
+      if (!data.role && data.schedule) {
         lastSchedule = data.schedule;
         renderSchedule();
-      } else if (!data.manager) {
+      } else if (!data.role) {
         loadMySchedule();
       }
     } catch (error) {
@@ -815,6 +835,48 @@
         }
       }
     );
+
+  async function changeStaffPassword() {
+    const currentPassword = document.getElementById("staffCurrentPassword").value;
+    const newPassword = document.getElementById("staffNewPassword").value;
+    const confirmation = document.getElementById("staffNewPasswordConfirm").value;
+    const button = document.getElementById("staffPasswordButton");
+    const status = document.getElementById("staffPasswordStatus");
+    status.replaceChildren();
+    if (!authToken || !currentRole) {
+      status.replaceChildren(el("div", "운영계정으로 다시 로그인하세요.", "error"));
+      return;
+    }
+    if (newPassword.length < 5 || newPassword.length > 20) {
+      status.replaceChildren(el("div", "새 비밀번호는 5~20자로 입력하세요.", "error"));
+      return;
+    }
+    if (newPassword !== confirmation) {
+      status.replaceChildren(el("div", "새 비밀번호 확인이 일치하지 않습니다.", "error"));
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "변경 중...";
+    try {
+      const result = await apiPost({action:"changeStaffPassword", token:authToken, currentPassword, newPassword});
+      status.replaceChildren(el("div", result.message || (result.ok ? "비밀번호를 변경했습니다." : "비밀번호를 변경하지 못했습니다."), result.ok ? "ok" : "error"));
+      if (result.ok) {
+        document.getElementById("staffCurrentPassword").value = "";
+        document.getElementById("staffNewPassword").value = "";
+        document.getElementById("staffNewPasswordConfirm").value = "";
+      } else if (result.error === "AUTH_REQUIRED") {
+        showLoginScreen("로그인이 만료되었습니다. 다시 로그인하세요.");
+      }
+    } catch (error) {
+      console.error("운영계정 비밀번호 변경 실패", error);
+      status.replaceChildren(el("div", "서버 응답을 확인하지 못했습니다. 현재 비밀번호로 다시 확인하세요.", "error"));
+    } finally {
+      button.disabled = false;
+      button.textContent = "비밀번호 변경";
+    }
+  }
+
+  document.getElementById("staffPasswordButton").addEventListener("click", changeStaffPassword);
 
 
 
