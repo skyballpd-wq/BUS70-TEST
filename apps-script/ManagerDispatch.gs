@@ -26,7 +26,9 @@ function bus70IsMaster_(driverId) {
 function bus70RoleFor_(driverId) {
   const id = String(driverId || '').trim();
   if (!id) return '';
-  if (id === 'DRV-B-TEST-002') return 'MASTER';
+  // 박철완 기사는 현장 기사 계정이며 운영계정 권한을 겸하지 않는다.
+  // 이전 시험 데이터에 남은 마스터 행이 있어도 기사 권한으로 고정한다.
+  if (id === 'DRV-B-TEST-002') return '';
   const configured = String(PropertiesService.getScriptProperties().getProperty('BUS70_MANAGER_DRIVER_IDS') || '')
     .split(',').map(function (v) { return v.trim(); }).filter(Boolean);
   if (configured.indexOf(id) !== -1) return 'MANAGER';
@@ -41,6 +43,7 @@ function bus70RoleFor_(driverId) {
     if (enabled === 'N') return '';
     if (role === '마스터') return 'MASTER';
     if (role === '소장' || role === '관리자') return 'MANAGER';
+    if (role === '정비소') return 'CENTER';
     return '';
   }
   return '';
@@ -48,25 +51,93 @@ function bus70RoleFor_(driverId) {
 
 function bus70EnsureInitialAccounts_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('BUS70_INITIAL_ACCOUNTS_SEEDED') === 'Y') return;
+  if (props.getProperty('BUS70_ROLE_ACCOUNTS_V3') === 'Y') return;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const driverSheet = ss.getSheetByName('기사DB');
   const accountSheet = ss.getSheetByName('계정DB');
   if (!driverSheet || !accountSheet) return;
   const driverRows = driverSheet.getDataRange().getDisplayValues();
   const dc = makeHeaderMap_(driverRows[0]);
-  if (!driverRows.slice(1).some(function (r) { return String(r[dc['사원번호']] || '').trim() === '700000'; })) {
-    driverSheet.appendRow(['MGR-MAJOR-001','700000','Major','','관리','임시','','70',999,'재직','','','Y','임시 소장 계정']);
+  function addPrincipal(driverId, loginName, loginCode, driverType, note) {
+    if (driverRows.slice(1).some(function (r) { return String(r[dc['driverId']] || '').trim() === driverId; })) return;
+    driverSheet.appendRow([driverId,loginCode,loginName,'',driverType,'계정','','70',999,'재직','','','Y',note]);
   }
-  const accountRows = accountSheet.getDataRange().getDisplayValues();
+  addPrincipal('ADM-MASTER-001','Master','90000','마스터','마스터 전용 계정');
+  addPrincipal('MGR-MAJOR-001','Major','700000','관리','소장 전용 계정');
+  addPrincipal('CTR-CENTER-001','Center','800000','정비','정비소 전용 계정');
+  let accountRows = accountSheet.getDataRange().getDisplayValues();
+  const headers = accountRows[0], required = ['비밀번호해시','비밀번호변경시간'];
+  required.forEach(function (header) { if (headers.indexOf(header) === -1) { headers.push(header); accountSheet.getRange(1,headers.length).setValue(header); } });
+  accountRows = accountSheet.getDataRange().getDisplayValues();
   const ac = makeHeaderMap_(accountRows[0]);
-  function addAccount(accountId, role, targetDriverId, loginName, loginEmp, note) {
-    if (accountRows.slice(1).some(function (r) { return String(r[ac['driverId']] || '').trim() === targetDriverId; })) return;
-    accountSheet.appendRow([accountId,role,targetDriverId,loginName,loginEmp,'Y','',note]);
+  // STEP 9 시험 때 박철완 기사에 임시 부여했던 마스터 권한을 제거한다.
+  for (let i=1;i<accountRows.length;i++) {
+    if (String(accountRows[i][ac['driverId']]||'').trim() !== 'DRV-B-TEST-002') continue;
+    if (String(accountRows[i][ac['권한']]||'').trim() !== '마스터') continue;
+    accountSheet.getRange(i+1,ac['권한']+1).setValue('기사');
   }
-  addAccount('ACC-MASTER-001','마스터','DRV-B-TEST-002','박철완','626023','BUS70 마스터 의뢰자');
-  addAccount('ACC-MANAGER-001','소장','MGR-MAJOR-001','Major','700000','임시 소장 계정');
-  props.setProperty('BUS70_INITIAL_ACCOUNTS_SEEDED','Y');
+  function upsertAccount(accountId, role, targetDriverId, loginName, initialPassword, note) {
+    let rowNo = 0;
+    for (let i=1;i<accountRows.length;i++) if (String(accountRows[i][ac['driverId']]||'').trim()===targetDriverId) { rowNo=i+1; break; }
+    const hash = bus70PasswordHash_(initialPassword);
+    if (rowNo) {
+      const row = accountRows[rowNo-1].slice();
+      row[ac['권한']]=role; row[ac['로그인이름']]=loginName; row[ac['로그인사번']]=''; row[ac['사용여부']]='Y';
+      if (!String(row[ac['비밀번호해시']]||'')) { row[ac['비밀번호해시']]=hash; row[ac['비밀번호변경시간']]=new Date(); }
+      accountSheet.getRange(rowNo,1,1,accountRows[0].length).setValues([row]);
+    } else {
+      const row = new Array(accountRows[0].length).fill('');
+      row[ac['accountId']]=accountId; row[ac['권한']]=role; row[ac['driverId']]=targetDriverId; row[ac['로그인이름']]=loginName;
+      row[ac['사용여부']]='Y'; row[ac['비밀번호해시']]=hash; row[ac['비밀번호변경시간']]=new Date(); row[ac['비고']]=note;
+      accountSheet.appendRow(row);
+    }
+  }
+  upsertAccount('ACC-MASTER-001','마스터','ADM-MASTER-001','Master','90000','마스터 전용 계정');
+  upsertAccount('ACC-MANAGER-001','소장','MGR-MAJOR-001','Major','700000','소장 전용 계정');
+  upsertAccount('ACC-CENTER-001','정비소','CTR-CENTER-001','Center','800000','정비소 전용 계정');
+  props.setProperty('BUS70_ROLE_ACCOUNTS_V3','Y');
+}
+
+function bus70PasswordHash_(password) {
+  const props = PropertiesService.getScriptProperties();
+  let salt = props.getProperty('BUS70_PASSWORD_SALT');
+  if (!salt) { salt = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('BUS70_PASSWORD_SALT',salt); }
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,salt+'|'+String(password||''))
+    .map(function (b) { return ('0'+(b&255).toString(16)).slice(-2); }).join('');
+}
+
+function bus70StaffLogin_(name, password) {
+  name=String(name||'').trim(); password=String(password||'');
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('계정DB');
+  if(!sheet||sheet.getLastRow()<2) return {ok:false,error:'STAFF_NOT_FOUND'};
+  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
+  for(let i=1;i<rows.length;i++) {
+    if(String(rows[i][c['로그인이름']]||'').trim()!==name) continue;
+    const role=String(rows[i][c['권한']]||'').trim();
+    if(['마스터','소장','관리자','정비소'].indexOf(role)===-1) return {ok:false,error:'STAFF_NOT_FOUND'};
+    if(String(rows[i][c['사용여부']]||'').trim()==='N') return {ok:false,error:'ACCOUNT_DISABLED',message:'사용 중지된 계정입니다.'};
+    if(String(rows[i][c['비밀번호해시']]||'')!==bus70PasswordHash_(password)) return {ok:false,error:'LOGIN_FAILED',message:'계정명 또는 비밀번호가 일치하지 않습니다.'};
+    const result=apiGetDriver_(String(rows[i][c['driverId']]||'').trim());
+    if(!result.ok) return {ok:false,error:'ACCOUNT_PRINCIPAL_MISSING',message:'계정 정보를 확인할 수 없습니다.'};
+    return {ok:true,message:'로그인 성공',driver:result.driver};
+  }
+  return {ok:false,error:'STAFF_NOT_FOUND'};
+}
+
+function bus70ChangeStaffPassword_(body, driverId) {
+  const role=bus70RoleFor_(driverId);
+  if(!role) return {ok:false,error:'STAFF_REQUIRED',message:'운영 계정만 비밀번호를 변경할 수 있습니다.'};
+  const current=String(body.currentPassword||''), next=String(body.newPassword||'');
+  if(next.length<5||next.length>20) return {ok:false,error:'PASSWORD_FORMAT',message:'새 비밀번호는 5~20자로 입력하세요.'};
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('계정DB');
+  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
+  for(let i=1;i<rows.length;i++) if(String(rows[i][c['driverId']]||'').trim()===driverId) {
+    if(String(rows[i][c['비밀번호해시']]||'')!==bus70PasswordHash_(current)) return {ok:false,error:'PASSWORD_MISMATCH',message:'현재 비밀번호가 일치하지 않습니다.'};
+    sheet.getRange(i+1,c['비밀번호해시']+1).setValue(bus70PasswordHash_(next));
+    sheet.getRange(i+1,c['비밀번호변경시간']+1).setValue(new Date());
+    return {ok:true,message:'비밀번호를 변경했습니다. 다음 로그인부터 새 비밀번호를 사용하세요.'};
+  }
+  return {ok:false,error:'ACCOUNT_NOT_FOUND',message:'계정을 찾을 수 없습니다.'};
 }
 
 function bus70ManagerAccountList_(requesterId) {
