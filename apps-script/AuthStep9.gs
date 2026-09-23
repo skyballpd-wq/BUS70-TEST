@@ -46,13 +46,14 @@ function bus70AuthAction_(body) {
   const action = String(body.action || '').trim();
   if (action === 'loginSecure') {
     if (typeof bus70EnsureInitialAccounts_ === 'function') bus70EnsureInitialAccounts_();
-    const result = apiLogin_(body.name, body.empId);
+    let result = typeof bus70StaffLogin_ === 'function' ? bus70StaffLogin_(body.name, body.empId) : {ok:false,error:'STAFF_NOT_FOUND'};
+    if (!result.ok && result.error === 'STAFF_NOT_FOUND') result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
     const session = bus70IssueSession_(result.driver.driverId);
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(result.driver.driverId) : '';
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
-    if (body.date) {
+    if (body.date && !role) {
       response.schedule = apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}});
     }
     return response;
@@ -67,7 +68,7 @@ function bus70AuthAction_(body) {
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(driverId) : '';
     const response = {ok:true, driver:result.driver,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
-    if (body.date) {
+    if (body.date && !role) {
       response.schedule = apiMySchedule_({parameter:{driverId:driverId, date:body.date}});
     }
     return response;
@@ -90,6 +91,9 @@ function bus70AuthAction_(body) {
   }
   if (action === 'managerAccountList' || action === 'managerAccountUpsert') {
     return bus70ManagerAction_(body, driverId);
+  }
+  if (action === 'changeStaffPassword') {
+    return bus70ChangeStaffPassword_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
 }
