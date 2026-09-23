@@ -12,7 +12,7 @@ const dispatch=sheet([['dispatchId','날짜','근무조','순차','기사ID','�
 const schedule=sheet([['버전','순차','탕','발차지','발차시간','회차지','회차시간','상태'],
   ...Array.from({length:11},(_,i)=>['WD-TEST-V001',i+1,1,'고강동차고지','05:'+String(5*i).padStart(2,'0'),'송내역','06:00','사용']),
   ...Array.from({length:8},(_,i)=>['HD-TEST-V001',i+1,1,'고강동차고지','06:'+String(5*i).padStart(2,'0'),'송내역','07:00','사용'])]);
-const accounts=sheet([['권한','driverId','사용여부'],['소장','D1','Y']]);
+const accounts=sheet([['권한','driverId','사용여부'],['소장','D1','Y'],['마스터','ADM-MASTER-001','Y'],['정비소','CTR-CENTER-001','Y'],['마스터','DRV-B-TEST-002','Y']]);
 const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'스케줄':schedule,'계정DB':accounts};
 const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
@@ -20,6 +20,9 @@ const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{g
   bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{}};
 vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
 assert.equal(context.bus70IsManager_('D1'),true); assert.equal(context.bus70IsManager_('D2'),false);
+assert.equal(context.bus70RoleFor_('ADM-MASTER-001'),'MASTER');
+assert.equal(context.bus70RoleFor_('CTR-CENTER-001'),'CENTER');
+assert.equal(context.bus70RoleFor_('DRV-B-TEST-002'),'');
 const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,11); assert.equal(boot.departures[1].time,'05:00');
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
 const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1),vehicleId:'V'+(i+1)}));
