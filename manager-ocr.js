@@ -11,6 +11,35 @@
     return compact(text).indexOf(needle);
   }
 
+  function distance(a, b) {
+    a = compact(a); b = compact(b);
+    const row = Array.from({length:b.length + 1}, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let previous = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const saved = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+        previous = saved;
+      }
+    }
+    return row[b.length];
+  }
+
+  function fuzzyContains(text, value, tolerance) {
+    const haystack = compact(text);
+    const needle = compact(value);
+    if (!needle) return false;
+    if (haystack.includes(needle)) return true;
+    const limit = tolerance == null ? (needle.length >= 3 ? 1 : 0) : tolerance;
+    if (!limit) return false;
+    for (let size = Math.max(1, needle.length - limit); size <= needle.length + limit; size++) {
+      for (let i = 0; i + size <= haystack.length; i++) {
+        if (distance(haystack.slice(i, i + size), needle) <= limit) return true;
+      }
+    }
+    return false;
+  }
+
   function orderedMatches(text, items, valueOf) {
     return items.map(item => ({item, position:occurrence(text, valueOf(item))}))
       .filter(match => match.position >= 0)
@@ -48,5 +77,21 @@
     });
   }
 
-  root.Bus70Ocr = {compact, orderedMatches, containsTime, suggest};
+  function verify(boardText, timeText, assignments, drivers, vehicles, departures) {
+    const driverMap = Object.fromEntries(drivers.map(item => [item.id, item]));
+    const vehicleMap = Object.fromEntries(vehicles.map(item => [item.id, item]));
+    return assignments.map(assignment => {
+      const driver = driverMap[assignment.driverId];
+      const vehicle = vehicleMap[assignment.vehicleId];
+      const departure = departures[assignment.sequence] || {};
+      return {
+        sequence:assignment.sequence,
+        driverMatched:Boolean(driver && fuzzyContains(boardText, driver.name)),
+        vehicleMatched:Boolean(vehicle && fuzzyContains(boardText, vehicle.last3, 0)),
+        timeMatched:containsTime(timeText, departure.time)
+      };
+    });
+  }
+
+  root.Bus70Ocr = {compact, distance, fuzzyContains, orderedMatches, containsTime, suggest, verify};
 })(typeof window === "undefined" ? globalThis : window);
