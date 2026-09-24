@@ -184,6 +184,7 @@ function bus70ManagerBootstrap_(rawDate) {
   if (!driverSheet || !vehicleSheet || !dispatchSheet || !scheduleSheet) {
     return {ok:false, error:'DB_MISSING', message:'배차 편집에 필요한 DB를 찾을 수 없습니다.'};
   }
+  bus70EnsureBoardTestDrivers_(driverSheet);
   const drivers = bus70ManagerMasterRows_(driverSheet, 'driver');
   const vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle');
   const scheduleVersion = bus70ScheduleVersionForDate_(date);
@@ -191,6 +192,32 @@ function bus70ManagerBootstrap_(rawDate) {
   const assignments = bus70ManagerAssignments_(dispatchSheet, date);
   return {ok:true, date:date, scheduleVersion:scheduleVersion, drivers:drivers,
     vehicles:vehicles, departures:departures, assignments:assignments};
+}
+
+function bus70EnsureBoardTestDrivers_(sheet) {
+  const candidates = [
+    ['790001','이재천'], ['790002','양인모'], ['790003','이성준'],
+    ['790004','노성진'], ['790005','김호'], ['790006','권경율'],
+    ['790007','강호익'], ['790008','김춘식'], ['790009','천승준'],
+    ['790010','이응주']
+  ];
+  const rows = sheet.getDataRange().getDisplayValues();
+  if (!rows.length) return;
+  const c = makeHeaderMap_(rows[0]);
+  const knownNames = {};
+  const knownEmpIds = {};
+  for (let i = 1; i < rows.length; i++) {
+    knownNames[String(rows[i][c['성명']] || '').replace(/\s/g, '')] = true;
+    knownEmpIds[String(rows[i][c['사원번호']] || '').trim()] = true;
+  }
+  candidates.forEach(function (candidate, index) {
+    const empId = candidate[0], name = candidate[1];
+    if (knownNames[name.replace(/\s/g, '')] || knownEmpIds[empId]) return;
+    sheet.appendRow([
+      'DRV-B-OCR-' + ('00' + (index + 1)).slice(-3), empId, name, 'B', '노선',
+      '임시', '', '70', 900 + index, '재직', '', '', 'Y', '배차상황판 OCR 테스트용 임시기사'
+    ]);
+  });
 }
 
 function bus70ManagerMasterRows_(sheet, type) {
