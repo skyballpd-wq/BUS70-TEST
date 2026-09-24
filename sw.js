@@ -1,6 +1,6 @@
 // BUS70 TEST: 정적 리소스만 캐시. 기사 개인정보 및 API 결과는 캐시하지 않음.
-const CACHE = "bus70-test-static-v8-role-accounts";
-const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icons/bus70-192.png", "./icons/bus70-512.png", "./icons/bus70-180.png"];
+const CACHE = "bus70-test-static-v9-manager-ocr";
+const ASSETS = ["./", "./index.html", "./manager-ocr.js", "./manifest.webmanifest", "./icons/bus70-192.png", "./icons/bus70-512.png", "./icons/bus70-180.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
