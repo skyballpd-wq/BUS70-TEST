@@ -457,7 +457,11 @@
       <button id="managerOcr" class="secondary" type="button" hidden>사진 OCR 대조</button>
       <button id="managerGenerate" class="secondary" type="button" hidden>배차 현황 이미지 생성</button>
       <div id="managerStatus" class="manager-status" aria-live="polite"></div>
-      <div id="managerOutput" class="manager-output" hidden><img id="managerResultImage" alt="생성된 날짜별 배차 현황"><button id="managerShare" type="button">카카오톡·단톡방에 공유</button></div>
+      <div id="managerOutput" class="manager-output" hidden>
+        <img id="managerResultImage" alt="생성된 날짜별 배차 현황">
+        <button id="managerShare" type="button">휴대폰 공유 · 카카오톡 선택</button>
+        <button id="managerDownload" class="secondary" type="button">이미지 다운로드</button>
+      </div>
     </section>
 
     <section id="centerPanel" class="manager-panel" hidden>
@@ -1266,10 +1270,20 @@
     if (!managerImageBlob) return;
     const file=new File([managerImageBlob],"BUS70-"+document.getElementById("managerDate").value+".png",{type:"image/png"});
     if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
-      try { await navigator.share({files:[file],title:"소신여객 70번 배차 현황"}); return; } catch (error) { if (error.name === "AbortError") return; }
+      try { await navigator.share({files:[file],title:"소신여객 70번 배차 현황",text:"소신여객 70번 배차 현황"}); return; }
+      catch (error) { if (error.name === "AbortError") return; console.error(error); }
     }
-    const link=document.createElement("a"); link.href=URL.createObjectURL(managerImageBlob); link.download=file.name; link.click();
-    managerNotice("이미지를 저장했습니다. 카카오톡 단톡방에 첨부하세요.");
+    managerNotice("이 브라우저는 파일 공유를 지원하지 않습니다. 아래 이미지 다운로드를 누른 뒤 카카오톡 단톡방에 첨부하세요.",true);
+  }
+
+  function downloadManagerImage() {
+    if (!managerImageBlob) return managerNotice("먼저 배차 현황 이미지를 생성하세요.",true);
+    const name="BUS70-"+document.getElementById("managerDate").value+".png";
+    const url=URL.createObjectURL(managerImageBlob), link=document.createElement("a");
+    link.href=url; link.download=name; link.style.display="none";
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+    managerNotice("이미지 다운로드를 요청했습니다. 브라우저의 다운로드 폴더를 확인하세요.");
   }
 
   document.getElementById("managerLoad").addEventListener("click",loadManagerData);
@@ -1277,6 +1291,7 @@
   document.getElementById("managerOcr").addEventListener("click",compareManagerOcr);
   document.getElementById("managerGenerate").addEventListener("click",generateManagerImage);
   document.getElementById("managerShare").addEventListener("click",shareManagerImage);
+  document.getElementById("managerDownload").addEventListener("click",downloadManagerImage);
   document.getElementById("managerShift").addEventListener("change",()=>{if(managerData)renderManagerRows(managerData);});
   document.getElementById("managerDate").addEventListener("change",()=>{managerData=null;document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
