@@ -482,7 +482,8 @@
 </div>
 
 
-<script>
+  <script src="./manager-ocr.js"></script>
+  <script>
   /*
    * STEP 6-1
    *
@@ -1217,19 +1218,22 @@
       const Tesseract = await loadTesseract();
       const boardResult = await Tesseract.recognize(board, "kor+eng");
       const timeResult = await Tesseract.recognize(timetable, "kor+eng");
-      const boardText = String(boardResult.data.text || "").replace(/\s/g, "");
-      const timeText = String(timeResult.data.text || "").replace(/\D/g, "");
-      const drivers = Object.fromEntries(managerData.drivers.map(v => [v.id,v]));
-      const vehicles = Object.fromEntries(managerData.vehicles.map(v => [v.id,v]));
+      const boardText = String(boardResult.data.text || "");
+      const timeText = String(timeResult.data.text || "");
+      const shift = document.getElementById("managerShift").value;
+      const driversForShift = managerData.drivers.filter(v => v.shift === shift);
+      const sequences = [...document.querySelectorAll(".manager-row")].map(row => Number(row.dataset.sequence));
+      const suggestions = window.Bus70Ocr.suggest(boardText,timeText,sequences,driversForShift,managerData.vehicles,managerData.departures);
       const mismatches = [];
-      managerAssignments().forEach(v => {
-        const d=drivers[v.driverId], car=vehicles[v.vehicleId], dep=managerData.departures[v.sequence] || {};
-        if (!d || !boardText.includes(d.name.replace(/\s/g,""))) mismatches.push(v.sequence + "순차 기사명");
-        if (!car || !boardText.includes(car.last3)) mismatches.push(v.sequence + "순차 차량");
-        const digits=String(dep.time || "").replace(/\D/g,"");
-        if (digits && !timeText.includes(digits)) mismatches.push(v.sequence + "순차 출발시간");
+      suggestions.forEach(v => {
+        const row=document.querySelector('.manager-row[data-sequence="'+v.sequence+'"]');
+        if (row && v.driverId) row.querySelector(".manager-driver").value=v.driverId;
+        if (row && v.vehicleId) row.querySelector(".manager-vehicle").value=v.vehicleId;
+        if (!v.driverMatched) mismatches.push(v.sequence + "순차 기사명");
+        if (!v.vehicleMatched) mismatches.push(v.sequence + "순차 차량");
+        if (!v.timeMatched) mismatches.push(v.sequence + "순차 출발시간");
       });
-      managerNotice(mismatches.length ? "OCR 대조 필요: " + mismatches.join(", ") : "OCR에서 저장 배차와 같은 기사·차량·출발시간을 확인했습니다.", Boolean(mismatches.length));
+      managerNotice(mismatches.length ? "OCR 후보를 채웠습니다. 직접 확인 필요: " + mismatches.join(", ") : "OCR 후보를 순차별로 채웠습니다. 원본 사진과 확인한 뒤 저장하세요.", Boolean(mismatches.length));
     } catch (error) { console.error(error); managerNotice("OCR 판독에 실패했습니다. 사진 방향·초점·전체 표 포함 여부를 확인하세요.", true); }
     finally { button.disabled=false; button.textContent="사진 OCR 대조"; }
   }
