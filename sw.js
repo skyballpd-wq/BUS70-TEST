@@ -1,5 +1,5 @@
 // BUS70 TEST: 정적 리소스만 캐시. 기사 개인정보 및 API 결과는 캐시하지 않음.
-const CACHE = "bus70-test-static-v11-ocr-cache-fix";
+const CACHE = "bus70-test-static-v12-vehicle-last3";
 const ASSETS = ["./", "./index.html", "./manager-ocr.js?v=11", "./manifest.webmanifest", "./icons/bus70-192.png", "./icons/bus70-512.png", "./icons/bus70-180.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
