@@ -6,7 +6,8 @@ function bus70ManagerAction_(body, driverId) {
   if (!bus70IsManager_(driverId)) {
     return {ok:false, error:'MANAGER_REQUIRED', message:'소장 권한이 필요합니다.'};
   }
-  const action = String(body.action || '').trim();
+  // 기존 Code.js 최상위 허용 action을 유지하면서 새 관리 작업을 operation으로 전달한다.
+  const action = String(body.operation || body.action || '').trim();
   if (action === 'managerDispatchBootstrap') return bus70ManagerBootstrap_(body.date);
   if (action === 'saveManagerDispatchDay') return bus70SaveManagerDispatchDay_(body, driverId);
   if (action === 'managerAccountList') return bus70ManagerAccountList_(driverId);

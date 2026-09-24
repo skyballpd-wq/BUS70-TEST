@@ -942,7 +942,7 @@
     const button = document.getElementById("masterAdminLoad");
     button.disabled = true;
     try {
-      const result = await apiPost({action:"masterAdminBootstrap", token:authToken});
+      const result = await apiPost({action:"managerAccountList", operation:"masterAdminBootstrap", token:authToken});
       if (!result.ok) return masterStatus(result.message || "운영정보를 불러오지 못했습니다.");
       populateMasterAdmin(result);
       masterStatus("운영계정과 기사정보를 불러왔습니다.", true);
@@ -969,7 +969,7 @@
 
   async function saveMasterStaff() {
     const button = document.getElementById("masterStaffSave");
-    const body = {action:"masterStaffUpsert", token:authToken, driverId:document.getElementById("masterStaffSelect").value,
+    const body = {action:"managerAccountUpsert", operation:"masterStaffUpsert", token:authToken, driverId:document.getElementById("masterStaffSelect").value,
       role:document.getElementById("masterStaffRole").value, loginName:document.getElementById("masterStaffName").value.trim(),
       password:document.getElementById("masterStaffPassword").value, enabled:document.getElementById("masterStaffEnabled").checked};
     if (!body.loginName) return masterStatus("계정명을 입력하세요.");
@@ -981,7 +981,7 @@
 
   async function saveMasterDriver() {
     const button = document.getElementById("masterDriverSave");
-    const body={action:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
+    const body={action:"managerAccountUpsert",operation:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
       empId:document.getElementById("masterDriverEmpId").value,name:document.getElementById("masterDriverName").value.trim(),
       shift:document.getElementById("masterDriverShift").value,driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
     if(!body.driverId) return masterStatus("전환할 기사를 선택하세요.");

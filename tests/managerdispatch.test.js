@@ -31,6 +31,8 @@ const adminBoot=context.bus70MasterAdminBootstrap_('ADM-MASTER-001');
 assert.equal(adminBoot.ok,true); assert.equal(adminBoot.drivers.length,11); assert.equal(adminBoot.accounts.length,2); assert.equal(adminBoot.canManageAccounts,true);
 const managerAdminBoot=context.bus70MasterAdminBootstrap_('D1');
 assert.equal(managerAdminBoot.ok,true); assert.equal(managerAdminBoot.accounts.length,0); assert.equal(managerAdminBoot.canManageAccounts,false);
+const compatibleBoot=context.bus70ManagerAction_({action:'managerAccountList',operation:'masterAdminBootstrap'},'D1');
+assert.equal(compatibleBoot.ok,true); assert.equal(compatibleBoot.canManageAccounts,false);
 const converted=context.bus70MasterDriverUpsert_({driverId:'D2',empId:'626099',name:'실제기사',shift:'B',driverType:'예비',status:'재직'},'D1');
 assert.equal(converted.ok,true); assert.equal(drivers.rows[2][1],'626099'); assert.equal(drivers.rows[2][2],'실제기사');
 assert.equal(drivers.rows[2][5],'정규'); assert.equal(drivers.rows[2][12],'N');
