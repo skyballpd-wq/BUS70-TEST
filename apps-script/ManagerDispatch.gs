@@ -15,6 +15,7 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'masterAdminBootstrap') return bus70MasterAdminBootstrap_(driverId);
   if (action === 'masterStaffUpsert') return bus70MasterStaffUpsert_(body, driverId);
   if (action === 'masterDriverUpsert') return bus70MasterDriverUpsert_(body, driverId);
+  if (action === 'workChangeSave') return bus70WorkChangeSave_(body, driverId);
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 소장 요청입니다.'};
 }
 
@@ -31,7 +32,43 @@ function bus70MasterAdminBootstrap_(requesterId) {
     accounts=ar.slice(1).map(function(r){return {accountId:String(r[ac['accountId']]||''),role:String(r[ac['권한']]||''),driverId:String(r[ac['driverId']]||''),loginName:String(r[ac['로그인이름']]||''),enabled:String(r[ac['사용여부']]||'Y')};})
       .filter(function(v){return v.role==='소장'||v.role==='관리자'||v.role==='정비소';});
   }
-  return {ok:true,drivers:drivers,accounts:accounts,canManageAccounts:bus70IsMaster_(requesterId)};
+  const ws=ss.getSheetByName('근무변경DB'), names={}; drivers.forEach(function(v){names[v.driverId]=v.name;});
+  let workChanges=[];
+  if(ws&&ws.getLastRow()>1){const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]); workChanges=wr.slice(1).map(function(r){return {changeId:String(r[wc['changeId']]||''),date:normalizeDate_(r[wc['날짜']]),driverId:String(r[wc['기사ID']]||''),driverName:names[String(r[wc['기사ID']]||'')]||'',type:String(r[wc['유형']]||''),sequence:Number(r[wc['적용순차']]||0),replacementId:String(r[wc['대체기사ID']]||''),replacementName:names[String(r[wc['대체기사ID']]||'')]||'',reason:String(r[wc['사유']]||'')};}).filter(function(v){return v.changeId;}).slice(-20).reverse();}
+  return {ok:true,drivers:drivers,accounts:accounts,workChanges:workChanges,canManageAccounts:bus70IsMaster_(requesterId)};
+}
+
+function bus70WorkChangeSave_(body, requesterId) {
+  if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
+  const date=normalizeDate_(body.date), driverId=String(body.driverId||'').trim(), type=String(body.type||'').trim();
+  const sequence=Number(body.sequence||0), replacementId=String(body.replacementId||'').trim(), reason=String(body.reason||'').trim();
+  if(!date||!driverId||['휴무','병가','지각','조퇴','결근','퇴직','복귀','기타'].indexOf(type)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'날짜·기사·발생유형을 확인하세요.'};
+  if(replacementId===driverId) return {ok:false,error:'SAME_DRIVER',message:'대체기사는 기존 기사와 달라야 합니다.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), ws=ss.getSheetByName('근무변경DB'), ps=ss.getSheetByName('배차DB'), cs=ss.getSheetByName('배차확인DB');
+  if(!ds||!ws||!ps) return {ok:false,error:'DB_MISSING',message:'근무변경 처리 DB를 찾을 수 없습니다.'};
+  const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]); let driverRow=0, replacementRow=0;
+  for(let i=1;i<dr.length;i++){const id=String(dr[i][dc['driverId']]||''); if(id===driverId)driverRow=i+1; if(id===replacementId)replacementRow=i+1;}
+  if(!driverRow||(replacementId&&!replacementRow)) return {ok:false,error:'DRIVER_NOT_FOUND',message:'기사 정보를 확인하세요.'};
+  if(replacementId&&String(dr[replacementRow-1][dc['상태']]||'')!=='재직') return {ok:false,error:'REPLACEMENT_UNAVAILABLE',message:'재직 중인 기사만 대체 투입할 수 있습니다.'};
+  let dispatchChanged=false, dispatchId='';
+  if(sequence||replacementId){
+    if(!sequence||!replacementId) return {ok:false,error:'REPLACEMENT_INCOMPLETE',message:'대체 투입 시 순차와 대체기사를 모두 선택하세요.'};
+    const pr=ps.getDataRange().getDisplayValues(), pc=makeHeaderMap_(pr[0]); let target=0;
+    for(let j=1;j<pr.length;j++){
+      if(normalizeDate_(pr[j][pc['날짜']])!==date||Number(pr[j][pc['순차']])!==sequence||String(pr[j][pc['상태']]||'')!=='확정') continue;
+      if(String(pr[j][pc['기사ID']]||'')!==driverId) return {ok:false,error:'DISPATCH_DRIVER_MISMATCH',message:'선택 순차의 현재 기사가 다릅니다.'};
+      target=j+1; dispatchId=String(pr[j][pc['dispatchId']]||''); break;
+    }
+    if(!target) return {ok:false,error:'DISPATCH_NOT_FOUND',message:'선택 날짜·순차의 확정 배차를 찾을 수 없습니다.'};
+    for(let j=1;j<pr.length;j++) if(normalizeDate_(pr[j][pc['날짜']])===date&&String(pr[j][pc['기사ID']]||'')===replacementId&&Number(pr[j][pc['순차']])!==sequence&&String(pr[j][pc['상태']]||'')==='확정') return {ok:false,error:'REPLACEMENT_DUPLICATE',message:'대체기사가 같은 날짜 다른 순차에 이미 배정되었습니다.'};
+    ps.getRange(target,pc['기사ID']+1).setValue(replacementId); ps.getRange(target,pc['확정시간']+1).setValue(new Date()); ps.getRange(target,pc['비고']+1).setValue(type+' 대체투입'); dispatchChanged=true;
+    if(cs&&cs.getLastRow()>1){const cr=cs.getDataRange().getDisplayValues(), cc=makeHeaderMap_(cr[0]); for(let k=1;k<cr.length;k++) if(String(cr[k][cc['dispatchId']]||'')===dispatchId) cs.getRange(k+1,cc['재확인필요']+1).setValue('Y');}
+  }
+  if(type==='퇴직'||type==='복귀'){const row=dr[driverRow-1].slice(); row[dc['상태']]=type==='퇴직'?'퇴직':'재직'; if(type==='퇴직')row[dc['종료일']]=date; ds.getRange(driverRow,1,1,row.length).setValues([row]);}
+  const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]), row=new Array(wr[0].length).fill('');
+  row[wc['changeId']]=newId_('WORK'); row[wc['날짜']]=date; row[wc['기사ID']]=driverId; row[wc['유형']]=type; row[wc['적용순차']]=sequence||''; row[wc['대체기사ID']]=replacementId; row[wc['시작시간']]=String(body.startTime||''); row[wc['종료시간']]=String(body.endTime||''); row[wc['사유']]=reason; row[wc['처리자']]=requesterId; row[wc['처리시간']]=new Date(); ws.appendRow(row);
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','근무변경DB',row[wc['changeId']],'추가',{},row,type+' 현장대응');
+  return {ok:true,message:type+' 처리를 저장했습니다.'+(dispatchChanged?' '+sequence+'순차 대체기사 배차도 변경했습니다.':'')};
 }
 
 function bus70MasterStaffUpsert_(body, requesterId) {
@@ -342,6 +379,7 @@ function bus70ManagerConfirmations_(sheet, date) {
   const c = makeHeaderMap_(rows[0]), result = {};
   for (let i = 1; i < rows.length; i++) {
     if (normalizeDate_(rows[i][c['날짜']]) !== date) continue;
+    if (String(rows[i][c['재확인필요']] || '').trim() === 'Y') continue;
     const dispatchId = String(rows[i][c['dispatchId']] || '').trim();
     if (dispatchId) result[dispatchId] = String(rows[i][c['확인시간']] || '').trim();
   }

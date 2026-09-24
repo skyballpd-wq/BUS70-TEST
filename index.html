@@ -502,6 +502,20 @@
         <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
       </div>
       <button id="masterDriverSave" type="button">실제 기사정보로 전환</button>
+      <hr>
+      <h3>근태 발생·예비기사 대체</h3>
+      <div class="manager-tools">
+        <div><label for="workChangeDate">발생 날짜</label><input id="workChangeDate" type="date"></div>
+        <div><label for="workChangeType">유형</label><select id="workChangeType"><option>휴무</option><option>병가</option><option>지각</option><option>조퇴</option><option>결근</option><option>퇴직</option><option>복귀</option><option>기타</option></select></div>
+        <div><label for="workChangeDriver">대상 기사</label><select id="workChangeDriver"><option value="">기사를 선택하세요</option></select></div>
+        <div><label for="workChangeSequence">적용 순차</label><select id="workChangeSequence"><option value="">배차 변경 없음</option></select></div>
+        <div><label for="workChangeReplacement">대체기사</label><select id="workChangeReplacement"><option value="">미정·대체 없음</option></select></div>
+        <div><label for="workChangeStart">시작시간</label><input id="workChangeStart" type="time"></div>
+        <div><label for="workChangeEnd">종료시간</label><input id="workChangeEnd" type="time"></div>
+      </div>
+      <label for="workChangeReason">사유·현장 메모</label><input id="workChangeReason" type="text" maxlength="100">
+      <button id="workChangeSave" type="button">근태·대체 처리 저장</button>
+      <div id="workChangeHistory" class="manager-status"></div>
     </section>
 
     <section id="staffAccountPanel" class="manager-panel" hidden>
@@ -680,6 +694,7 @@
     document.getElementById("workDate").value = todayLocal();
     document.getElementById("boardDate").value = todayLocal();
     document.getElementById("managerDate").value = todayLocal();
+    document.getElementById("workChangeDate").value = todayLocal();
     if (automatic && !isStaff) loadMySchedule();
   }
 
@@ -936,6 +951,12 @@
     drivers.replaceChildren(new Option("기사를 선택하세요", ""));
     data.drivers.slice().sort((a,b) => (b.test === "Y") - (a.test === "Y") || a.name.localeCompare(b.name, "ko"))
       .forEach(d => drivers.add(new Option((d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
+    const affected=document.getElementById("workChangeDriver"), replacement=document.getElementById("workChangeReplacement");
+    affected.replaceChildren(new Option("기사를 선택하세요","")); replacement.replaceChildren(new Option("미정·대체 없음",""));
+    data.drivers.forEach(d=>{affected.add(new Option(d.name+" · "+d.empId,d.driverId)); if(d.status==="재직"&&(d.driverType==="예비"||d.driverType==="양성")) replacement.add(new Option(d.name+" · "+d.empId+" · "+d.driverType,d.driverId));});
+    const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
+    const history=document.getElementById("workChangeHistory"); history.replaceChildren();
+    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":"")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
   }
 
   async function loadMasterAdmin() {
@@ -992,9 +1013,17 @@
     finally { button.disabled=false; }
   }
 
+  async function saveWorkChange(){
+    const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim()};
+    if(!body.driverId)return masterStatus("근태 대상 기사를 선택하세요.");
+    if((body.sequence&&!body.replacementId)||(!body.sequence&&body.replacementId))return masterStatus("배차 변경 시 순차와 대체기사를 함께 선택하세요.");
+    button.disabled=true; try{const result=await apiPost(body); masterStatus(result.message||"저장하지 못했습니다.",result.ok); if(result.ok)await loadMasterAdmin();}catch(error){masterStatus("서버 통신에 실패했습니다.");}finally{button.disabled=false;}
+  }
+
   document.getElementById("masterAdminLoad").addEventListener("click", loadMasterAdmin);
   document.getElementById("masterStaffSave").addEventListener("click", saveMasterStaff);
   document.getElementById("masterDriverSave").addEventListener("click", saveMasterDriver);
+  document.getElementById("workChangeSave").addEventListener("click", saveWorkChange);
 
 
 
