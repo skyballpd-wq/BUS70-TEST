@@ -92,6 +92,9 @@ function bus70AuthAction_(body) {
   if (action === 'managerAccountList' || action === 'managerAccountUpsert') {
     return bus70ManagerAction_(body, driverId);
   }
+  if (action === 'masterAdminBootstrap' || action === 'masterStaffUpsert' || action === 'masterDriverUpsert') {
+    return bus70ManagerAction_(body, driverId);
+  }
   if (action === 'changeStaffPassword') {
     return bus70ChangeStaffPassword_(body, driverId);
   }

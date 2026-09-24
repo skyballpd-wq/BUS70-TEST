@@ -11,7 +11,66 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'saveManagerDispatchDay') return bus70SaveManagerDispatchDay_(body, driverId);
   if (action === 'managerAccountList') return bus70ManagerAccountList_(driverId);
   if (action === 'managerAccountUpsert') return bus70ManagerAccountUpsert_(body, driverId);
+  if (action === 'masterAdminBootstrap') return bus70MasterAdminBootstrap_(driverId);
+  if (action === 'masterStaffUpsert') return bus70MasterStaffUpsert_(body, driverId);
+  if (action === 'masterDriverUpsert') return bus70MasterDriverUpsert_(body, driverId);
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 소장 요청입니다.'};
+}
+
+function bus70MasterAdminBootstrap_(requesterId) {
+  if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
+  if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
+  const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]);
+  const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
+    .filter(function(v){return v.driverId && ['ADM-MASTER-001','MGR-MAJOR-001','CTR-CENTER-001'].indexOf(v.driverId)===-1;});
+  let accounts=[];
+  if(bus70IsMaster_(requesterId)) {
+    const ar=as.getDataRange().getDisplayValues(), ac=makeHeaderMap_(ar[0]);
+    accounts=ar.slice(1).map(function(r){return {accountId:String(r[ac['accountId']]||''),role:String(r[ac['권한']]||''),driverId:String(r[ac['driverId']]||''),loginName:String(r[ac['로그인이름']]||''),enabled:String(r[ac['사용여부']]||'Y')};})
+      .filter(function(v){return v.role==='소장'||v.role==='관리자'||v.role==='정비소';});
+  }
+  return {ok:true,drivers:drivers,accounts:accounts,canManageAccounts:bus70IsMaster_(requesterId)};
+}
+
+function bus70MasterStaffUpsert_(body, requesterId) {
+  if (!bus70IsMaster_(requesterId)) return {ok:false,error:'MASTER_REQUIRED',message:'마스터 권한이 필요합니다.'};
+  const role=String(body.role||''), loginName=String(body.loginName||'').trim(), password=String(body.password||''), enabled=body.enabled===false?'N':'Y';
+  if(['소장','정비소'].indexOf(role)===-1||!loginName) return {ok:false,error:'PARAM_REQUIRED',message:'권한과 계정명을 확인하세요.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
+  if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
+  const driverId=String(body.driverId||((role==='정비소'?'CTR-':'MGR-')+Utilities.getUuid().slice(0,8))).trim();
+  const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]); let driverRow=0;
+  for(let i=1;i<dr.length;i++) if(String(dr[i][dc['driverId']]||'')===driverId){driverRow=i+1;break;}
+  const drow=driverRow?dr[driverRow-1].slice():new Array(dr[0].length).fill('');
+  drow[dc['driverId']]=driverId; drow[dc['사원번호']]=role==='정비소'?'800000':'700000'; drow[dc['성명']]=loginName; drow[dc['기사구분']]=role==='정비소'?'정비':'관리'; drow[dc['현재노선']]='70'; drow[dc['표시순서']]=999; drow[dc['상태']]=enabled==='Y'?'재직':'종료'; drow[dc['TEST']]='Y'; drow[dc['비고']]='마스터 운영계정 관리';
+  if(driverRow) ds.getRange(driverRow,1,1,drow.length).setValues([drow]); else ds.appendRow(drow);
+  const ar=as.getDataRange().getDisplayValues(), ac=makeHeaderMap_(ar[0]); let accountRow=0;
+  for(let j=1;j<ar.length;j++) if(String(ar[j][ac['driverId']]||'')===driverId){accountRow=j+1;break;}
+  if(!accountRow && password.length<5) return {ok:false,error:'PASSWORD_REQUIRED',message:'새 계정 비밀번호를 5자 이상 입력하세요.'};
+  const arow=accountRow?ar[accountRow-1].slice():new Array(ar[0].length).fill('');
+  arow[ac['accountId']]=accountRow?String(ar[accountRow-1][ac['accountId']]||''):newId_('ACC'); arow[ac['권한']]=role; arow[ac['driverId']]=driverId; arow[ac['로그인이름']]=loginName; arow[ac['로그인사번']]=''; arow[ac['사용여부']]=enabled; arow[ac['비고']]='마스터 계정관리';
+  if(password){ if(password.length<5||password.length>20) return {ok:false,error:'PASSWORD_FORMAT',message:'비밀번호는 5~20자로 입력하세요.'}; arow[ac['비밀번호해시']]=bus70PasswordHash_(password); arow[ac['비밀번호변경시간']]=new Date(); }
+  if(accountRow) as.getRange(accountRow,1,1,arow.length).setValues([arow]); else as.appendRow(arow);
+  writeAudit_(requesterId,'마스터','계정DB',arow[ac['accountId']],accountRow?'수정':'추가',{},arow,'운영계정 관리');
+  return {ok:true,message:role+' 계정을 저장했습니다.'};
+}
+
+function bus70MasterDriverUpsert_(body, requesterId) {
+  if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
+  const driverId=String(body.driverId||'').trim(), empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
+  if(!driverId||!/^\d{6}$/.test(empId)||!name||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('기사DB');
+  if(!sheet) return {ok:false,error:'DB_MISSING',message:'기사DB를 찾을 수 없습니다.'};
+  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
+  for(let i=1;i<rows.length;i++) if(String(rows[i][c['driverId']]||'')===driverId){rowNo=i+1;break;}
+  if(!rowNo) return {ok:false,error:'DRIVER_NOT_FOUND',message:'전환할 기사를 찾을 수 없습니다.'};
+  for(let j=1;j<rows.length;j++) if(j+1!==rowNo&&String(rows[j][c['사원번호']]||'')===empId) return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};
+  const before=rows[rowNo-1].slice(), row=before.slice();
+  row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]='70'; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]='마스터 실기사 전환';
+  sheet.getRange(rowNo,1,1,row.length).setValues([row]);
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','기사DB',driverId,'실기사전환',before,row,'임시기사 실제정보 전환');
+  return {ok:true,message:name+' 기사를 실제 기사정보로 전환했습니다.'};
 }
 
 function bus70IsManager_(driverId) {

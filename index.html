@@ -471,6 +471,39 @@
       <p class="hint">정비 요청과 차량 상태 관리 기능을 연결할 준비가 되었습니다.</p>
     </section>
 
+    <section id="masterAdminPanel" class="manager-panel" hidden>
+      <h2>운영정보 관리</h2>
+      <p class="hint">임시기사를 실제 기사정보로 전환합니다. 기사 고유 ID는 유지되어 기존 배차 기록이 보존됩니다.</p>
+      <button id="masterAdminLoad" type="button">운영정보 불러오기</button>
+      <div id="masterAdminStatus" class="manager-status" aria-live="polite"></div>
+
+      <div id="masterAccountTools">
+        <h3>소장·정비소 계정</h3>
+        <label for="masterStaffSelect">관리할 계정</label>
+        <select id="masterStaffSelect"><option value="">새 계정</option></select>
+        <div class="manager-tools">
+          <div><label for="masterStaffRole">권한</label><select id="masterStaffRole"><option value="소장">소장</option><option value="정비소">정비소</option></select></div>
+          <div><label for="masterStaffName">계정명</label><input id="masterStaffName" type="text" maxlength="20" placeholder="Major 또는 Center"></div>
+        </div>
+        <label for="masterStaffPassword">새 비밀번호</label>
+        <input id="masterStaffPassword" type="password" minlength="5" maxlength="20" placeholder="변경하지 않으면 비워 두세요">
+        <label><input id="masterStaffEnabled" type="checkbox" checked> 계정 사용</label>
+        <button id="masterStaffSave" type="button">운영계정 저장</button>
+        <hr>
+      </div>
+      <h3>임시기사 → 실제 기사 전환</h3>
+      <label for="masterDriverSelect">전환할 기사</label>
+      <select id="masterDriverSelect"><option value="">기사를 선택하세요</option></select>
+      <div class="manager-tools">
+        <div><label for="masterDriverEmpId">실제 사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
+        <div><label for="masterDriverName">실제 성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
+        <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option></select></div>
+        <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="예비">예비</option><option value="노선">노선</option></select></div>
+        <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
+      </div>
+      <button id="masterDriverSave" type="button">실제 기사정보로 전환</button>
+    </section>
+
     <section id="staffAccountPanel" class="manager-panel" hidden>
       <h2>운영계정 비밀번호 변경</h2>
       <label for="staffCurrentPassword">현재 비밀번호</label><input id="staffCurrentPassword" type="password" inputmode="numeric" autocomplete="current-password">
@@ -608,6 +641,7 @@
   let currentRole = "";
   let managerData = null;
   let managerImageBlob = null;
+  let masterAdminData = {accounts: [], drivers: []};
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -638,6 +672,8 @@
     document.getElementById("boardPanel").hidden = isStaff || !BOARD_ENTRY_ENABLED;
     document.getElementById("managerPanel").hidden = !currentIsManager;
     document.getElementById("centerPanel").hidden = currentRole !== "CENTER";
+    document.getElementById("masterAdminPanel").hidden = !currentIsManager;
+    document.getElementById("masterAccountTools").hidden = currentRole !== "MASTER";
     document.getElementById("staffAccountPanel").hidden = !isStaff;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
@@ -712,6 +748,7 @@
     document.getElementById("boardPanel").hidden = true;
     document.getElementById("managerPanel").hidden = true;
     document.getElementById("centerPanel").hidden = true;
+    document.getElementById("masterAdminPanel").hidden = true;
     document.getElementById("staffAccountPanel").hidden = true;
     document.getElementById("scheduleResult").replaceChildren();
     resetConfirmation();
@@ -884,6 +921,80 @@
   }
 
   document.getElementById("staffPasswordButton").addEventListener("click", changeStaffPassword);
+
+  function masterStatus(text, ok = false) {
+    document.getElementById("masterAdminStatus").replaceChildren(el("div", text, ok ? "ok" : "error"));
+  }
+
+  function populateMasterAdmin(data) {
+    masterAdminData = data;
+    document.getElementById("masterAccountTools").hidden = !data.canManageAccounts;
+    const staff = document.getElementById("masterStaffSelect");
+    staff.replaceChildren(new Option("새 계정", ""));
+    data.accounts.forEach(a => staff.add(new Option(a.loginName + " · " + a.role + (a.enabled === "N" ? " · 중지" : ""), a.driverId)));
+    const drivers = document.getElementById("masterDriverSelect");
+    drivers.replaceChildren(new Option("기사를 선택하세요", ""));
+    data.drivers.slice().sort((a,b) => (b.test === "Y") - (a.test === "Y") || a.name.localeCompare(b.name, "ko"))
+      .forEach(d => drivers.add(new Option((d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
+  }
+
+  async function loadMasterAdmin() {
+    const button = document.getElementById("masterAdminLoad");
+    button.disabled = true;
+    try {
+      const result = await apiPost({action:"masterAdminBootstrap", token:authToken});
+      if (!result.ok) return masterStatus(result.message || "운영정보를 불러오지 못했습니다.");
+      populateMasterAdmin(result);
+      masterStatus("운영계정과 기사정보를 불러왔습니다.", true);
+    } catch (error) { masterStatus("서버 통신에 실패했습니다."); }
+    finally { button.disabled = false; }
+  }
+
+  document.getElementById("masterStaffSelect").addEventListener("change", event => {
+    const a = masterAdminData.accounts.find(v => v.driverId === event.target.value);
+    document.getElementById("masterStaffRole").value = a ? (a.role === "관리자" ? "소장" : a.role) : "소장";
+    document.getElementById("masterStaffName").value = a ? a.loginName : "";
+    document.getElementById("masterStaffPassword").value = "";
+    document.getElementById("masterStaffEnabled").checked = !a || a.enabled !== "N";
+  });
+
+  document.getElementById("masterDriverSelect").addEventListener("change", event => {
+    const d = masterAdminData.drivers.find(v => v.driverId === event.target.value);
+    document.getElementById("masterDriverEmpId").value = d ? d.empId : "";
+    document.getElementById("masterDriverName").value = d ? d.name : "";
+    document.getElementById("masterDriverShift").value = d && ["A","B"].includes(d.shift) ? d.shift : "A";
+    document.getElementById("masterDriverType").value = d && ["양성","예비","노선"].includes(d.driverType) ? d.driverType : "양성";
+    document.getElementById("masterDriverStatus").value = d && ["재직","휴무","병가","퇴직"].includes(d.status) ? d.status : "재직";
+  });
+
+  async function saveMasterStaff() {
+    const button = document.getElementById("masterStaffSave");
+    const body = {action:"masterStaffUpsert", token:authToken, driverId:document.getElementById("masterStaffSelect").value,
+      role:document.getElementById("masterStaffRole").value, loginName:document.getElementById("masterStaffName").value.trim(),
+      password:document.getElementById("masterStaffPassword").value, enabled:document.getElementById("masterStaffEnabled").checked};
+    if (!body.loginName) return masterStatus("계정명을 입력하세요.");
+    button.disabled = true;
+    try { const result=await apiPost(body); masterStatus(result.message || "저장하지 못했습니다.", result.ok); if(result.ok) await loadMasterAdmin(); }
+    catch(error){ masterStatus("서버 통신에 실패했습니다."); }
+    finally { button.disabled=false; }
+  }
+
+  async function saveMasterDriver() {
+    const button = document.getElementById("masterDriverSave");
+    const body={action:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
+      empId:document.getElementById("masterDriverEmpId").value,name:document.getElementById("masterDriverName").value.trim(),
+      shift:document.getElementById("masterDriverShift").value,driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
+    if(!body.driverId) return masterStatus("전환할 기사를 선택하세요.");
+    if(!/^\d{6}$/.test(body.empId)||!body.name) return masterStatus("실제 성명과 6자리 사원번호를 확인하세요.");
+    button.disabled=true;
+    try { const result=await apiPost(body); masterStatus(result.message || "전환하지 못했습니다.",result.ok); if(result.ok) await loadMasterAdmin(); }
+    catch(error){ masterStatus("서버 통신에 실패했습니다."); }
+    finally { button.disabled=false; }
+  }
+
+  document.getElementById("masterAdminLoad").addEventListener("click", loadMasterAdmin);
+  document.getElementById("masterStaffSave").addEventListener("click", saveMasterStaff);
+  document.getElementById("masterDriverSave").addEventListener("click", saveMasterDriver);
 
 
 
