@@ -6,7 +6,8 @@ function sheet(rows) {
   return {rows, getLastRow(){return this.rows.length;}, getDataRange(){return {getDisplayValues:()=>this.rows.map(r=>r.slice())};},
     appendRow(row){this.rows.push(row);}, getRange(row,col,count){return {setValues:values=>{this.rows[row-1]=values[0].slice();}};}};
 }
-const drivers=sheet([['driverId','성명','근무조','현재노선','상태'],...Array.from({length:11},(_,i)=>['D'+(i+1),'기사'+(i+1),'B','70','재직'])]);
+const drivers=sheet([['driverId','사원번호','성명','근무조','기사구분','사번구분','기수','현재노선','표시순서','상태','투입일','종료일','TEST','비고'],
+  ...Array.from({length:11},(_,i)=>['D'+(i+1),String(600001+i),'기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y',''])]);
 const vehicles=sheet([['vehicleId','차량번호','현재노선','상태'],...Array.from({length:11},(_,i)=>['V'+(i+1),String(1499+i),'70','운행가능'])]);
 const dispatch=sheet([['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']]);
 const schedule=sheet([['버전','순차','탕','발차지','발차시간','회차지','회차시간','상태'],
@@ -23,7 +24,9 @@ assert.equal(context.bus70IsManager_('D1'),true); assert.equal(context.bus70IsMa
 assert.equal(context.bus70RoleFor_('ADM-MASTER-001'),'MASTER');
 assert.equal(context.bus70RoleFor_('CTR-CENTER-001'),'CENTER');
 assert.equal(context.bus70RoleFor_('DRV-B-TEST-002'),'');
-const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,11); assert.equal(boot.departures[1].time,'05:00');
+const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,21); assert.equal(boot.departures[1].time,'05:00');
+assert.equal(boot.drivers.some(v=>v.name==='이재천'),true);
+const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(drivers.rows.length,rowCountAfterSeed);
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
 const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1),vehicleId:'V'+(i+1)}));
 const saved=context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments},'D1');
