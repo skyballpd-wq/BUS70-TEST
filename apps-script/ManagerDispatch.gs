@@ -180,6 +180,7 @@ function bus70ManagerBootstrap_(rawDate) {
   const driverSheet = ss.getSheetByName('기사DB');
   const vehicleSheet = ss.getSheetByName('차량DB');
   const dispatchSheet = ss.getSheetByName('배차DB');
+  const confirmSheet = ss.getSheetByName('배차확인DB');
   const scheduleSheet = ss.getSheetByName('스케줄');
   if (!driverSheet || !vehicleSheet || !dispatchSheet || !scheduleSheet) {
     return {ok:false, error:'DB_MISSING', message:'배차 편집에 필요한 DB를 찾을 수 없습니다.'};
@@ -190,6 +191,11 @@ function bus70ManagerBootstrap_(rawDate) {
   const scheduleVersion = bus70ScheduleVersionForDate_(date);
   const departures = bus70ManagerDepartures_(scheduleSheet, scheduleVersion);
   const assignments = bus70ManagerAssignments_(dispatchSheet, date);
+  const confirmed = confirmSheet ? bus70ManagerConfirmations_(confirmSheet, date) : {};
+  assignments.forEach(function (item) {
+    item.confirmed = Boolean(confirmed[item.dispatchId]);
+    item.confirmedAt = confirmed[item.dispatchId] || '';
+  });
   return {ok:true, date:date, scheduleVersion:scheduleVersion, drivers:drivers,
     vehicles:vehicles, departures:departures, assignments:assignments};
 }
@@ -264,8 +270,20 @@ function bus70ManagerAssignments_(sheet, date) {
   const result = [];
   for (let i = 1; i < rows.length; i++) {
     if (normalizeDate_(rows[i][c['날짜']]) !== date || String(rows[i][c['상태']] || '').trim() !== '확정') continue;
-    result.push({sequence:Number(rows[i][c['순차']]), driverId:String(rows[i][c['기사ID']] || '').trim(),
+    result.push({dispatchId:String(rows[i][c['dispatchId']] || '').trim(), sequence:Number(rows[i][c['순차']]), driverId:String(rows[i][c['기사ID']] || '').trim(),
       vehicleId:String(rows[i][c['차량ID']] || '').trim(), shift:String(rows[i][c['근무조']] || '').trim()});
+  }
+  return result;
+}
+
+function bus70ManagerConfirmations_(sheet, date) {
+  const rows = sheet.getDataRange().getDisplayValues();
+  if (!rows.length) return {};
+  const c = makeHeaderMap_(rows[0]), result = {};
+  for (let i = 1; i < rows.length; i++) {
+    if (normalizeDate_(rows[i][c['날짜']]) !== date) continue;
+    const dispatchId = String(rows[i][c['dispatchId']] || '').trim();
+    if (dispatchId) result[dispatchId] = String(rows[i][c['확인시간']] || '').trim();
   }
   return result;
 }
