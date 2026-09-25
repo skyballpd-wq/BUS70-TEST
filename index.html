@@ -317,6 +317,12 @@
     .operation-card.open { border-left:5px solid #dc2626; }
     .operation-card.closed { border-left:5px solid #16a34a; }
     .operation-meta { color:#64748b; font-size:12px; margin:5px 0; }
+    .vehicle-status-list { display:grid; gap:8px; margin:12px 0 18px; }
+    .vehicle-status-card { border:1px solid #dbe3ee; border-radius:10px; padding:11px; background:#f8fafc; }
+    .vehicle-status-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .vehicle-status-badge { padding:4px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#dcfce7; color:#166534; white-space:nowrap; }
+    .vehicle-status-badge.repair { background:#fef3c7; color:#92400e; }
+    .vehicle-status-badge.unavailable { background:#fee2e2; color:#b91c1c; }
     @media(max-width:520px) { .manager-tools { grid-template-columns:1fr; } .manager-row { grid-template-columns:36px 1fr 68px; } .manager-row .manager-vehicle { grid-column:2; } .manager-confirm { grid-column:3; grid-row:1 / span 2; } }
   </style>
 </head>
@@ -476,6 +482,9 @@
       <p class="hint">차량 돌발상황과 예비차 투입, 정비 진행 상태를 마스터·소장·정비소가 함께 확인합니다.</p>
       <button id="operationLoad" type="button">현장 현황 새로고침</button>
       <div id="operationStatus" class="manager-status" aria-live="polite"></div>
+
+      <h3>차량 현황</h3>
+      <div id="vehicleStatusList" class="vehicle-status-list"></div>
 
       <div id="reserveVehicleTools">
         <h3>예비차 등록·상태 관리</h3>
@@ -1117,9 +1126,26 @@
     });
   }
 
+  function renderVehicleStatusList(){
+    const root=document.getElementById("vehicleStatusList");root.replaceChildren();
+    if(!operationData.vehicles.length){root.append(el("div","등록된 차량이 없습니다.","notice"));return;}
+    operationData.vehicles.forEach(v=>{
+      const card=el("div",undefined,"vehicle-status-card"),head=el("div",undefined,"vehicle-status-head");
+      head.append(el("strong",(v.displayNo||v.no||"차량 미상")+" · "+(v.type||"일반")));
+      const status=el("span",v.status||"상태 미정","vehicle-status-badge");
+      if(v.status==="정비중")status.classList.add("repair");
+      if(v.status==="운행불가")status.classList.add("unavailable");
+      head.append(status);card.append(head);
+      const assignment=v.assignment?(v.assignment.date+" · "+(v.assignment.shift||"-")+"조 · "+v.assignment.sequence+"순차"):"최근 확정 배차 없음";
+      card.append(el("div","노선 "+(v.route||"-")+" / 최근 투입 "+assignment,"operation-meta"));
+      card.append(el("div","마지막 변경: "+(v.lastChangeReason||"기록 없음")+(v.lastChangedAt?" · "+v.lastChangedAt:""),"operation-meta"));
+      root.append(card);
+    });
+  }
+
   async function loadOperationData(){
     const button=document.getElementById("operationLoad");button.disabled=true;
-    try{const result=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token:authToken});if(!result.ok)return operationNotice(result.message||"현황을 불러오지 못했습니다.",true);operationData=result;fillOperationVehicles();renderOperationList();operationNotice("현장 현황을 갱신했습니다. 접수 "+result.incidents.length+"건");}
+    try{const result=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token:authToken});if(!result.ok)return operationNotice(result.message||"현황을 불러오지 못했습니다.",true);operationData=result;fillOperationVehicles();renderVehicleStatusList();renderOperationList();operationNotice("현장 현황을 갱신했습니다. 차량 "+result.vehicles.length+"대 · 접수 "+result.incidents.length+"건");}
     catch(error){console.error(error);operationNotice("현장 현황 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
