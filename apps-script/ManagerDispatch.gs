@@ -30,16 +30,27 @@ function bus70CanOperate_(driverId) {
 
 function bus70OperationBootstrap_(requesterId) {
   if(!bus70CanOperate_(requesterId)) return {ok:false,error:'STAFF_REQUIRED',message:'운영계정 권한이 필요합니다.'};
-  const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ds=ss.getSheetByName('기사DB');
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ds=ss.getSheetByName('기사DB'), ps=ss.getSheetByName('배차DB');
   if(!vs||!is||!ms||!ds) return {ok:false,error:'DB_MISSING',message:'현장 대응 DB를 찾을 수 없습니다.'};
   const vr=vs.getDataRange().getDisplayValues(), vc=makeHeaderMap_(vr[0]);
-  const vehicles=vr.slice(1).map(function(r){const no=String(r[vc['차량번호']]||'').replace(/\D/g,'');return {id:String(r[vc['vehicleId']]||''),no:no,displayNo:no.length===4?'경기71아'+no:no,type:String(r[vc['차량구분']]||''),status:String(r[vc['상태']]||''),route:String(r[vc['현재노선']]||''),note:String(r[vc['비고']]||'')};}).filter(function(v){return v.id;});
+  const vehicles=vr.slice(1).map(function(r){const no=String(r[vc['차량번호']]||'').replace(/\D/g,'');return {id:String(r[vc['vehicleId']]||''),no:no,displayNo:no.length===4?'경기71아'+no:no,type:String(r[vc['차량구분']]||''),status:String(r[vc['상태']]||''),route:String(r[vc['현재노선']]||''),note:String(r[vc['비고']]||''),order:Number(r[vc['표시순서']]||999),assignment:null,lastChangeReason:String(r[vc['비고']]||''),lastChangedAt:''};}).filter(function(v){return v.id;});
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]), names={};
   dr.slice(1).forEach(function(r){names[String(r[dc['driverId']]||'')]=String(r[dc['성명']]||'');});
   const mr=ms.getDataRange().getDisplayValues(), mc=makeHeaderMap_(mr[0]), maintByIncident={};
   mr.slice(1).forEach(function(r){const incidentId=String(r[mc['incidentId']]||'');if(incidentId)maintByIncident[incidentId]={maintId:String(r[mc['maintId']]||''),status:String(r[mc['현재상태']]||''),reserveVehicleId:String(r[mc['예비차량ID']]||''),result:String(r[mc['정비결과']]||''),note:String(r[mc['비고']]||'')};});
   const ir=is.getDataRange().getDisplayValues(), ic=makeHeaderMap_(ir[0]);
   const incidents=ir.slice(1).map(function(r){const id=String(r[ic['incidentId']]||''), m=maintByIncident[id]||{};return {incidentId:id,receivedAt:String(r[ic['접수시간']]||''),date:normalizeDate_(r[ic['날짜']]),driverId:String(r[ic['기사ID']]||''),driverName:names[String(r[ic['기사ID']]||'')]||'',vehicleId:String(r[ic['차량ID']]||''),sequence:Number(r[ic['순차']]||0),type:String(r[ic['유형']]||''),content:String(r[ic['내용']]||''),status:String(r[ic['상태']]||''),handler:String(r[ic['처리자']]||''),closedAt:String(r[ic['종결시간']]||''),maintId:m.maintId||'',maintenanceStatus:m.status||'',reserveVehicleId:m.reserveVehicleId||'',result:m.result||'',maintenanceNote:m.note||''};}).filter(function(v){return v.incidentId;}).slice(-30).reverse();
+  const vehicleMap={};vehicles.forEach(function(v){vehicleMap[v.id]=v;});
+  incidents.slice().reverse().forEach(function(v){
+    const original=vehicleMap[v.vehicleId], reserve=vehicleMap[v.reserveVehicleId];
+    if(original){original.lastChangeReason=v.status==='종결'?'정비 완료'+(v.result?' · '+v.result:''):v.type+' · '+v.content;original.lastChangedAt=v.closedAt||v.receivedAt;}
+    if(reserve){reserve.lastChangeReason='예비차 투입 · '+v.content;reserve.lastChangedAt=v.receivedAt;}
+  });
+  if(ps&&ps.getLastRow()>1){
+    const pr=ps.getDataRange().getDisplayValues(), pc=makeHeaderMap_(pr[0]);
+    pr.slice(1).filter(function(r){return String(r[pc['상태']]||'')==='확정';}).sort(function(a,b){return normalizeDate_(a[pc['날짜']]).localeCompare(normalizeDate_(b[pc['날짜']]))||Number(a[pc['순차']]||0)-Number(b[pc['순차']]||0);}).forEach(function(r){const vehicle=vehicleMap[String(r[pc['차량ID']]||'')];if(vehicle)vehicle.assignment={date:normalizeDate_(r[pc['날짜']]),shift:String(r[pc['근무조']]||''),sequence:Number(r[pc['순차']]||0)};});
+  }
+  vehicles.sort(function(a,b){return a.order-b.order||a.no.localeCompare(b.no);});
   return {ok:true,role:bus70RoleFor_(requesterId),vehicles:vehicles,incidents:incidents};
 }
 
