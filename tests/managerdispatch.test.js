@@ -48,6 +48,11 @@ assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal
 confirmations.appendRow(['C1','2026-09-18','D1','DSP-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
 const replaced=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D1',type:'병가',sequence:1,replacementId:'DRV-B-OCR-001',reason:'시험'},'D1');
 assert.equal(replaced.ok,true); assert.equal(dispatch.rows[1][4],'DRV-B-OCR-001'); assert.equal(confirmations.rows[1][9],'Y'); assert.equal(workChanges.rows.length,2);
+drivers.appendRow(['DRV-A-RESERVE','626777','A조예비','A','예비','','','70',99,'재직','','','N','']);
+const wrongShift=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D2',type:'휴무',sequence:2,replacementId:'DRV-A-RESERVE',reason:'조 불일치 시험'},'D1');
+assert.equal(wrongShift.ok,true); assert.equal(dispatch.rows[2][4],'DRV-A-RESERVE');
+const noReason=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D3',type:'휴무',sequence:3,replacementId:'DRV-A-RESERVE',reason:''},'D1');
+assert.equal(noReason.error,'REPLACEMENT_OVERRIDE_REASON_REQUIRED'); assert.equal(dispatch.rows[3][4],'D3');
 const confirmedBoot=context.bus70ManagerBootstrap_('2026-09-18');
 assert.equal(confirmedBoot.assignments[0].confirmed,false);
 assert.equal(confirmedBoot.assignments[1].confirmed,false);
