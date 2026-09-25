@@ -53,6 +53,9 @@ const wrongShift=context.bus70ManagerAction_({action:'managerAccountUpsert',oper
 assert.equal(wrongShift.ok,true); assert.equal(dispatch.rows[2][4],'DRV-A-RESERVE');
 const noReason=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D3',type:'휴무',sequence:3,replacementId:'DRV-A-RESERVE',reason:''},'D1');
 assert.equal(noReason.error,'REPLACEMENT_OVERRIDE_REASON_REQUIRED'); assert.equal(dispatch.rows[3][4],'D3');
+const crossShiftAssignments=assignments.map(v=>({...v})); crossShiftAssignments[2].driverId='DRV-A-RESERVE';
+assert.equal(context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments:crossShiftAssignments},'D1').ok,true);
+assert.equal(dispatch.rows[3][4],'DRV-A-RESERVE');
 const confirmedBoot=context.bus70ManagerBootstrap_('2026-09-18');
 assert.equal(confirmedBoot.assignments[0].confirmed,false);
 assert.equal(confirmedBoot.assignments[1].confirmed,false);
