@@ -542,7 +542,7 @@
       <div class="manager-tools">
         <div><label for="masterDriverEmpId">사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
         <div><label for="masterDriverName">성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
-        <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option></select></div>
+        <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
         <div><label for="masterDriverRoute">현재 노선</label><input id="masterDriverRoute" type="text" maxlength="10" value="70" placeholder="예: 70"></div>
         <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="예비">예비</option><option value="노선">노선</option></select></div>
         <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
@@ -1048,7 +1048,7 @@
     const d = masterAdminData.drivers.find(v => v.driverId === event.target.value);
     document.getElementById("masterDriverEmpId").value = d ? d.empId : "";
     document.getElementById("masterDriverName").value = d ? d.name : "";
-    document.getElementById("masterDriverShift").value = d && ["A","B"].includes(d.shift) ? d.shift : "A";
+    document.getElementById("masterDriverShift").value = d && ["A","B","예비"].includes(d.shift) ? d.shift : "A";
     document.getElementById("masterDriverRoute").value = d && d.route ? d.route : "70";
     document.getElementById("masterDriverType").value = d && ["양성","예비","노선"].includes(d.driverType) ? d.driverType : "양성";
     document.getElementById("masterDriverStatus").value = d && ["재직","휴무","병가","퇴직"].includes(d.status) ? d.status : "재직";
