@@ -59,6 +59,8 @@ assert.equal(replaced.ok,true); assert.equal(dispatch.rows[1][4],'DRV-B-OCR-001'
 drivers.appendRow(['DRV-A-RESERVE','626777','A조예비','A','예비','','','70',99,'재직','','','N','']);
 const wrongShift=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D2',type:'휴무',sequence:2,replacementId:'DRV-A-RESERVE',reason:'조 불일치 시험'},'D1');
 assert.equal(wrongShift.ok,true); assert.equal(dispatch.rows[2][4],'DRV-A-RESERVE');
+const standbyDriver=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'masterDriverUpsert',empId:'990001',name:'검증예비기사',shift:'예비',route:'70',driverType:'예비',status:'재직'},'D1');
+assert.equal(standbyDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1][3],'예비');
 const noReason=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D3',type:'휴무',sequence:3,replacementId:'DRV-A-RESERVE',reason:''},'D1');
 assert.equal(noReason.error,'REPLACEMENT_OVERRIDE_REASON_REQUIRED'); assert.equal(dispatch.rows[3][4],'D3');
 const crossShiftAssignments=assignments.map(v=>({...v})); crossShiftAssignments[2].driverId='DRV-A-RESERVE';
