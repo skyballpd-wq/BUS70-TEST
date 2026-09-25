@@ -312,6 +312,11 @@
     .manager-output img { width:100%; border-radius:10px; border:1px solid #cbd5e1; }
     .manager-confirm { padding:7px 4px; border-radius:7px; text-align:center; font-size:12px; font-weight:700; background:#fef3c7; color:#92400e; }
     .manager-confirm.done { background:#dcfce7; color:#166534; }
+    .operation-list { display:grid; gap:10px; margin-top:14px; }
+    .operation-card { border:1px solid #dbe3ee; border-radius:12px; padding:12px; background:#fff; }
+    .operation-card.open { border-left:5px solid #dc2626; }
+    .operation-card.closed { border-left:5px solid #16a34a; }
+    .operation-meta { color:#64748b; font-size:12px; margin:5px 0; }
     @media(max-width:520px) { .manager-tools { grid-template-columns:1fr; } .manager-row { grid-template-columns:36px 1fr 68px; } .manager-row .manager-vehicle { grid-column:2; } .manager-confirm { grid-column:3; grid-row:1 / span 2; } }
   </style>
 </head>
@@ -467,8 +472,36 @@
     </section>
 
     <section id="centerPanel" class="manager-panel" hidden>
-      <h2>정비소 화면</h2>
-      <p class="hint">정비 요청과 차량 상태 관리 기능을 연결할 준비가 되었습니다.</p>
+      <h2>현장 상황·정비 공유</h2>
+      <p class="hint">차량 돌발상황과 예비차 투입, 정비 진행 상태를 마스터·소장·정비소가 함께 확인합니다.</p>
+      <button id="operationLoad" type="button">현장 현황 새로고침</button>
+      <div id="operationStatus" class="manager-status" aria-live="polite"></div>
+
+      <div id="reserveVehicleTools">
+        <h3>예비차 등록·상태 관리</h3>
+        <div class="manager-tools">
+          <div><label for="reserveVehicleNo">차량번호 뒤 4자리</label><input id="reserveVehicleNo" type="text" inputmode="numeric" maxlength="4" placeholder="예: 1601"></div>
+          <div><label for="reserveVehicleRoute">현재 노선</label><input id="reserveVehicleRoute" type="text" maxlength="10" value="70"></div>
+          <div><label for="reserveVehicleStatus">상태</label><select id="reserveVehicleStatus"><option>운행가능</option><option>정비중</option><option>운행불가</option></select></div>
+        </div>
+        <label for="reserveVehicleNote">비고</label><input id="reserveVehicleNote" type="text" maxlength="100" placeholder="예비차 등록 또는 상태 변경 사유">
+        <button id="reserveVehicleSave" type="button">예비차 정보 저장</button>
+        <hr>
+        <h3>차량 돌발상황 접수·예비차 대체</h3>
+        <div class="manager-tools">
+          <div><label for="incidentDate">발생 날짜</label><input id="incidentDate" type="date"></div>
+          <div><label for="incidentSequence">적용 순차</label><select id="incidentSequence"><option value="">배차 변경 없음</option></select></div>
+          <div><label for="incidentVehicle">발생 차량</label><select id="incidentVehicle"><option value="">차량 선택</option></select></div>
+          <div><label for="incidentType">유형</label><select id="incidentType"><option>고장</option><option>사고</option><option>점검</option><option>운행불가</option><option>기타</option></select></div>
+          <div><label for="incidentReserveVehicle">투입 예비차</label><select id="incidentReserveVehicle"><option value="">미정·대체 없음</option></select></div>
+        </div>
+        <label for="incidentContent">상황·조치 내용</label><input id="incidentContent" type="text" maxlength="150" placeholder="발생 위치·증상·조치 내용을 입력하세요">
+        <button id="incidentSave" type="button">돌발상황 접수</button>
+        <hr>
+      </div>
+
+      <h3>공동 진행 현황</h3>
+      <div id="operationList" class="operation-list"></div>
     </section>
 
     <section id="masterAdminPanel" class="manager-panel" hidden>
@@ -657,6 +690,7 @@
   let managerData = null;
   let managerImageBlob = null;
   let masterAdminData = {accounts: [], drivers: []};
+  let operationData = {vehicles: [], incidents: []};
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -686,7 +720,8 @@
     document.getElementById("schedulePanel").hidden = isStaff;
     document.getElementById("boardPanel").hidden = isStaff || !BOARD_ENTRY_ENABLED;
     document.getElementById("managerPanel").hidden = !currentIsManager;
-    document.getElementById("centerPanel").hidden = currentRole !== "CENTER";
+    document.getElementById("centerPanel").hidden = !(currentIsManager || currentRole === "CENTER");
+    document.getElementById("reserveVehicleTools").hidden = !currentIsManager;
     document.getElementById("masterAdminPanel").hidden = !currentIsManager;
     document.getElementById("masterAccountTools").hidden = currentRole !== "MASTER";
     document.getElementById("staffAccountPanel").hidden = !isStaff;
@@ -696,6 +731,7 @@
     document.getElementById("boardDate").value = todayLocal();
     document.getElementById("managerDate").value = todayLocal();
     document.getElementById("workChangeDate").value = todayLocal();
+    document.getElementById("incidentDate").value = todayLocal();
     if (automatic && !isStaff) loadMySchedule();
   }
 
@@ -1043,6 +1079,70 @@
   document.getElementById("masterStaffSave").addEventListener("click", saveMasterStaff);
   document.getElementById("masterDriverSave").addEventListener("click", saveMasterDriver);
   document.getElementById("workChangeSave").addEventListener("click", saveWorkChange);
+
+  function operationNotice(text,error=false){
+    document.getElementById("operationStatus").replaceChildren(el("div",text,error?"error":"ok"));
+  }
+
+  function fillOperationVehicles(){
+    const all=document.getElementById("incidentVehicle"), reserve=document.getElementById("incidentReserveVehicle");
+    all.replaceChildren(new Option("차량 선택","")); reserve.replaceChildren(new Option("미정·대체 없음",""));
+    operationData.vehicles.forEach(v=>{
+      const label=(v.displayNo||v.no)+" · "+(v.type||"일반")+" · "+(v.status||"-");
+      all.add(new Option(label,v.id));
+      if(v.type==="예비"&&(v.status==="운행가능"||v.status==="운행")) reserve.add(new Option(label,v.id));
+    });
+  }
+
+  function renderOperationList(){
+    const root=document.getElementById("operationList"); root.replaceChildren();
+    if(!operationData.incidents.length){root.append(el("div","접수된 현장 상황이 없습니다.","notice"));return;}
+    const vehicles=Object.fromEntries(operationData.vehicles.map(v=>[v.id,v]));
+    operationData.incidents.forEach(v=>{
+      const closed=v.status==="종결"||v.maintenanceStatus==="완료", card=el("div",undefined,"operation-card "+(closed?"closed":"open"));
+      const vehicle=vehicles[v.vehicleId], reserve=vehicles[v.reserveVehicleId];
+      card.append(el("strong",v.date+" · "+v.type+" · "+(vehicle?.displayNo||vehicle?.no||v.vehicleId||"차량 미상")));
+      card.append(el("div",(v.sequence?v.sequence+"순차 · ":"")+(v.driverName?v.driverName+" · ":"")+v.content,"operation-meta"));
+      card.append(el("div","상황 "+(v.status||"접수")+" / 정비 "+(v.maintenanceStatus||"접수")+(reserve?" / 예비차 "+(reserve.displayNo||reserve.no):""),"operation-meta"));
+      if(v.result)card.append(el("div","정비결과: "+v.result,"operation-meta"));
+      if(v.maintId&&!closed){
+        const grid=el("div",undefined,"manager-tools"), status=el("select");
+        ["접수","정비중","완료","운행불가"].forEach(x=>status.add(new Option(x,x))); status.value=v.maintenanceStatus||"접수";
+        const result=el("input");result.placeholder="정비 결과";result.maxLength=100;
+        const note=el("input");note.placeholder="정비 메모";note.maxLength=100;
+        grid.append(status,result,note);card.append(grid);
+        const button=el("button","정비 상태 저장");button.type="button";button.addEventListener("click",()=>saveMaintenance(v.maintId,status.value,result.value.trim(),note.value.trim(),button));card.append(button);
+      }
+      root.append(card);
+    });
+  }
+
+  async function loadOperationData(){
+    const button=document.getElementById("operationLoad");button.disabled=true;
+    try{const result=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token:authToken});if(!result.ok)return operationNotice(result.message||"현황을 불러오지 못했습니다.",true);operationData=result;fillOperationVehicles();renderOperationList();operationNotice("현장 현황을 갱신했습니다. 접수 "+result.incidents.length+"건");}
+    catch(error){console.error(error);operationNotice("현장 현황 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
+  async function saveReserveVehicle(){
+    const button=document.getElementById("reserveVehicleSave"),body={action:"managerAccountUpsert",operation:"reserveVehicleUpsert",token:authToken,vehicleNo:document.getElementById("reserveVehicleNo").value,route:document.getElementById("reserveVehicleRoute").value.trim(),status:document.getElementById("reserveVehicleStatus").value,note:document.getElementById("reserveVehicleNote").value.trim()};
+    if(!/^\d{4}$/.test(body.vehicleNo))return operationNotice("차량번호 뒤 4자리를 입력하세요.",true);button.disabled=true;
+    try{const result=await apiPost(body);operationNotice(result.message||"저장하지 못했습니다.",!result.ok);if(result.ok)await loadOperationData();}catch(error){operationNotice("예비차 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
+  async function saveIncident(){
+    const button=document.getElementById("incidentSave"),body={action:"managerAccountUpsert",operation:"vehicleIncidentSave",token:authToken,date:document.getElementById("incidentDate").value,sequence:document.getElementById("incidentSequence").value,vehicleId:document.getElementById("incidentVehicle").value,type:document.getElementById("incidentType").value,reserveVehicleId:document.getElementById("incidentReserveVehicle").value,content:document.getElementById("incidentContent").value.trim()};
+    if(!body.vehicleId||!body.content)return operationNotice("발생 차량과 상황 내용을 입력하세요.",true);if((body.sequence&&!body.reserveVehicleId)||(!body.sequence&&body.reserveVehicleId))return operationNotice("배차 변경 시 순차와 예비차를 함께 선택하세요.",true);button.disabled=true;
+    try{const result=await apiPost(body);operationNotice(result.message||"접수하지 못했습니다.",!result.ok);if(result.ok){document.getElementById("incidentContent").value="";await loadOperationData();}}catch(error){operationNotice("돌발상황 접수 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
+  async function saveMaintenance(maintId,status,result,note,button){
+    button.disabled=true;try{const response=await apiPost({action:"managerAccountUpsert",operation:"maintenanceUpdate",token:authToken,maintId,status,result,note});operationNotice(response.message||"저장하지 못했습니다.",!response.ok);if(response.ok)await loadOperationData();}catch(error){operationNotice("정비 상태 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
+  for(let i=1;i<=11;i++)document.getElementById("incidentSequence").add(new Option(i+"순차",String(i)));
+  document.getElementById("operationLoad").addEventListener("click",loadOperationData);
+  document.getElementById("reserveVehicleSave").addEventListener("click",saveReserveVehicle);
+  document.getElementById("incidentSave").addEventListener("click",saveIncident);
 
 
 
