@@ -3,11 +3,15 @@
  * BUS70_MANAGER_DRIVER_IDS script property (comma-separated driver IDs). */
 
 function bus70ManagerAction_(body, driverId) {
+  // 기존 Code.js 최상위 허용 action을 유지하면서 새 관리 작업을 operation으로 전달한다.
+  const action = String(body.operation || body.action || '').trim();
+  if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId);
+  if (action === 'vehicleIncidentSave') return bus70VehicleIncidentSave_(body, driverId);
+  if (action === 'maintenanceUpdate') return bus70MaintenanceUpdate_(body, driverId);
+  if (action === 'reserveVehicleUpsert') return bus70ReserveVehicleUpsert_(body, driverId);
   if (!bus70IsManager_(driverId)) {
     return {ok:false, error:'MANAGER_REQUIRED', message:'소장 권한이 필요합니다.'};
   }
-  // 기존 Code.js 최상위 허용 action을 유지하면서 새 관리 작업을 operation으로 전달한다.
-  const action = String(body.operation || body.action || '').trim();
   if (action === 'managerDispatchBootstrap') return bus70ManagerBootstrap_(body.date);
   if (action === 'saveManagerDispatchDay') return bus70SaveManagerDispatchDay_(body, driverId);
   if (action === 'managerAccountList') return bus70ManagerAccountList_(driverId);
@@ -17,6 +21,74 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'masterDriverUpsert') return bus70MasterDriverUpsert_(body, driverId);
   if (action === 'workChangeSave') return bus70WorkChangeSave_(body, driverId);
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 소장 요청입니다.'};
+}
+
+function bus70CanOperate_(driverId) {
+  const role=bus70RoleFor_(driverId);
+  return role==='MASTER'||role==='MANAGER'||role==='CENTER';
+}
+
+function bus70OperationBootstrap_(requesterId) {
+  if(!bus70CanOperate_(requesterId)) return {ok:false,error:'STAFF_REQUIRED',message:'운영계정 권한이 필요합니다.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ds=ss.getSheetByName('기사DB');
+  if(!vs||!is||!ms||!ds) return {ok:false,error:'DB_MISSING',message:'현장 대응 DB를 찾을 수 없습니다.'};
+  const vr=vs.getDataRange().getDisplayValues(), vc=makeHeaderMap_(vr[0]);
+  const vehicles=vr.slice(1).map(function(r){const no=String(r[vc['차량번호']]||'').replace(/\D/g,'');return {id:String(r[vc['vehicleId']]||''),no:no,displayNo:no.length===4?'경기71아'+no:no,type:String(r[vc['차량구분']]||''),status:String(r[vc['상태']]||''),route:String(r[vc['현재노선']]||''),note:String(r[vc['비고']]||'')};}).filter(function(v){return v.id;});
+  const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]), names={};
+  dr.slice(1).forEach(function(r){names[String(r[dc['driverId']]||'')]=String(r[dc['성명']]||'');});
+  const mr=ms.getDataRange().getDisplayValues(), mc=makeHeaderMap_(mr[0]), maintByIncident={};
+  mr.slice(1).forEach(function(r){const incidentId=String(r[mc['incidentId']]||'');if(incidentId)maintByIncident[incidentId]={maintId:String(r[mc['maintId']]||''),status:String(r[mc['현재상태']]||''),reserveVehicleId:String(r[mc['예비차량ID']]||''),result:String(r[mc['정비결과']]||''),note:String(r[mc['비고']]||'')};});
+  const ir=is.getDataRange().getDisplayValues(), ic=makeHeaderMap_(ir[0]);
+  const incidents=ir.slice(1).map(function(r){const id=String(r[ic['incidentId']]||''), m=maintByIncident[id]||{};return {incidentId:id,receivedAt:String(r[ic['접수시간']]||''),date:normalizeDate_(r[ic['날짜']]),driverId:String(r[ic['기사ID']]||''),driverName:names[String(r[ic['기사ID']]||'')]||'',vehicleId:String(r[ic['차량ID']]||''),sequence:Number(r[ic['순차']]||0),type:String(r[ic['유형']]||''),content:String(r[ic['내용']]||''),status:String(r[ic['상태']]||''),handler:String(r[ic['처리자']]||''),closedAt:String(r[ic['종결시간']]||''),maintId:m.maintId||'',maintenanceStatus:m.status||'',reserveVehicleId:m.reserveVehicleId||'',result:m.result||'',maintenanceNote:m.note||''};}).filter(function(v){return v.incidentId;}).slice(-30).reverse();
+  return {ok:true,role:bus70RoleFor_(requesterId),vehicles:vehicles,incidents:incidents};
+}
+
+function bus70ReserveVehicleUpsert_(body, requesterId) {
+  if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'예비차 등록은 소장 이상만 가능합니다.'};
+  const no=String(body.vehicleNo||'').replace(/\D/g,''), route=String(body.route||'70').trim(), status=String(body.status||'운행가능').trim(), note=String(body.note||'').trim();
+  if(!/^\d{4}$/.test(no)||!route||['운행가능','운행','정비중','운행불가'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'차량번호 4자리·노선·상태를 확인하세요.'};
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('차량DB'); if(!sheet)return {ok:false,error:'DB_MISSING',message:'차량DB를 찾을 수 없습니다.'};
+  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
+  for(let i=1;i<rows.length;i++)if(String(rows[i][c['차량번호']]||'').replace(/\D/g,'')===no){rowNo=i+1;break;}
+  const before=rowNo?rows[rowNo-1].slice():[], row=rowNo?before.slice():new Array(rows[0].length).fill('');
+  row[c['vehicleId']]=rowNo?String(row[c['vehicleId']]||''):'VEH-70-'+no; row[c['차량번호']]=no; row[c['차량구분']]='예비'; row[c['상태']]=status; row[c['현재노선']]=route; row[c['표시순서']]=row[c['표시순서']]||999; row[c['비고']]=note||'예비차 등록';
+  if(rowNo)sheet.getRange(rowNo,1,1,row.length).setValues([row]);else sheet.appendRow(row);
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','차량DB',row[c['vehicleId']],rowNo?'수정':'추가',before,row,'예비차 관리');
+  return {ok:true,message:no+' 예비차 정보를 저장했습니다.'};
+}
+
+function bus70VehicleIncidentSave_(body, requesterId) {
+  if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'돌발상황 접수는 소장 이상만 가능합니다.'};
+  const date=normalizeDate_(body.date), vehicleId=String(body.vehicleId||'').trim(), reserveId=String(body.reserveVehicleId||'').trim(), type=String(body.type||'').trim(), content=String(body.content||'').trim(), sequence=Number(body.sequence||0);
+  if(!date||!vehicleId||['고장','사고','점검','운행불가','기타'].indexOf(type)===-1||!content) return {ok:false,error:'PARAM_REQUIRED',message:'날짜·차량·유형·상황 내용을 확인하세요.'};
+  if(reserveId===vehicleId)return {ok:false,error:'SAME_VEHICLE',message:'예비차는 발생 차량과 달라야 합니다.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ps=ss.getSheetByName('배차DB'), cs=ss.getSheetByName('배차확인DB');
+  if(!vs||!is||!ms||!ps)return {ok:false,error:'DB_MISSING',message:'돌발상황 처리 DB를 찾을 수 없습니다.'};
+  const vr=vs.getDataRange().getDisplayValues(), vc=makeHeaderMap_(vr[0]); let vehicleRow=0,reserveRow=0;
+  for(let i=1;i<vr.length;i++){const id=String(vr[i][vc['vehicleId']]||'');if(id===vehicleId)vehicleRow=i+1;if(id===reserveId)reserveRow=i+1;}
+  if(!vehicleRow||(reserveId&&!reserveRow))return {ok:false,error:'VEHICLE_NOT_FOUND',message:'발생 차량 또는 예비차를 확인하세요.'};
+  if(reserveId&&['운행가능','운행'].indexOf(String(vr[reserveRow-1][vc['상태']]||''))===-1)return {ok:false,error:'RESERVE_UNAVAILABLE',message:'운행 가능한 예비차만 투입할 수 있습니다.'};
+  let dispatchId='',driverId='';
+  if(sequence){const pr=ps.getDataRange().getDisplayValues(),pc=makeHeaderMap_(pr[0]);let target=0;for(let j=1;j<pr.length;j++){if(normalizeDate_(pr[j][pc['날짜']])===date&&Number(pr[j][pc['순차']])===sequence&&String(pr[j][pc['차량ID']]||'')===vehicleId&&String(pr[j][pc['상태']]||'')==='확정'){target=j+1;dispatchId=String(pr[j][pc['dispatchId']]||'');driverId=String(pr[j][pc['기사ID']]||'');break;}}if(!target)return {ok:false,error:'DISPATCH_NOT_FOUND',message:'선택 날짜·순차에서 해당 차량의 확정 배차를 찾을 수 없습니다.'};if(reserveId){ps.getRange(target,pc['차량ID']+1).setValue(reserveId);ps.getRange(target,pc['확정시간']+1).setValue(new Date());ps.getRange(target,pc['비고']+1).setValue(type+' 예비차 대체');if(cs&&cs.getLastRow()>1){const cr=cs.getDataRange().getDisplayValues(),cc=makeHeaderMap_(cr[0]);for(let k=1;k<cr.length;k++)if(String(cr[k][cc['dispatchId']]||'')===dispatchId)cs.getRange(k+1,cc['재확인필요']+1).setValue('Y');}}}
+  vs.getRange(vehicleRow,vc['상태']+1).setValue('정비중');
+  const incidentId=newId_('INC'), ir=is.getDataRange().getDisplayValues(),ic=makeHeaderMap_(ir[0]),irow=new Array(ir[0].length).fill('');
+  irow[ic['incidentId']]=incidentId;irow[ic['접수시간']]=new Date();irow[ic['날짜']]=date;irow[ic['기사ID']]=driverId;irow[ic['차량ID']]=vehicleId;irow[ic['순차']]=sequence||'';irow[ic['유형']]=type;irow[ic['내용']]=content;irow[ic['상태']]='접수';irow[ic['처리자']]=requesterId;irow[ic['비고']]=reserveId?'예비차 대체':'대체차 미정';is.appendRow(irow);
+  const mr=ms.getDataRange().getDisplayValues(),mc=makeHeaderMap_(mr[0]),mrow=new Array(mr[0].length).fill('');mrow[mc['maintId']]=newId_('MNT');mrow[mc['incidentId']]=incidentId;mrow[mc['요청시간']]=new Date();mrow[mc['차량ID']]=vehicleId;mrow[mc['기사ID']]=driverId;mrow[mc['요청내용']]=content;mrow[mc['현재상태']]='접수';mrow[mc['예비차량ID']]=reserveId;ms.appendRow(mrow);
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','사건DB',incidentId,'추가',{},irow,type+' 현장대응');
+  return {ok:true,message:type+' 상황을 접수했습니다.'+(reserveId&&sequence?' '+sequence+'순차를 예비차로 변경했습니다.':'')};
+}
+
+function bus70MaintenanceUpdate_(body, requesterId) {
+  if(!bus70CanOperate_(requesterId))return {ok:false,error:'STAFF_REQUIRED',message:'운영계정 권한이 필요합니다.'};
+  const maintId=String(body.maintId||'').trim(), status=String(body.status||'').trim(), result=String(body.result||'').trim(), note=String(body.note||'').trim();
+  if(!maintId||['접수','정비중','완료','운행불가'].indexOf(status)===-1)return {ok:false,error:'PARAM_REQUIRED',message:'정비 건과 처리 상태를 확인하세요.'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),ms=ss.getSheetByName('정비DB'),hs=ss.getSheetByName('정비이력DB'),is=ss.getSheetByName('사건DB'),vs=ss.getSheetByName('차량DB');if(!ms||!hs||!is||!vs)return {ok:false,error:'DB_MISSING',message:'정비 처리 DB를 찾을 수 없습니다.'};
+  const mr=ms.getDataRange().getDisplayValues(),mc=makeHeaderMap_(mr[0]);let rowNo=0;for(let i=1;i<mr.length;i++)if(String(mr[i][mc['maintId']]||'')===maintId){rowNo=i+1;break;}if(!rowNo)return {ok:false,error:'MAINT_NOT_FOUND',message:'정비 요청을 찾을 수 없습니다.'};
+  const incidentId=String(mr[rowNo-1][mc['incidentId']]||''),vehicleId=String(mr[rowNo-1][mc['차량ID']]||'');ms.getRange(rowNo,mc['현재상태']+1).setValue(status);ms.getRange(rowNo,mc['정비결과']+1).setValue(result);ms.getRange(rowNo,mc['비고']+1).setValue(note);if(status==='정비중'&&!mr[rowNo-1][mc['입고시간']])ms.getRange(rowNo,mc['입고시간']+1).setValue(new Date());if(status==='완료')ms.getRange(rowNo,mc['출고시간']+1).setValue(new Date());
+  const ir=is.getDataRange().getDisplayValues(),ic=makeHeaderMap_(ir[0]);for(let j=1;j<ir.length;j++)if(String(ir[j][ic['incidentId']]||'')===incidentId){is.getRange(j+1,ic['상태']+1).setValue(status==='완료'?'종결':status);is.getRange(j+1,ic['처리자']+1).setValue(requesterId);if(status==='완료')is.getRange(j+1,ic['종결시간']+1).setValue(new Date());break;}
+  const vr=vs.getDataRange().getDisplayValues(),vc=makeHeaderMap_(vr[0]);for(let k=1;k<vr.length;k++)if(String(vr[k][vc['vehicleId']]||'')===vehicleId){vs.getRange(k+1,vc['상태']+1).setValue(status==='완료'?'운행가능':status==='운행불가'?'운행불가':'정비중');break;}
+  const hr=hs.getDataRange().getDisplayValues(),hc=makeHeaderMap_(hr[0]),hrow=new Array(hr[0].length).fill('');hrow[hc['historyId']]=newId_('MNH');hrow[hc['maintId']]=maintId;hrow[hc['처리시간']]=new Date();hrow[hc['상태']]=status;hrow[hc['처리자']]=requesterId;hrow[hc['내용']]=result;hrow[hc['예비차량ID']]=String(mr[rowNo-1][mc['예비차량ID']]||'');hrow[hc['비고']]=note;hs.appendRow(hrow);
+  return {ok:true,message:'정비 상태를 '+status+'로 저장했습니다.'};
 }
 
 function bus70MasterAdminBootstrap_(requesterId) {
