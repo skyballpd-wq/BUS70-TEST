@@ -21,6 +21,7 @@ const dispatch = sheet([
 const cache = new Map();
 const context = {
   console, JSON, Date, Math, Number, String, Object, Array, RegExp,
+  PropertiesService:{getScriptProperties:() => ({getProperty:() => ''})},
   CacheService:{getScriptCache:() => ({
     put:(k,v) => cache.set(k,v), get:k => cache.get(k) || null, remove:k => cache.delete(k)
   })},
@@ -37,6 +38,8 @@ vm.runInContext(fs.readFileSync('apps-script/BoardEntry.gs','utf8'), context);
 
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-20'), 'HD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-22'), 'WD-TEST-V001');
+assert.equal(context.bus70ScheduleVersionForDate_('2026-09-24'), 'HD-TEST-V001');
+assert.equal(context.bus70ScheduleVersionForDate_('2026-09-25'), 'HD-TEST-V001');
 assert.equal(context.bus70FindVehicleByLast3_('499').vehicleId, 'VEH-1499');
 assert.equal(context.bus70FindVehicleByLast3_('999').error, 'VEHICLE_NOT_FOUND');
 
