@@ -24,7 +24,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
   if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]);
-  const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
+  const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),route:String(r[dc['현재노선']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
     .filter(function(v){return v.driverId && ['ADM-MASTER-001','MGR-MAJOR-001','CTR-CENTER-001'].indexOf(v.driverId)===-1;});
   let accounts=[];
   if(bus70IsMaster_(requesterId)) {
@@ -50,6 +50,9 @@ function bus70WorkChangeSave_(body, requesterId) {
   for(let i=1;i<dr.length;i++){const id=String(dr[i][dc['driverId']]||''); if(id===driverId)driverRow=i+1; if(id===replacementId)replacementRow=i+1;}
   if(!driverRow||(replacementId&&!replacementRow)) return {ok:false,error:'DRIVER_NOT_FOUND',message:'기사 정보를 확인하세요.'};
   if(replacementId&&String(dr[replacementRow-1][dc['상태']]||'')!=='재직') return {ok:false,error:'REPLACEMENT_UNAVAILABLE',message:'재직 중인 기사만 대체 투입할 수 있습니다.'};
+  const driverShift=String(dr[driverRow-1][dc['근무조']]||'').trim(), driverRoute=String(dr[driverRow-1][dc['현재노선']]||'').trim();
+  const replacementShift=replacementId?String(dr[replacementRow-1][dc['근무조']]||'').trim():'', replacementRoute=replacementId?String(dr[replacementRow-1][dc['현재노선']]||'').trim():'';
+  if(replacementId&&(replacementShift!==driverShift||replacementRoute!==driverRoute)&&!reason) return {ok:false,error:'REPLACEMENT_OVERRIDE_REASON_REQUIRED',message:'다른 조 또는 다른 노선 기사를 투입할 때는 사유·현장 메모를 입력하세요.'};
   let dispatchChanged=false, dispatchId='';
   if(sequence||replacementId){
     if(!sequence||!replacementId) return {ok:false,error:'REPLACEMENT_INCOMPLETE',message:'대체 투입 시 순차와 대체기사를 모두 선택하세요.'};
@@ -96,8 +99,8 @@ function bus70MasterStaffUpsert_(body, requesterId) {
 
 function bus70MasterDriverUpsert_(body, requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
-  const driverId=String(body.driverId||'').trim(), empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
-  if(!driverId||!/^\d{6}$/.test(empId)||!name||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  const driverId=String(body.driverId||'').trim(), empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
+  if(!driverId||!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('기사DB');
   if(!sheet) return {ok:false,error:'DB_MISSING',message:'기사DB를 찾을 수 없습니다.'};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
@@ -105,7 +108,7 @@ function bus70MasterDriverUpsert_(body, requesterId) {
   if(!rowNo) return {ok:false,error:'DRIVER_NOT_FOUND',message:'전환할 기사를 찾을 수 없습니다.'};
   for(let j=1;j<rows.length;j++) if(j+1!==rowNo&&String(rows[j][c['사원번호']]||'')===empId) return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};
   const before=rows[rowNo-1].slice(), row=before.slice();
-  row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]='70'; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]='마스터 실기사 전환';
+  row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]=route; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]='마스터 실기사 전환';
   sheet.getRange(rowNo,1,1,row.length).setValues([row]);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','기사DB',driverId,'실기사전환',before,row,'임시기사 실제정보 전환');
   return {ok:true,message:name+' 기사를 실제 기사정보로 전환했습니다.'};
