@@ -33,10 +33,15 @@ const context = {
     formatDate:value => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(value)
   },
   CalendarApp:{getCalendarById:() => null},
-  UrlFetchApp:{fetch:() => ({
+  UrlFetchApp:{fetch:url => url.indexOf('nagerholidays.com') !== -1 ? ({
     getResponseCode:() => 200,
-    getContentText:() => 'BEGIN:VCALENDAR\r\nDTSTART;VALUE=DATE:20260924\r\nDTSTART;VALUE=DATE:20260925\r\nDTSTART;VALUE=DATE:20261225\r\nDTSTART;VALUE=DATE:20270209\r\nEND:VCALENDAR'
-  })},
+    getContentText:() => JSON.stringify([
+      {date:'2026-09-24',nationalHoliday:true,holidayTypes:['Public']},
+      {date:'2026-09-25',nationalHoliday:true,holidayTypes:['Public']},
+      {date:'2026-12-25',nationalHoliday:true,holidayTypes:['Public']},
+      {date:'2027-02-09',nationalHoliday:true,holidayTypes:['Public']}
+    ])
+  }) : ({getResponseCode:() => 404,getContentText:() => ''})},
   SpreadsheetApp:{getActiveSpreadsheet:() => ({getSheetByName:n => n === '차량DB' ? vehicles : n === '배차DB' ? dispatch : null})},
   LockService:{getScriptLock:() => ({waitLock(){},releaseLock(){}})},
   normalizeDate_:v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '',
