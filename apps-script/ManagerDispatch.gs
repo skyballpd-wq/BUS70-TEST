@@ -333,12 +333,13 @@ function bus70ManagerMasterRows_(sheet, type) {
   for (let i = 1; i < rows.length; i++) {
     const route = String(rows[i][c['현재노선']] || '').trim();
     const status = String(rows[i][c['상태']] || '').trim();
-    if (route && route !== '70') continue;
     if (type === 'driver') {
       if (status !== '재직' && status !== '1') continue;
       result.push({id:String(rows[i][c['driverId']] || '').trim(), name:String(rows[i][c['성명']] || '').trim(),
-        shift:String(rows[i][c['근무조']] || '').trim()});
+        shift:String(rows[i][c['근무조']] || '').trim(), route:route,
+        driverType:String(rows[i][c['기사구분']] || '').trim()});
     } else {
+      if (route && route !== '70') continue;
       if (status !== '운행가능' && status !== '운행') continue;
       const no = String(rows[i][c['차량번호']] || '').replace(/\D/g, '');
       result.push({id:String(rows[i][c['vehicleId']] || '').trim(), no:no, last3:no.slice(-3),
@@ -408,7 +409,7 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
   for (let i = 0; i < input.length; i++) {
     const seq = Number(input[i].sequence), driverId = String(input[i].driverId || '').trim();
     const vehicleId = String(input[i].vehicleId || '').trim();
-    if (seq !== expectedSequences[i] || !driverMap[driverId] || driverMap[driverId].shift !== shift || !vehicleMap[vehicleId]) {
+    if (seq !== expectedSequences[i] || !driverMap[driverId] || !vehicleMap[vehicleId]) {
       return {ok:false, error:'ROW_INVALID', message:expectedSequences[i] + '순차의 기사 또는 차량을 확인하세요.'};
     }
     if (seenDrivers[driverId] || seenVehicles[vehicleId]) {
