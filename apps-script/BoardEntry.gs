@@ -121,7 +121,33 @@ function bus70FindVehicleByLast3_(last3) {
 }
 
 function bus70ScheduleVersionForDate_(date) {
+  const normalized = normalizeDate_(date);
+  const holidays = bus70HolidayDates_();
+  if (holidays.indexOf(normalized) !== -1) return 'HD-TEST-V001';
   const parts = date.split('-').map(Number);
   const day = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
   return day === 0 || day === 6 ? 'HD-TEST-V001' : 'WD-TEST-V001';
+}
+
+function bus70HolidayDates_() {
+  // 설정DB의 HOLIDAY_DATES 또는 스크립트 속성 BUS70_HOLIDAY_DATES로 추가·수정 가능.
+  // 2026년 추석 연휴 중 평일 공휴일은 기본값으로 보장한다(9/26은 토요일 자동 판정).
+  const dates = {'2026-09-24':true, '2026-09-25':true};
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('설정DB');
+    if (sheet && sheet.getLastRow() > 1) {
+      const rows = sheet.getDataRange().getDisplayValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i][0] || '').trim() !== 'HOLIDAY_DATES') continue;
+        String(rows[i][1] || '').split(',').forEach(function(v){
+          const d = normalizeDate_(String(v || '').trim()); if (d) dates[d] = true;
+        });
+      }
+    }
+  } catch (ignore) {}
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('BUS70_HOLIDAY_DATES') || '';
+    raw.split(',').forEach(function(v){const d=normalizeDate_(String(v||'').trim());if(d)dates[d]=true;});
+  } catch (ignore) {}
+  return Object.keys(dates);
 }
