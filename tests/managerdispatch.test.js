@@ -23,10 +23,11 @@ const accounts=sheet([['accountId','권한','driverId','로그인이름','로그
   ['A3','정비소','CTR-CENTER-001','Center','','Y','','','',''],['A4','마스터','DRV-B-TEST-002','','','Y','','','','']]);
 const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges,
   '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory};
+let idCounter=0;
 const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
   normalizeDate_:v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v):'',makeHeaderMap_:h=>Object.fromEntries(h.map((v,i)=>[v,i])),
-  bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{},newId_:prefix=>prefix+'-TEST'};
+  bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{},newId_:prefix=>prefix+'-TEST-'+(++idCounter)};
 vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
 assert.equal(context.bus70IsManager_('D1'),true); assert.equal(context.bus70IsManager_('D2'),false);
 assert.equal(context.bus70RoleFor_('ADM-MASTER-001'),'MASTER');
@@ -42,7 +43,10 @@ const converted=context.bus70MasterDriverUpsert_({driverId:'D2',empId:'626099',n
 assert.equal(converted.ok,true); assert.equal(drivers.rows[2][1],'626099'); assert.equal(drivers.rows[2][2],'실제기사');
 assert.equal(drivers.rows[2][5],'정규'); assert.equal(drivers.rows[2][12],'N');
 assert.equal(context.bus70MasterDriverUpsert_({driverId:'D3',empId:'626099',name:'중복',shift:'A',driverType:'노선',status:'재직'},'ADM-MASTER-001').error,'EMP_ID_DUPLICATE');
-const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,21); assert.equal(boot.departures[1].time,'05:00');
+const newDriver=context.bus70MasterDriverUpsert_({empId:'626888',name:'신규예비',shift:'A',route:'88',driverType:'예비',status:'재직'},'D1');
+assert.equal(newDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1][2],'신규예비'); assert.equal(drivers.rows[drivers.rows.length-1][4],'예비');
+assert.equal(context.bus70MasterDriverUpsert_({empId:'626888',name:'중복신규',shift:'A',route:'70',driverType:'노선',status:'재직'},'D1').error,'EMP_ID_DUPLICATE');
+const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,22); assert.equal(boot.departures[1].time,'05:00');
 assert.equal(boot.drivers.some(v=>v.name==='이재천'),true);
 const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(drivers.rows.length,rowCountAfterSeed);
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
@@ -69,6 +73,11 @@ const duplicate=assignments.map(v=>({...v})); duplicate[1].vehicleId='V1';
 assert.equal(context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments:duplicate},'D1').error,'DUPLICATE_ASSIGNMENT');
 const reserveSaved=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'reserveVehicleUpsert',vehicleNo:'1601',route:'70',status:'운행가능',note:'시험 예비차'},'D1');
 assert.equal(reserveSaved.ok,true); const reserveId=vehicles.rows[vehicles.rows.length-1][0]; assert.equal(vehicles.rows[vehicles.rows.length-1][2],'예비');
+const normalSaved=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'reserveVehicleUpsert',vehicleNo:'1701',vehicleType:'일반',route:'70',status:'운행가능',note:'신규 일반차'},'D1');
+assert.equal(normalSaved.ok,true); const normalId=normalSaved.vehicleId; assert.equal(vehicles.rows[vehicles.rows.length-1][2],'일반');
+assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'reserveVehicleUpsert',vehicleNo:'1701',vehicleType:'예비',route:'70',status:'운행가능'},'D1').error,'VEHICLE_NO_DUPLICATE');
+const normalEdited=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'reserveVehicleUpsert',vehicleId:normalId,vehicleNo:'1701',vehicleType:'예비',route:'88',status:'정비중',note:'수정 시험'},'D1');
+assert.equal(normalEdited.ok,true); assert.equal(vehicles.rows[vehicles.rows.length-1][2],'예비'); assert.equal(vehicles.rows[vehicles.rows.length-1][4],'88');
 const vehicleIncident=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'vehicleIncidentSave',date:'2026-09-20',sequence:1,vehicleId:'V1',reserveVehicleId:reserveId,type:'고장',content:'시동 불량'},'D1');
 assert.equal(vehicleIncident.ok,true); assert.equal(incidents.rows.length,2); assert.equal(maintenance.rows.length,2); assert.equal(vehicles.rows[1][3],'정비중');
 assert.equal(dispatch.rows.find(r=>r[1]==='2026-09-20'&&Number(r[3])===1)[5],reserveId);
