@@ -74,6 +74,13 @@ assert.equal(vehicleIncident.ok,true); assert.equal(incidents.rows.length,2); as
 assert.equal(dispatch.rows.find(r=>r[1]==='2026-09-20'&&Number(r[3])===1)[5],reserveId);
 const operationBoot=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'operationBootstrap'},'CTR-CENTER-001');
 assert.equal(operationBoot.ok,true); assert.equal(operationBoot.incidents.length,1);
+const originalStatus=operationBoot.vehicles.find(v=>v.id==='V1'), reserveStatus=operationBoot.vehicles.find(v=>v.id===reserveId);
+assert.equal(originalStatus.status,'정비중'); assert.equal(originalStatus.lastChangeReason,'고장 · 시동 불량');
+assert.equal(reserveStatus.assignment.date,'2026-09-20'); assert.equal(reserveStatus.assignment.sequence,1);
+assert.equal(reserveStatus.lastChangeReason,'예비차 투입 · 시동 불량');
 const maintId=maintenance.rows[1][0]; const completed=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'maintenanceUpdate',maintId,status:'완료',result:'배터리 교체',note:'출고'},'CTR-CENTER-001');
 assert.equal(completed.ok,true); assert.equal(maintenance.rows[1][6],'완료'); assert.equal(vehicles.rows[1][3],'운행가능'); assert.equal(maintenanceHistory.rows.length,2);
+const completedBoot=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'operationBootstrap'},'D1');
+assert.equal(completedBoot.vehicles.find(v=>v.id==='V1').status,'운행가능');
+assert.equal(completedBoot.vehicles.find(v=>v.id==='V1').lastChangeReason,'정비 완료 · 배터리 교체');
 console.log('ManagerDispatch tests passed');
