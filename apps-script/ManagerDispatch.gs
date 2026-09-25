@@ -185,7 +185,7 @@ function bus70MasterStaffUpsert_(body, requesterId) {
 function bus70MasterDriverUpsert_(body, requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
   let driverId=String(body.driverId||'').trim(); const empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
-  if(!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  if(!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B','예비'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('기사DB');
   if(!sheet) return {ok:false,error:'DB_MISSING',message:'기사DB를 찾을 수 없습니다.'};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
