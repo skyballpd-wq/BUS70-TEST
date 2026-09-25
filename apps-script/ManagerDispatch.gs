@@ -420,10 +420,14 @@ function bus70ManagerMasterRows_(sheet, type) {
     const route = String(rows[i][c['현재노선']] || '').trim();
     const status = String(rows[i][c['상태']] || '').trim();
     if (type === 'driver') {
+      const driverId = String(rows[i][c['driverId']] || '').trim();
+      const driverType = String(rows[i][c['기사구분']] || '').trim();
+      if (['ADM-MASTER-001','MGR-MAJOR-001','CTR-CENTER-001'].indexOf(driverId) !== -1) continue;
+      if (['마스터','소장','관리','정비','정비소'].indexOf(driverType) !== -1) continue;
       if (status !== '재직' && status !== '1') continue;
-      result.push({id:String(rows[i][c['driverId']] || '').trim(), name:String(rows[i][c['성명']] || '').trim(),
+      result.push({id:driverId, name:String(rows[i][c['성명']] || '').trim(),
         shift:String(rows[i][c['근무조']] || '').trim(), route:route,
-        driverType:String(rows[i][c['기사구분']] || '').trim()});
+        driverType:driverType});
     } else {
       if (route && route !== '70') continue;
       if (status !== '운행가능' && status !== '운행') continue;
