@@ -8,17 +8,21 @@ function sheet(rows) {
 }
 const drivers=sheet([['driverId','사원번호','성명','근무조','기사구분','사번구분','기수','현재노선','표시순서','상태','투입일','종료일','TEST','비고'],
   ...Array.from({length:11},(_,i)=>['D'+(i+1),String(600001+i),'기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y',''])]);
-const vehicles=sheet([['vehicleId','차량번호','현재노선','상태'],...Array.from({length:11},(_,i)=>['V'+(i+1),String(1499+i),'70','운행가능'])]);
+const vehicles=sheet([['vehicleId','차량번호','차량구분','상태','현재노선','기본기사ID','표시순서','비고'],...Array.from({length:11},(_,i)=>['V'+(i+1),String(1499+i),'일반','운행가능','70','',i+1,''])]);
 const dispatch=sheet([['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']]);
 const confirmations=sheet([['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']]);
 const workChanges=sheet([['changeId','날짜','기사ID','유형','적용순차','적용탕','대체기사ID','시작시간','종료시간','사유','처리자','처리시간']]);
+const incidents=sheet([['incidentId','접수시간','날짜','기사ID','차량ID','순차','탕','유형','위도','경도','내용','사진링크','상태','처리자','종결시간','비고']]);
+const maintenance=sheet([['maintId','incidentId','요청시간','차량ID','기사ID','요청내용','현재상태','입고시간','출고시간','예비차량ID','정비결과','비고']]);
+const maintenanceHistory=sheet([['historyId','maintId','처리시간','상태','처리자','내용','예비차량ID','비고']]);
 const schedule=sheet([['버전','순차','탕','발차지','발차시간','회차지','회차시간','상태'],
   ...Array.from({length:11},(_,i)=>['WD-TEST-V001',i+1,1,'고강동차고지','05:'+String(5*i).padStart(2,'0'),'송내역','06:00','사용']),
   ...Array.from({length:8},(_,i)=>['HD-TEST-V001',i+1,1,'고강동차고지','06:'+String(5*i).padStart(2,'0'),'송내역','07:00','사용'])]);
 const accounts=sheet([['accountId','권한','driverId','로그인이름','로그인사번','사용여부','마지막로그인','비고','비밀번호해시','비밀번호변경시간'],
   ['A1','소장','D1','Major','','Y','','','',''],['A2','마스터','ADM-MASTER-001','Master','','Y','','','',''],
   ['A3','정비소','CTR-CENTER-001','Center','','Y','','','',''],['A4','마스터','DRV-B-TEST-002','','','Y','','','','']]);
-const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges};
+const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges,
+  '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory};
 const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
   normalizeDate_:v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v):'',makeHeaderMap_:h=>Object.fromEntries(h.map((v,i)=>[v,i])),
@@ -63,4 +67,13 @@ const holidayAssignments=assignments.slice(0,8);
 assert.equal(context.bus70SaveManagerDispatchDay_({date:'2026-09-20',shift:'B',assignments:holidayAssignments},'D1').ok,true);
 const duplicate=assignments.map(v=>({...v})); duplicate[1].vehicleId='V1';
 assert.equal(context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments:duplicate},'D1').error,'DUPLICATE_ASSIGNMENT');
+const reserveSaved=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'reserveVehicleUpsert',vehicleNo:'1601',route:'70',status:'운행가능',note:'시험 예비차'},'D1');
+assert.equal(reserveSaved.ok,true); const reserveId=vehicles.rows[vehicles.rows.length-1][0]; assert.equal(vehicles.rows[vehicles.rows.length-1][2],'예비');
+const vehicleIncident=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'vehicleIncidentSave',date:'2026-09-20',sequence:1,vehicleId:'V1',reserveVehicleId:reserveId,type:'고장',content:'시동 불량'},'D1');
+assert.equal(vehicleIncident.ok,true); assert.equal(incidents.rows.length,2); assert.equal(maintenance.rows.length,2); assert.equal(vehicles.rows[1][3],'정비중');
+assert.equal(dispatch.rows.find(r=>r[1]==='2026-09-20'&&Number(r[3])===1)[5],reserveId);
+const operationBoot=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'operationBootstrap'},'CTR-CENTER-001');
+assert.equal(operationBoot.ok,true); assert.equal(operationBoot.incidents.length,1);
+const maintId=maintenance.rows[1][0]; const completed=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'maintenanceUpdate',maintId,status:'완료',result:'배터리 교체',note:'출고'},'CTR-CENTER-001');
+assert.equal(completed.ok,true); assert.equal(maintenance.rows[1][6],'완료'); assert.equal(vehicles.rows[1][3],'운행가능'); assert.equal(maintenanceHistory.rows.length,2);
 console.log('ManagerDispatch tests passed');
