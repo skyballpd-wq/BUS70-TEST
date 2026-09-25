@@ -498,6 +498,7 @@
         <div><label for="masterDriverEmpId">실제 사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
         <div><label for="masterDriverName">실제 성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
         <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option></select></div>
+        <div><label for="masterDriverRoute">현재 노선</label><input id="masterDriverRoute" type="text" maxlength="10" value="70" placeholder="예: 70"></div>
         <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="예비">예비</option><option value="노선">노선</option></select></div>
         <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
       </div>
@@ -951,12 +952,28 @@
     drivers.replaceChildren(new Option("기사를 선택하세요", ""));
     data.drivers.slice().sort((a,b) => (b.test === "Y") - (a.test === "Y") || a.name.localeCompare(b.name, "ko"))
       .forEach(d => drivers.add(new Option((d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
-    const affected=document.getElementById("workChangeDriver"), replacement=document.getElementById("workChangeReplacement");
-    affected.replaceChildren(new Option("기사를 선택하세요","")); replacement.replaceChildren(new Option("미정·대체 없음",""));
-    data.drivers.forEach(d=>{affected.add(new Option(d.name+" · "+d.empId,d.driverId)); if(d.status==="재직"&&(d.driverType==="예비"||d.driverType==="양성")) replacement.add(new Option(d.name+" · "+d.empId+" · "+d.driverType,d.driverId));});
+    const affected=document.getElementById("workChangeDriver");
+    affected.replaceChildren(new Option("기사를 선택하세요",""));
+    data.drivers.forEach(d=>affected.add(new Option(d.name+" · "+d.empId+" · "+(d.route||"노선 미지정")+"번 · "+(d.shift||"조 미지정"),d.driverId)));
+    refreshWorkChangeReplacements();
     const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
     const history=document.getElementById("workChangeHistory"); history.replaceChildren();
     (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":"")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
+  }
+
+  function refreshWorkChangeReplacements() {
+    const affectedId=document.getElementById("workChangeDriver").value;
+    const replacement=document.getElementById("workChangeReplacement");
+    const affected=masterAdminData.drivers.find(d=>d.driverId===affectedId);
+    replacement.replaceChildren(new Option(affected?"미정·대체 없음 (기준 "+affected.route+"번·"+affected.shift+"조)":"대상 기사를 먼저 선택하세요",""));
+    if(!affected)return;
+    masterAdminData.drivers
+      .filter(d=>d.driverId!==affectedId&&d.status==="재직")
+      .sort((a,b)=>Number(b.route===affected.route&&b.shift===affected.shift)-Number(a.route===affected.route&&a.shift===affected.shift)||Number(b.route===affected.route)-Number(a.route===affected.route)||a.name.localeCompare(b.name,"ko"))
+      .forEach(d=>{
+        const scope=d.route===affected.route&&d.shift===affected.shift?"추천":d.route===affected.route?"다른 조":"다른 노선";
+        replacement.add(new Option("["+scope+"] "+d.name+" · "+d.empId+" · "+(d.route||"-")+"번 · "+(d.shift||"-")+"조 · "+d.driverType,d.driverId));
+      });
   }
 
   async function loadMasterAdmin() {
@@ -984,9 +1001,11 @@
     document.getElementById("masterDriverEmpId").value = d ? d.empId : "";
     document.getElementById("masterDriverName").value = d ? d.name : "";
     document.getElementById("masterDriverShift").value = d && ["A","B"].includes(d.shift) ? d.shift : "A";
+    document.getElementById("masterDriverRoute").value = d && d.route ? d.route : "70";
     document.getElementById("masterDriverType").value = d && ["양성","예비","노선"].includes(d.driverType) ? d.driverType : "양성";
     document.getElementById("masterDriverStatus").value = d && ["재직","휴무","병가","퇴직"].includes(d.status) ? d.status : "재직";
   });
+  document.getElementById("workChangeDriver").addEventListener("change", refreshWorkChangeReplacements);
 
   async function saveMasterStaff() {
     const button = document.getElementById("masterStaffSave");
@@ -1004,9 +1023,9 @@
     const button = document.getElementById("masterDriverSave");
     const body={action:"managerAccountUpsert",operation:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
       empId:document.getElementById("masterDriverEmpId").value,name:document.getElementById("masterDriverName").value.trim(),
-      shift:document.getElementById("masterDriverShift").value,driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
+      shift:document.getElementById("masterDriverShift").value,route:document.getElementById("masterDriverRoute").value.trim(),driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
     if(!body.driverId) return masterStatus("전환할 기사를 선택하세요.");
-    if(!/^\d{6}$/.test(body.empId)||!body.name) return masterStatus("실제 성명과 6자리 사원번호를 확인하세요.");
+    if(!/^\d{6}$/.test(body.empId)||!body.name||!body.route) return masterStatus("실제 성명·6자리 사원번호·현재 노선을 확인하세요.");
     button.disabled=true;
     try { const result=await apiPost(body); masterStatus(result.message || "전환하지 못했습니다.",result.ok); if(result.ok) await loadMasterAdmin(); }
     catch(error){ masterStatus("서버 통신에 실패했습니다."); }
