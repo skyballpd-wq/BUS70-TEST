@@ -142,6 +142,17 @@ function bus70ConfirmCurrentDispatch_(body) {
           String(row[cc['기사ID']] || '').trim() === driverId &&
           String(row[cc['dispatchId']] || '').trim() === dispatchId &&
           String(row[cc['시간표버전']] || '').trim() === scheduleVersion) {
+        if (String(row[cc['재확인필요']] || '').trim() === 'Y') {
+          const now = new Date();
+          confirmSheet.getRange(j + 1, cc['확인시간'] + 1).setValue(now);
+          confirmSheet.getRange(j + 1, cc['캘린더저장'] + 1).setValue(body.calendarSaved ? 'Y' : 'N');
+          confirmSheet.getRange(j + 1, cc['알람설정'] + 1).setValue(body.alarmSet ? 'Y' : 'N');
+          confirmSheet.getRange(j + 1, cc['마지막동기화'] + 1).setValue(now);
+          confirmSheet.getRange(j + 1, cc['재확인필요'] + 1).setValue('N');
+          return {ok:true, alreadyConfirmed:false, reConfirmed:true,
+            confirmId:String(row[cc['confirmId']] || ''), confirmedAt:formatDateTime_(now),
+            message:'변경된 배차 확인이 저장되었습니다.'};
+        }
         return {ok:true, alreadyConfirmed:true, confirmId:String(row[cc['confirmId']] || ''),
           confirmedAt:String(row[cc['확인시간']] || ''), message:'이미 확인한 배차입니다.'};
       }
