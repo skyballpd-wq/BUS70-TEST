@@ -1324,8 +1324,14 @@
     for (const seq of sequences) {
       const row = el("div", undefined, "manager-row"); row.dataset.sequence = String(seq);
       row.append(el("strong", seq));
+      const selectedShift=document.getElementById("managerShift").value;
       const driver = el("select", undefined, "manager-driver"); driver.append(new Option("기사 선택", ""));
-      data.drivers.filter(v => v.shift === document.getElementById("managerShift").value).forEach(v => driver.append(new Option(v.name, v.id)));
+      data.drivers.slice()
+        .sort((a,b)=>Number(b.route==="70"&&b.shift===selectedShift)-Number(a.route==="70"&&a.shift===selectedShift)||Number(b.route==="70")-Number(a.route==="70")||a.name.localeCompare(b.name,"ko"))
+        .forEach(v=>{
+          const scope=v.route==="70"&&v.shift===selectedShift?"추천":v.route==="70"?"다른 조":"다른 노선";
+          driver.append(new Option("["+scope+"] "+v.name+" · "+(v.route||"-")+"번 · "+(v.shift||"-")+"조",v.id));
+        });
       const vehicle = el("select", undefined, "manager-vehicle"); vehicle.append(new Option("차량 선택", ""));
       data.vehicles.forEach(v => vehicle.append(new Option(v.last3 + " · " + v.displayNo, v.id)));
       if (selected[seq]) { driver.value = selected[seq].driverId; vehicle.value = selected[seq].vehicleId; }
