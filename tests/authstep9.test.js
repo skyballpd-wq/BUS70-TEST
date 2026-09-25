@@ -6,7 +6,8 @@ function sheet(rows) {
   return {
     rows,
     getDataRange() { return { getDisplayValues: () => this.rows.map(r => r.map(String)) }; },
-    appendRow(row) { this.rows.push(row); }
+    appendRow(row) { this.rows.push(row); },
+    getRange(row,col) { return {setValue:value => {this.rows[row-1][col-1]=value;}}; }
   };
 }
 
@@ -67,6 +68,14 @@ assert.equal(confirmations.rows.length, 2);
 const duplicate = context.bus70AuthAction_(body);
 assert.equal(duplicate.ok, true);
 assert.equal(duplicate.alreadyConfirmed, true);
+assert.equal(confirmations.rows.length, 2);
+
+confirmations.rows[1][9] = 'Y';
+const reconfirmed = context.bus70AuthAction_(body);
+assert.equal(reconfirmed.ok, true);
+assert.equal(reconfirmed.alreadyConfirmed, false);
+assert.equal(reconfirmed.reConfirmed, true);
+assert.equal(confirmations.rows[1][9], 'N');
 assert.equal(confirmations.rows.length, 2);
 
 const changed = context.bus70AuthAction_(Object.assign({}, body, {scheduleVersion:'WD-V2'}));
