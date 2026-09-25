@@ -141,6 +141,23 @@ function bus70HolidayDates_(year) {
   } catch (ignore) {}
   if (!Object.keys(dates).length) {
     try {
+      const response = UrlFetchApp.fetch('https://nagerholidays.com/api/v4/Holidays/KR/' + y, {
+        muteHttpExceptions:true,
+        headers:{Accept:'application/json'}
+      });
+      if (response.getResponseCode() === 200) {
+        const holidays = JSON.parse(response.getContentText());
+        holidays.forEach(function(holiday){
+          const types = holiday.holidayTypes || [];
+          const d = normalizeDate_(holiday.date);
+          if (d && d.slice(0, 4) === String(y) && holiday.nationalHoliday !== false &&
+              (!types.length || types.indexOf('Public') !== -1)) dates[d] = true;
+        });
+      }
+    } catch (ignore) {}
+  }
+  if (!Object.keys(dates).length) {
+    try {
       const calendar = CalendarApp.getCalendarById('ko.south_korea#holiday@group.v.calendar.google.com');
       if (calendar) {
         const start = new Date(y, 0, 1);
@@ -171,6 +188,19 @@ function bus70HolidayDates_(year) {
       }
     } catch (ignore) {}
   }
+  // 외부 공휴일 제공처가 일시적으로 모두 실패해도 현재 운영연도는 안전하게 판정한다.
+  if (y === 2026 && !Object.keys(dates).length) {
+    [
+      '2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-02',
+      '2026-05-01','2026-05-05','2026-05-25','2026-06-03','2026-06-06',
+      '2026-07-17','2026-08-17','2026-09-24','2026-09-25','2026-09-26',
+      '2026-10-05','2026-10-09','2026-12-25'
+    ].forEach(function(d){ dates[d] = true; });
+  }
+  const automatic = Object.keys(dates).sort();
+  try {
+    if (automatic.length) CacheService.getScriptCache().put(cacheKey, JSON.stringify(automatic), 21600);
+  } catch (ignore) {}
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('설정DB');
     if (sheet && sheet.getLastRow() > 1) {
