@@ -19,13 +19,22 @@ const dispatch = sheet([
   ['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']
 ]);
 const cache = new Map();
+const holidayEvents = ['2026-09-24','2026-09-25','2027-02-09'].map(value => ({
+  getStartTime:() => new Date(value + 'T00:00:00+09:00')
+}));
 const context = {
   console, JSON, Date, Math, Number, String, Object, Array, RegExp,
   PropertiesService:{getScriptProperties:() => ({getProperty:() => ''})},
   CacheService:{getScriptCache:() => ({
     put:(k,v) => cache.set(k,v), get:k => cache.get(k) || null, remove:k => cache.delete(k)
   })},
-  Utilities:{getUuid:() => 'candidate-1'},
+  Utilities:{
+    getUuid:() => 'candidate-1',
+    formatDate:value => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(value)
+  },
+  CalendarApp:{getCalendarById:() => ({getEvents:(start,end) => holidayEvents.filter(event => {
+    const value = event.getStartTime(); return value >= start && value < end;
+  })})},
   SpreadsheetApp:{getActiveSpreadsheet:() => ({getSheetByName:n => n === '차량DB' ? vehicles : n === '배차DB' ? dispatch : null})},
   LockService:{getScriptLock:() => ({waitLock(){},releaseLock(){}})},
   normalizeDate_:v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '',
@@ -40,6 +49,7 @@ assert.equal(context.bus70ScheduleVersionForDate_('2026-09-20'), 'HD-TEST-V001')
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-22'), 'WD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-24'), 'HD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-25'), 'HD-TEST-V001');
+assert.equal(context.bus70ScheduleVersionForDate_('2027-02-09'), 'HD-TEST-V001');
 assert.equal(context.bus70FindVehicleByLast3_('499').vehicleId, 'VEH-1499');
 assert.equal(context.bus70FindVehicleByLast3_('999').error, 'VEHICLE_NOT_FOUND');
 
