@@ -7,7 +7,10 @@ function sheet(rows) {
     appendRow(row){this.rows.push(row);}, getRange(row,col,count){return {setValues:values=>{if(col===1)this.rows[row-1]=values[0].slice();else values[0].forEach((v,i)=>this.rows[row-1][col-1+i]=v);},setValue:value=>{this.rows[row-1][col-1]=value;}};}};
 }
 const drivers=sheet([['driverId','사원번호','성명','근무조','기사구분','사번구분','기수','현재노선','표시순서','상태','투입일','종료일','TEST','비고'],
-  ...Array.from({length:11},(_,i)=>['D'+(i+1),String(600001+i),'기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y',''])]);
+  ...Array.from({length:11},(_,i)=>['D'+(i+1),String(600001+i),'기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y','']),
+  ['ADM-MASTER-001','90000','Master','','마스터','','','70',999,'재직','','','Y',''],
+  ['MGR-MAJOR-001','700000','Major','','관리','','','70',999,'재직','','','Y',''],
+  ['CTR-CENTER-001','800000','Center','','정비','','','70',999,'재직','','','Y','']]);
 const vehicles=sheet([['vehicleId','차량번호','차량구분','상태','현재노선','기본기사ID','표시순서','비고'],...Array.from({length:11},(_,i)=>['V'+(i+1),String(1499+i),'일반','운행가능','70','',i+1,''])]);
 const dispatch=sheet([['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']]);
 const confirmations=sheet([['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']]);
@@ -48,6 +51,7 @@ assert.equal(newDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1
 assert.equal(context.bus70MasterDriverUpsert_({empId:'626888',name:'중복신규',shift:'A',route:'70',driverType:'노선',status:'재직'},'D1').error,'EMP_ID_DUPLICATE');
 const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,22); assert.equal(boot.departures[1].time,'05:00');
 assert.equal(boot.drivers.some(v=>v.name==='이재천'),true);
+assert.equal(boot.drivers.some(v=>['Master','Major','Center'].includes(v.name)),false);
 const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(drivers.rows.length,rowCountAfterSeed);
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
 const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1),vehicleId:'V'+(i+1)}));
