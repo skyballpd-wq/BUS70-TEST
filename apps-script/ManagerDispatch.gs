@@ -55,17 +55,19 @@ function bus70OperationBootstrap_(requesterId) {
 }
 
 function bus70ReserveVehicleUpsert_(body, requesterId) {
-  if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'예비차 등록은 소장 이상만 가능합니다.'};
-  const no=String(body.vehicleNo||'').replace(/\D/g,''), route=String(body.route||'70').trim(), status=String(body.status||'운행가능').trim(), note=String(body.note||'').trim();
-  if(!/^\d{4}$/.test(no)||!route||['운행가능','운행','정비중','운행불가'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'차량번호 4자리·노선·상태를 확인하세요.'};
+  if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'차량 등록·수정은 소장 이상만 가능합니다.'};
+  const vehicleId=String(body.vehicleId||'').trim(), no=String(body.vehicleNo||'').replace(/\D/g,''), type=String(body.vehicleType||body.type||'예비').trim(), route=String(body.route||'70').trim(), status=String(body.status||'운행가능').trim(), note=String(body.note||'').trim();
+  if(!/^\d{4}$/.test(no)||!route||!['일반','예비'].includes(type)||['운행가능','운행','정비중','운행불가'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'차량번호 4자리·구분·노선·상태를 확인하세요.'};
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('차량DB'); if(!sheet)return {ok:false,error:'DB_MISSING',message:'차량DB를 찾을 수 없습니다.'};
-  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
-  for(let i=1;i<rows.length;i++)if(String(rows[i][c['차량번호']]||'').replace(/\D/g,'')===no){rowNo=i+1;break;}
+  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0, duplicateNo=0;
+  for(let i=1;i<rows.length;i++){if(String(rows[i][c['vehicleId']]||'')===vehicleId)rowNo=i+1;if(String(rows[i][c['차량번호']]||'').replace(/\D/g,'')===no)duplicateNo=i+1;}
+  if(vehicleId&&!rowNo)return {ok:false,error:'VEHICLE_NOT_FOUND',message:'수정할 차량을 찾을 수 없습니다.'};
+  if(duplicateNo&&duplicateNo!==rowNo)return {ok:false,error:'VEHICLE_NO_DUPLICATE',message:'이미 등록된 차량번호입니다.'};
   const before=rowNo?rows[rowNo-1].slice():[], row=rowNo?before.slice():new Array(rows[0].length).fill('');
-  row[c['vehicleId']]=rowNo?String(row[c['vehicleId']]||''):'VEH-70-'+no; row[c['차량번호']]=no; row[c['차량구분']]='예비'; row[c['상태']]=status; row[c['현재노선']]=route; row[c['표시순서']]=row[c['표시순서']]||999; row[c['비고']]=note||'예비차 등록';
+  row[c['vehicleId']]=rowNo?String(row[c['vehicleId']]||''):newId_('VEH'); row[c['차량번호']]=no; row[c['차량구분']]=type; row[c['상태']]=status; row[c['현재노선']]=route; row[c['표시순서']]=row[c['표시순서']]||999; row[c['비고']]=note||(type==='예비'?'예비차 등록':'일반차 등록');
   if(rowNo)sheet.getRange(rowNo,1,1,row.length).setValues([row]);else sheet.appendRow(row);
-  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','차량DB',row[c['vehicleId']],rowNo?'수정':'추가',before,row,'예비차 관리');
-  return {ok:true,message:no+' 예비차 정보를 저장했습니다.'};
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','차량DB',row[c['vehicleId']],rowNo?'수정':'추가',before,row,'차량 등록·수정');
+  return {ok:true,vehicleId:row[c['vehicleId']],message:(rowNo?'차량 정보를 수정했습니다. ':type+' 차량을 등록했습니다. ')+no};
 }
 
 function bus70VehicleIncidentSave_(body, requesterId) {
@@ -182,19 +184,20 @@ function bus70MasterStaffUpsert_(body, requesterId) {
 
 function bus70MasterDriverUpsert_(body, requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
-  const driverId=String(body.driverId||'').trim(), empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
-  if(!driverId||!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  let driverId=String(body.driverId||'').trim(); const empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
+  if(!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('기사DB');
   if(!sheet) return {ok:false,error:'DB_MISSING',message:'기사DB를 찾을 수 없습니다.'};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
   for(let i=1;i<rows.length;i++) if(String(rows[i][c['driverId']]||'')===driverId){rowNo=i+1;break;}
-  if(!rowNo) return {ok:false,error:'DRIVER_NOT_FOUND',message:'전환할 기사를 찾을 수 없습니다.'};
+  if(driverId&&!rowNo) return {ok:false,error:'DRIVER_NOT_FOUND',message:'수정할 기사를 찾을 수 없습니다.'};
   for(let j=1;j<rows.length;j++) if(j+1!==rowNo&&String(rows[j][c['사원번호']]||'')===empId) return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};
-  const before=rows[rowNo-1].slice(), row=before.slice();
-  row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]=route; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]='마스터 실기사 전환';
-  sheet.getRange(rowNo,1,1,row.length).setValues([row]);
-  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','기사DB',driverId,'실기사전환',before,row,'임시기사 실제정보 전환');
-  return {ok:true,message:name+' 기사를 실제 기사정보로 전환했습니다.'};
+  const before=rowNo?rows[rowNo-1].slice():[], row=rowNo?before.slice():new Array(rows[0].length).fill('');
+  if(!driverId)driverId=newId_('DRV');
+  row[c['driverId']]=driverId; row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]=route; row[c['표시순서']]=row[c['표시순서']]||999; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]=rowNo?'기사정보 수정':'신규 기사 등록';
+  if(rowNo)sheet.getRange(rowNo,1,1,row.length).setValues([row]);else sheet.appendRow(row);
+  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','기사DB',driverId,rowNo?'수정':'추가',before,row,'기사 등록·수정');
+  return {ok:true,driverId:driverId,message:name+' 기사 정보를 '+(rowNo?'수정':'등록')+'했습니다.'};
 }
 
 function bus70IsManager_(driverId) {
