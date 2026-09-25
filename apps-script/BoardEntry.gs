@@ -154,6 +154,23 @@ function bus70HolidayDates_(year) {
       }
     } catch (ignore) {}
   }
+  // 계정에 대한민국 공휴일 캘린더가 구독되어 있지 않은 경우 공개 ICS를 사용한다.
+  if (!Object.keys(dates).length) {
+    try {
+      const url = 'https://calendar.google.com/calendar/ical/' +
+        'ko.south_korea%23holiday%40group.v.calendar.google.com/public/basic.ics';
+      const response = UrlFetchApp.fetch(url, {muteHttpExceptions:true});
+      if (response.getResponseCode() === 200) {
+        const ics = response.getContentText().replace(/\r?\n[ \t]/g, '');
+        ics.split(/\r?\n/).forEach(function(line){
+          const match = line.match(/^DTSTART(?:;[^:]*)?:(\d{4})(\d{2})(\d{2})/);
+          if (match && Number(match[1]) === y) dates[match[1] + '-' + match[2] + '-' + match[3]] = true;
+        });
+        const automatic = Object.keys(dates).sort();
+        if (automatic.length) CacheService.getScriptCache().put(cacheKey, JSON.stringify(automatic), 21600);
+      }
+    } catch (ignore) {}
+  }
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('설정DB');
     if (sheet && sheet.getLastRow() > 1) {
