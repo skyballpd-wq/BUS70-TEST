@@ -487,14 +487,17 @@
       <div id="vehicleStatusList" class="vehicle-status-list"></div>
 
       <div id="reserveVehicleTools">
-        <h3>예비차 등록·상태 관리</h3>
+        <h3>차량 등록·수정</h3>
+        <label for="reserveVehicleSelect">등록 차량 선택</label>
+        <select id="reserveVehicleSelect"><option value="">새 차량 등록</option></select>
         <div class="manager-tools">
           <div><label for="reserveVehicleNo">차량번호 뒤 4자리</label><input id="reserveVehicleNo" type="text" inputmode="numeric" maxlength="4" placeholder="예: 1601"></div>
+          <div><label for="reserveVehicleType">차량구분</label><select id="reserveVehicleType"><option value="일반">일반</option><option value="예비">예비</option></select></div>
           <div><label for="reserveVehicleRoute">현재 노선</label><input id="reserveVehicleRoute" type="text" maxlength="10" value="70"></div>
           <div><label for="reserveVehicleStatus">상태</label><select id="reserveVehicleStatus"><option>운행가능</option><option>정비중</option><option>운행불가</option></select></div>
         </div>
         <label for="reserveVehicleNote">비고</label><input id="reserveVehicleNote" type="text" maxlength="100" placeholder="예비차 등록 또는 상태 변경 사유">
-        <button id="reserveVehicleSave" type="button">예비차 정보 저장</button>
+        <button id="reserveVehicleSave" type="button">차량 정보 저장</button>
         <hr>
         <h3>차량 돌발상황 접수·예비차 대체</h3>
         <div class="manager-tools">
@@ -515,7 +518,7 @@
 
     <section id="masterAdminPanel" class="manager-panel" hidden>
       <h2>운영정보 관리</h2>
-      <p class="hint">임시기사를 실제 기사정보로 전환합니다. 기사 고유 ID는 유지되어 기존 배차 기록이 보존됩니다.</p>
+      <p class="hint">일반·예비 기사를 새로 등록하거나 기존 정보를 수정합니다. 기존 기사를 수정해도 고유 ID와 과거 배차 기록은 유지됩니다.</p>
       <button id="masterAdminLoad" type="button">운영정보 불러오기</button>
       <div id="masterAdminStatus" class="manager-status" aria-live="polite"></div>
 
@@ -533,18 +536,18 @@
         <button id="masterStaffSave" type="button">운영계정 저장</button>
         <hr>
       </div>
-      <h3>임시기사 → 실제 기사 전환</h3>
-      <label for="masterDriverSelect">전환할 기사</label>
-      <select id="masterDriverSelect"><option value="">기사를 선택하세요</option></select>
+      <h3>기사 등록·수정</h3>
+      <label for="masterDriverSelect">등록 기사 선택</label>
+      <select id="masterDriverSelect"><option value="">새 기사 등록</option></select>
       <div class="manager-tools">
-        <div><label for="masterDriverEmpId">실제 사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
-        <div><label for="masterDriverName">실제 성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
+        <div><label for="masterDriverEmpId">사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
+        <div><label for="masterDriverName">성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
         <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option></select></div>
         <div><label for="masterDriverRoute">현재 노선</label><input id="masterDriverRoute" type="text" maxlength="10" value="70" placeholder="예: 70"></div>
         <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="예비">예비</option><option value="노선">노선</option></select></div>
         <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
       </div>
-      <button id="masterDriverSave" type="button">실제 기사정보로 전환</button>
+      <button id="masterDriverSave" type="button">기사 정보 저장</button>
       <hr>
       <h3>근태 발생·예비기사 대체</h3>
       <div class="manager-tools">
@@ -994,7 +997,7 @@
     staff.replaceChildren(new Option("새 계정", ""));
     data.accounts.forEach(a => staff.add(new Option(a.loginName + " · " + a.role + (a.enabled === "N" ? " · 중지" : ""), a.driverId)));
     const drivers = document.getElementById("masterDriverSelect");
-    drivers.replaceChildren(new Option("기사를 선택하세요", ""));
+    drivers.replaceChildren(new Option("새 기사 등록", ""));
     data.drivers.slice().sort((a,b) => (b.test === "Y") - (a.test === "Y") || a.name.localeCompare(b.name, "ko"))
       .forEach(d => drivers.add(new Option((d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
     const affected=document.getElementById("workChangeDriver");
@@ -1069,10 +1072,9 @@
     const body={action:"managerAccountUpsert",operation:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
       empId:document.getElementById("masterDriverEmpId").value,name:document.getElementById("masterDriverName").value.trim(),
       shift:document.getElementById("masterDriverShift").value,route:document.getElementById("masterDriverRoute").value.trim(),driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
-    if(!body.driverId) return masterStatus("전환할 기사를 선택하세요.");
     if(!/^\d{6}$/.test(body.empId)||!body.name||!body.route) return masterStatus("실제 성명·6자리 사원번호·현재 노선을 확인하세요.");
     button.disabled=true;
-    try { const result=await apiPost(body); masterStatus(result.message || "전환하지 못했습니다.",result.ok); if(result.ok) await loadMasterAdmin(); }
+    try { const result=await apiPost(body); masterStatus(result.message || "저장하지 못했습니다.",result.ok); if(result.ok) await loadMasterAdmin(); }
     catch(error){ masterStatus("서버 통신에 실패했습니다."); }
     finally { button.disabled=false; }
   }
@@ -1094,14 +1096,25 @@
   }
 
   function fillOperationVehicles(){
-    const all=document.getElementById("incidentVehicle"), reserve=document.getElementById("incidentReserveVehicle");
+    const all=document.getElementById("incidentVehicle"), reserve=document.getElementById("incidentReserveVehicle"), manage=document.getElementById("reserveVehicleSelect");
     all.replaceChildren(new Option("차량 선택","")); reserve.replaceChildren(new Option("미정·대체 없음",""));
+    manage.replaceChildren(new Option("새 차량 등록",""));
     operationData.vehicles.forEach(v=>{
       const label=(v.displayNo||v.no)+" · "+(v.type||"일반")+" · "+(v.status||"-");
       all.add(new Option(label,v.id));
+      manage.add(new Option(label,v.id));
       if(v.type==="예비"&&(v.status==="운행가능"||v.status==="운행")) reserve.add(new Option(label,v.id));
     });
   }
+
+  document.getElementById("reserveVehicleSelect").addEventListener("change",event=>{
+    const v=operationData.vehicles.find(x=>x.id===event.target.value);
+    document.getElementById("reserveVehicleNo").value=v?v.no:"";
+    document.getElementById("reserveVehicleType").value=v&&["일반","예비"].includes(v.type)?v.type:"일반";
+    document.getElementById("reserveVehicleRoute").value=v&&v.route?v.route:"70";
+    document.getElementById("reserveVehicleStatus").value=v&&["운행가능","정비중","운행불가"].includes(v.status)?v.status:"운행가능";
+    document.getElementById("reserveVehicleNote").value=v?v.note:"";
+  });
 
   function renderOperationList(){
     const root=document.getElementById("operationList"); root.replaceChildren();
@@ -1150,7 +1163,7 @@
   }
 
   async function saveReserveVehicle(){
-    const button=document.getElementById("reserveVehicleSave"),body={action:"managerAccountUpsert",operation:"reserveVehicleUpsert",token:authToken,vehicleNo:document.getElementById("reserveVehicleNo").value,route:document.getElementById("reserveVehicleRoute").value.trim(),status:document.getElementById("reserveVehicleStatus").value,note:document.getElementById("reserveVehicleNote").value.trim()};
+    const button=document.getElementById("reserveVehicleSave"),body={action:"managerAccountUpsert",operation:"reserveVehicleUpsert",token:authToken,vehicleId:document.getElementById("reserveVehicleSelect").value,vehicleNo:document.getElementById("reserveVehicleNo").value,vehicleType:document.getElementById("reserveVehicleType").value,route:document.getElementById("reserveVehicleRoute").value.trim(),status:document.getElementById("reserveVehicleStatus").value,note:document.getElementById("reserveVehicleNote").value.trim()};
     if(!/^\d{4}$/.test(body.vehicleNo))return operationNotice("차량번호 뒤 4자리를 입력하세요.",true);button.disabled=true;
     try{const result=await apiPost(body);operationNotice(result.message||"저장하지 못했습니다.",!result.ok);if(result.ok)await loadOperationData();}catch(error){operationNotice("예비차 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
