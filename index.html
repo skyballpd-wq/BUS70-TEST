@@ -515,9 +515,10 @@
           <div><label for="adjustmentDate">운행 날짜</label><input id="adjustmentDate" type="date"></div>
           <div><label for="adjustmentSequence">순차</label><select id="adjustmentSequence"></select></div>
           <div><label for="adjustmentTrip">탕</label><select id="adjustmentTrip"></select></div>
-          <div><label for="adjustmentBefore">기존시간</label><input id="adjustmentBefore" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0720 또는 07:20"></div>
-          <div><label for="adjustmentAfter">변경시간</label><input id="adjustmentAfter" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0735 또는 07:35"></div>
+          <div><label for="adjustmentBefore">기존시간</label><input id="adjustmentBefore" type="text" inputmode="numeric" maxlength="5" list="operationalTimeOptions" placeholder="직접입력 또는 선택"></div>
+          <div><label for="adjustmentAfter">변경시간</label><input id="adjustmentAfter" type="text" inputmode="numeric" maxlength="5" list="operationalTimeOptions" placeholder="직접입력 또는 선택"></div>
         </div>
+        <datalist id="operationalTimeOptions"></datalist>
         <label for="adjustmentReason">변경 사유</label><input id="adjustmentReason" type="text" maxlength="100" placeholder="예: 차량 고장에 따른 배차간격 조정">
         <button id="adjustmentSave" type="button">배차시간 변경 저장</button>
         <div id="adjustmentHistory" class="manager-status"></div>
@@ -1156,7 +1157,11 @@
 
   function renderAdjustmentHistory(){
     const root=document.getElementById("adjustmentHistory");root.replaceChildren();
-    (operationData.adjustments||[]).slice(0,10).forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 · "+v.trip+"탕 · "+v.before+" → "+v.after+(v.reason?" · "+v.reason:""),"notice")));
+    (operationData.adjustments||[]).slice(0,10).forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 · "+v.trip+"탕 · "+operationalClockLabel(v.before)+" → "+operationalClockLabel(v.after)+(v.reason?" · "+v.reason:""),"notice")));
+  }
+
+  function operationalClockLabel(value){
+    const time=canonicalTime(value);return /^0[0-3]:\d{2}$/.test(time)?"다음날 "+time:time;
   }
 
   function renderVehicleStatusList(){
@@ -1217,6 +1222,16 @@
     event.target.value=digits.length>2?digits.slice(0,2)+":"+digits.slice(2):digits;
   }
 
+  function populateOperationalTimeOptions(){
+    const list=document.getElementById("operationalTimeOptions");list.replaceChildren();
+    for(let minute=240;minute<1680;minute+=5){
+      const clock=minute%1440,hour=Math.floor(clock/60),min=clock%60;
+      const value=String(hour).padStart(2,"0")+":"+String(min).padStart(2,"0");
+      const option=document.createElement("option");option.value=value;
+      option.label=minute>=1440?"다음날 "+value:value;list.append(option);
+    }
+  }
+
   for(let i=1;i<=11;i++)document.getElementById("incidentSequence").add(new Option(i+"순차",String(i)));
   for(let i=1;i<=11;i++)document.getElementById("adjustmentSequence").add(new Option(i+"순차",String(i)));
   for(let i=1;i<=5;i++)document.getElementById("adjustmentTrip").add(new Option(i+"탕",String(i)));
@@ -1226,6 +1241,7 @@
   document.getElementById("adjustmentSave").addEventListener("click",saveScheduleAdjustment);
   document.getElementById("adjustmentBefore").addEventListener("input",formatDirectTimeInput);
   document.getElementById("adjustmentAfter").addEventListener("input",formatDirectTimeInput);
+  populateOperationalTimeOptions();
 
 
 
@@ -1242,7 +1258,8 @@
     const h = Number(t.slice(0, 2));
     const korean = (h < 12 ? "오전 " : "오후 ") + (h % 12 || 12) + t.slice(2);
     const mode = document.getElementById("timeMode").value;
-    return mode === "24H" ? t : mode === "12H" ? korean : t + " (" + korean + ")";
+    const prefix=h<4?"다음날 ":"";
+    return mode === "24H" ? prefix+t : mode === "12H" ? prefix+korean : prefix+t + " (" + korean + ")";
   }
 
   function el(tag, text, className) {
