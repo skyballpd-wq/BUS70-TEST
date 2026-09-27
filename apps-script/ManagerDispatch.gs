@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 40905)
-Total output lines: 2486
+Warning: truncated output (original token count: 41684)
+Total output lines: 2517
 
 /* BUS70 TEST - manager day dispatch editor.
  * Manager access is granted by 계정DB 권한(소장/관리자) or the
@@ -150,7 +150,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
 function bus70WorkChangeSave_(body, requesterId) {
   if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
   const date=normalizeDate_(body.date), driverId=String(body.driverId||'').trim(), type=String(body.type||'').trim();
-  const sequence=Number(body.sequence||0), replacementId=String(body.replacementId||'').trim(), reason=String(body.reason||'').trim();
+  const sequence=Number(body.sequence||0), replacementId=String(body.replacementId||'').trim(); let reason=String(body.reason||'').trim();
   if(!date||!driverId||['휴무','병가','지각','조퇴','결근','퇴직','복귀','재입사','기타'].indexOf(type)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'날짜·기사·발생유형을 확인하세요.'};
   if(replacementId===driverId) return {ok:false,error:'SAME_DRIVER',message:'대체기사는 기존 기사와 달라야 합니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), ws=ss.getSheetByName('근무변경DB'), ps=ss.getSheetByName('배차DB'), cs=ss.getSheetByName('배차확인DB');
@@ -158,6 +158,14 @@ function bus70WorkChangeSave_(body, requesterId) {
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]); let driverRow=0, replacementRow=0;
   for(let i=1;i<dr.length;i++){const id=String(dr[i][dc['driverId']]||''); if(id===driverId)driverRow=i+1; if(id===replacementId)replacementRow=i+1;}
   if(!driverRow||(replacementId&&!replacementRow)) return {ok:false,error:'DRIVER_NOT_FOUND',message:'기사 정보를 확인하세요.'};
+  let rehireEmpId='',rehireShift='',rehireRoute='';
+  if(type==='재입사'){
+    rehireEmpId=String(body.rehireEmpId||dr[driverRow-1][dc['사원번호']]||'').replace(/\D/g,'');
+    rehireShift=String(body.rehireShift||dr[driverRow-1][dc['근무조']]||'').trim();
+    rehireRoute=String(body.rehireRoute||dr[driverRow-1][dc['현재노선']]||'').trim();
+    if(!/^\d{6}$/.test(rehireEmpId)||['A','B','예비'].indexOf(rehireShift)===-1||!rehireRoute||rehireRoute.length>10) return {ok:false,error:'REHIRE_INFO_REQUIRED',message:'재입사 사원번호·근무조·노선을 확인하세요.'};
+    for(let r=1;r<dr.length;r++)if(r+1!==driverRow&&String(dr[r][dc['사원번호']]||'')===rehireEmpId)return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};
+  }
   if(replacementId&&String(dr[replacementRow-1][dc['상태']]||'')!=='재직') return {ok:false,error:'REPLACEMENT_UNAVAILABLE',message:'재직 중인 기사만 대체 투입할 수 있습니다.'};
   const driverShift=String(dr[driverRow-1][dc['근무조']]||'').trim(), driverRoute=String(dr[driverRow-1][dc['현재노선']]||'').trim();
   const replacementShift=replacementId?String(dr[replacementRow-1][dc['근무조']]||'').trim():'', replacementRoute=replacementId?String(dr[replacementRow-1][dc['현재노선']]||'').trim():'';
@@ -179,7 +187,12 @@ function bus70WorkChangeSave_(body, requesterId) {
   if(type==='퇴직'||type==='복귀'||type==='재입사'){
     const row=dr[driverRow-1].slice(); row[dc['상태']]=type==='퇴직'?'퇴직':'재직';
     if(type==='퇴직')row[dc['종료일']]=date;
-    if(type==='재입사'){row[dc['투입일']]=date;row[dc['종료일']]='';}
+    if(type==='재입사'){
+      const previous=[String(row[dc['사원번호']]||''),String(row[dc['근무조']]||''),String(row[dc['현재노선']]||'')];
+      row[dc['사원번호']]=rehireEmpId;row[dc['근무조']]=rehireShift;row[dc['현재노선']]=rehireRoute;row[dc['투입일']]=date;row[dc['종료일']]='';
+      const changeNote='재입사 정보 '+previous[0]+'/'+previous[1]+'조/'+previous[2]+'번 → '+rehireEmpId+'/'+rehireShift+'조/'+rehireRoute+'번';
+      reason=reason?reason+' · '+changeNote:changeNote;
+    }
     ds.getRange(driverRow,1,1,row.length).setValues([row]);
   }
   const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]), row=new Array(wr[0].length).fill('');
