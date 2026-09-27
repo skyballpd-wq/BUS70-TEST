@@ -515,8 +515,8 @@
           <div><label for="adjustmentDate">운행 날짜</label><input id="adjustmentDate" type="date"></div>
           <div><label for="adjustmentSequence">순차</label><select id="adjustmentSequence"></select></div>
           <div><label for="adjustmentTrip">탕</label><select id="adjustmentTrip"></select></div>
-          <div><label for="adjustmentBefore">기존시간</label><input id="adjustmentBefore" type="time"></div>
-          <div><label for="adjustmentAfter">변경시간</label><input id="adjustmentAfter" type="time"></div>
+          <div><label for="adjustmentBefore">기존시간</label><input id="adjustmentBefore" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0720 또는 07:20"></div>
+          <div><label for="adjustmentAfter">변경시간</label><input id="adjustmentAfter" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0735 또는 07:35"></div>
         </div>
         <label for="adjustmentReason">변경 사유</label><input id="adjustmentReason" type="text" maxlength="100" placeholder="예: 차량 고장에 따른 배차간격 조정">
         <button id="adjustmentSave" type="button">배차시간 변경 저장</button>
@@ -1199,8 +1199,22 @@
   }
 
   async function saveScheduleAdjustment(){
-    const button=document.getElementById("adjustmentSave"),body={action:"managerAccountUpsert",operation:"scheduleAdjustmentSave",token:authToken,date:document.getElementById("adjustmentDate").value,sequence:document.getElementById("adjustmentSequence").value,trip:document.getElementById("adjustmentTrip").value,before:document.getElementById("adjustmentBefore").value,after:document.getElementById("adjustmentAfter").value,reason:document.getElementById("adjustmentReason").value.trim()};
+    const before=normalizeDirectTime(document.getElementById("adjustmentBefore").value),after=normalizeDirectTime(document.getElementById("adjustmentAfter").value);
+    if(!before||!after)return operationNotice("시간을 0720 또는 07:20 형식으로 입력하세요.",true);
+    document.getElementById("adjustmentBefore").value=before;document.getElementById("adjustmentAfter").value=after;
+    const button=document.getElementById("adjustmentSave"),body={action:"managerAccountUpsert",operation:"scheduleAdjustmentSave",token:authToken,date:document.getElementById("adjustmentDate").value,sequence:document.getElementById("adjustmentSequence").value,trip:document.getElementById("adjustmentTrip").value,before:before,after:after,reason:document.getElementById("adjustmentReason").value.trim()};
     button.disabled=true;try{const result=await apiPost(body);operationNotice(result.message||"시간을 변경하지 못했습니다.",!result.ok);if(result.ok){document.getElementById("adjustmentBefore").value="";document.getElementById("adjustmentAfter").value="";await loadOperationData();}}catch(error){operationNotice("시간 변경 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
+  function normalizeDirectTime(value){
+    const digits=String(value||"").replace(/\D/g,"");if(digits.length!==4)return "";
+    const hour=Number(digits.slice(0,2)),minute=Number(digits.slice(2));
+    return hour>=0&&hour<24&&minute>=0&&minute<60?digits.slice(0,2)+":"+digits.slice(2):"";
+  }
+
+  function formatDirectTimeInput(event){
+    const digits=event.target.value.replace(/\D/g,"").slice(0,4);
+    event.target.value=digits.length>2?digits.slice(0,2)+":"+digits.slice(2):digits;
   }
 
   for(let i=1;i<=11;i++)document.getElementById("incidentSequence").add(new Option(i+"순차",String(i)));
@@ -1210,6 +1224,8 @@
   document.getElementById("reserveVehicleSave").addEventListener("click",saveReserveVehicle);
   document.getElementById("incidentSave").addEventListener("click",saveIncident);
   document.getElementById("adjustmentSave").addEventListener("click",saveScheduleAdjustment);
+  document.getElementById("adjustmentBefore").addEventListener("input",formatDirectTimeInput);
+  document.getElementById("adjustmentAfter").addEventListener("input",formatDirectTimeInput);
 
 
 
