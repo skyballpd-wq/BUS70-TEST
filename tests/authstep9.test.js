@@ -5,6 +5,7 @@ const assert = require('assert');
 function sheet(rows) {
   return {
     rows,
+    getLastRow() { return this.rows.length; },
     getDataRange() { return { getDisplayValues: () => this.rows.map(r => r.map(String)) }; },
     appendRow(row) { this.rows.push(row); },
     getRange(row,col) { return {setValue:value => {this.rows[row-1][col-1]=value;}}; }
@@ -17,6 +18,10 @@ const dispatch = sheet([
 ]);
 const confirmations = sheet([
   ['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']
+]);
+const adjustments = sheet([
+  ['gapId','날짜','순차','탕','기존시간','조정시간','기존간격','지시간격','사유','적용시작','적용종료','처리자','처리시간'],
+  ['G1','2026-09-24','1','2','07:20','07:35','','','차량 고장','','','','']
 ]);
 const properties = new Map();
 const context = {
@@ -37,14 +42,14 @@ const context = {
     deleteProperty: k => properties.delete(k)
   })},
   LockService: {getScriptLock: () => ({waitLock(){},releaseLock(){}})},
-  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : null})},
+  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : null})},
   normalizeDate_: value => String(value).slice(0,10),
   makeHeaderMap_: headers => Object.fromEntries(headers.map((h,i) => [h,i])),
   newId_: () => 'CONF-NEW',
   formatDateTime_: () => '2026-09-21 10:00:00',
   apiLogin_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
   apiGetDriver_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
-  apiMySchedule_: e => ({ok:true,type:'WORK',driverId:e.parameter.driverId,date:e.parameter.date})
+  apiMySchedule_: e => ({ok:true,type:'WORK',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1},trips:[{trip:2,startTime:'07:20',turnTime:'08:45',endTime:'10:10'}]})
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'), context);
@@ -58,6 +63,8 @@ assert.equal(combinedLogin.schedule.type, 'WORK');
 const combinedSession = context.bus70AuthAction_({action:'session',token:combinedLogin.token,date:'2026-09-21'});
 assert.equal(combinedSession.ok, true);
 assert.equal(combinedSession.schedule.date, '2026-09-21');
+const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combinedLogin.token,driverId:'DRV-1',date:'2026-09-24'});
+assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1);
 
 const body = {action:'confirmSchedule',token:session.token,driverId:'DRV-1',date:'2026-09-18',dispatchId:'DSP-1',scheduleVersion:'WD-V1'};
 const first = context.bus70AuthAction_(body);
