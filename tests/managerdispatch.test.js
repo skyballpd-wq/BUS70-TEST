@@ -58,6 +58,9 @@ leaveNames.forEach(name=>{const d=context.bus70MasterAdminBootstrap_('D1').drive
 const preplanned=context.bus70ManagerBootstrap_('2026-09-24');
 leaveNames.forEach(name=>assert.equal(preplanned.drivers.some(v=>v.name===name),false));
 assert.equal(Object.keys(preplanned.unavailableDrivers).length,4);
+assert.equal(preplanned.unavailableNames.length,4);
+drivers.appendRow(['DRV-DUPLICATE-LEAVE','799999','박철완','B','노선','','','70',998,'재직','','','Y','중복 ID 검증']);
+assert.equal(context.bus70ManagerBootstrap_('2026-09-24').drivers.some(v=>v.name==='박철완'),false);
 const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(drivers.rows.length,rowCountAfterSeed);
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
 const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1),vehicleId:'V'+(i+1)}));
