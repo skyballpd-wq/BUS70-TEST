@@ -561,9 +561,10 @@
       </div>
       <button id="masterDriverSave" type="button">기사 정보 저장</button>
       <hr>
-      <h3>근태 발생·예비기사 대체</h3>
+      <h3>사전 휴무·근태 발생·예비기사 대체</h3>
+      <p class="muted">정상 휴무는 배차 확정 전에 날짜와 기사만 먼저 저장합니다. 확정 후 병가·지각 등 돌발상황은 순차와 대체기사를 함께 선택합니다.</p>
       <div class="manager-tools">
-        <div><label for="workChangeDate">발생 날짜</label><input id="workChangeDate" type="date"></div>
+        <div><label for="workChangeDate">적용 날짜</label><input id="workChangeDate" type="date"></div>
         <div><label for="workChangeType">유형</label><select id="workChangeType"><option>휴무</option><option>병가</option><option>지각</option><option>조퇴</option><option>결근</option><option>퇴직</option><option>복귀</option><option>기타</option></select></div>
         <div><label for="workChangeDriver">대상 기사</label><select id="workChangeDriver"><option value="">기사를 선택하세요</option></select></div>
         <div><label for="workChangeSequence">적용 순차</label><select id="workChangeSequence"><option value="">배차 변경 없음</option></select></div>
@@ -757,6 +758,7 @@
     document.getElementById("workChangeDate").value = todayLocal();
     document.getElementById("incidentDate").value = todayLocal();
     document.getElementById("adjustmentDate").value = todayLocal();
+    if(currentIsManager){loadMasterAdmin();loadOperationStatus();}
     if (automatic && !isStaff) loadMySchedule();
   }
 
@@ -1019,7 +1021,7 @@
     refreshWorkChangeReplacements();
     const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
     const history=document.getElementById("workChangeHistory"); history.replaceChildren();
-    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":"")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
+    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
   }
 
   function refreshWorkChangeReplacements() {
