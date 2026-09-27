@@ -18,6 +18,7 @@ const workChanges=sheet([['changeId','날짜','기사ID','유형','적용순차'
 const incidents=sheet([['incidentId','접수시간','날짜','기사ID','차량ID','순차','탕','유형','위도','경도','내용','사진링크','상태','처리자','종결시간','비고']]);
 const maintenance=sheet([['maintId','incidentId','요청시간','차량ID','기사ID','요청내용','현재상태','입고시간','출고시간','예비차량ID','정비결과','비고']]);
 const maintenanceHistory=sheet([['historyId','maintId','처리시간','상태','처리자','내용','예비차량ID','비고']]);
+const adjustments=sheet([['gapId','날짜','순차','탕','기존시간','조정시간','기존간격','지시간격','사유','적용시작','적용종료','처리자','처리시간']]);
 const schedule=sheet([['버전','순차','탕','발차지','발차시간','회차지','회차시간','상태'],
   ...Array.from({length:11},(_,i)=>['WD-TEST-V001',i+1,1,'고강동차고지','05:'+String(5*i).padStart(2,'0'),'송내역','06:00','사용']),
   ...Array.from({length:8},(_,i)=>['HD-TEST-V001',i+1,1,'고강동차고지','06:'+String(5*i).padStart(2,'0'),'송내역','07:00','사용'])]);
@@ -25,7 +26,7 @@ const accounts=sheet([['accountId','권한','driverId','로그인이름','로그
   ['A1','소장','D1','Major','','Y','','','',''],['A2','마스터','ADM-MASTER-001','Master','','Y','','','',''],
   ['A3','정비소','CTR-CENTER-001','Center','','Y','','','',''],['A4','마스터','DRV-B-TEST-002','','','Y','','','','']]);
 const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges,
-  '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory};
+  '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory,'배차간격조정DB':adjustments};
 let idCounter=0;
 const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
@@ -49,7 +50,7 @@ assert.equal(context.bus70MasterDriverUpsert_({driverId:'D3',empId:'626099',name
 const newDriver=context.bus70MasterDriverUpsert_({empId:'626888',name:'신규예비',shift:'A',route:'88',driverType:'예비',status:'재직'},'D1');
 assert.equal(newDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1][2],'신규예비'); assert.equal(drivers.rows[drivers.rows.length-1][4],'예비');
 assert.equal(context.bus70MasterDriverUpsert_({empId:'626888',name:'중복신규',shift:'A',route:'70',driverType:'노선',status:'재직'},'D1').error,'EMP_ID_DUPLICATE');
-const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,22); assert.equal(boot.departures[1].time,'05:00');
+const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,23); assert.equal(boot.departures[1].time,'05:00');
 assert.equal(boot.drivers.some(v=>v.name==='이재천'),true);
 assert.equal(boot.drivers.some(v=>['Master','Major','Center'].includes(v.name)),false);
 const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(drivers.rows.length,rowCountAfterSeed);
@@ -58,6 +59,8 @@ const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1
 const saved=context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments},'D1');
 assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal(dispatch.rows[1][0],'DSP-20260918-B-01');
 confirmations.appendRow(['C1','2026-09-18','D1','DSP-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
+const adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',date:'2026-09-18',sequence:1,trip:2,before:'07:20',after:'07:35',reason:'차량 고장'},'D1');
+assert.equal(adjusted.ok,true); assert.equal(adjustments.rows.length,2); assert.equal(confirmations.rows[1][9],'Y'); confirmations.rows[1][9]='N';
 const replaced=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D1',type:'병가',sequence:1,replacementId:'DRV-B-OCR-001',reason:'시험'},'D1');
 assert.equal(replaced.ok,true); assert.equal(dispatch.rows[1][4],'DRV-B-OCR-001'); assert.equal(confirmations.rows[1][9],'Y'); assert.equal(workChanges.rows.length,2);
 drivers.appendRow(['DRV-A-RESERVE','626777','A조예비','A','예비','','','70',99,'재직','','','N','']);
