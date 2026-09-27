@@ -510,6 +510,18 @@
         <label for="incidentContent">상황·조치 내용</label><input id="incidentContent" type="text" maxlength="150" placeholder="발생 위치·증상·조치 내용을 입력하세요">
         <button id="incidentSave" type="button">돌발상황 접수</button>
         <hr>
+        <h3>당일 배차시간 변경</h3>
+        <div class="manager-tools">
+          <div><label for="adjustmentDate">운행 날짜</label><input id="adjustmentDate" type="date"></div>
+          <div><label for="adjustmentSequence">순차</label><select id="adjustmentSequence"></select></div>
+          <div><label for="adjustmentTrip">탕</label><select id="adjustmentTrip"></select></div>
+          <div><label for="adjustmentBefore">기존시간</label><input id="adjustmentBefore" type="time"></div>
+          <div><label for="adjustmentAfter">변경시간</label><input id="adjustmentAfter" type="time"></div>
+        </div>
+        <label for="adjustmentReason">변경 사유</label><input id="adjustmentReason" type="text" maxlength="100" placeholder="예: 차량 고장에 따른 배차간격 조정">
+        <button id="adjustmentSave" type="button">배차시간 변경 저장</button>
+        <div id="adjustmentHistory" class="manager-status"></div>
+        <hr>
       </div>
 
       <h3>공동 진행 현황</h3>
@@ -702,7 +714,7 @@
   let managerData = null;
   let managerImageBlob = null;
   let masterAdminData = {accounts: [], drivers: []};
-  let operationData = {vehicles: [], incidents: []};
+  let operationData = {vehicles: [], incidents: [], adjustments: []};
   const todayLocal = () => {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -744,6 +756,7 @@
     document.getElementById("managerDate").value = todayLocal();
     document.getElementById("workChangeDate").value = todayLocal();
     document.getElementById("incidentDate").value = todayLocal();
+    document.getElementById("adjustmentDate").value = todayLocal();
     if (automatic && !isStaff) loadMySchedule();
   }
 
@@ -1103,7 +1116,7 @@
       const label=(v.displayNo||v.no)+" · "+(v.type||"일반")+" · "+(v.status||"-");
       all.add(new Option(label,v.id));
       manage.add(new Option(label,v.id));
-      if(v.type==="예비"&&(v.status==="운행가능"||v.status==="운행")) reserve.add(new Option(label,v.id));
+      if(v.status==="운행가능"||v.status==="운행") reserve.add(new Option(label,v.id));
     });
   }
 
@@ -1139,6 +1152,11 @@
     });
   }
 
+  function renderAdjustmentHistory(){
+    const root=document.getElementById("adjustmentHistory");root.replaceChildren();
+    (operationData.adjustments||[]).slice(0,10).forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 · "+v.trip+"탕 · "+v.before+" → "+v.after+(v.reason?" · "+v.reason:""),"notice")));
+  }
+
   function renderVehicleStatusList(){
     const root=document.getElementById("vehicleStatusList");root.replaceChildren();
     if(!operationData.vehicles.length){root.append(el("div","등록된 차량이 없습니다.","notice"));return;}
@@ -1158,7 +1176,7 @@
 
   async function loadOperationData(){
     const button=document.getElementById("operationLoad");button.disabled=true;
-    try{const result=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token:authToken});if(!result.ok)return operationNotice(result.message||"현황을 불러오지 못했습니다.",true);operationData=result;fillOperationVehicles();renderVehicleStatusList();renderOperationList();operationNotice("현장 현황을 갱신했습니다. 차량 "+result.vehicles.length+"대 · 접수 "+result.incidents.length+"건");}
+    try{const result=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token:authToken});if(!result.ok)return operationNotice(result.message||"현황을 불러오지 못했습니다.",true);operationData=result;fillOperationVehicles();renderVehicleStatusList();renderOperationList();renderAdjustmentHistory();operationNotice("현장 현황을 갱신했습니다. 차량 "+result.vehicles.length+"대 · 접수 "+result.incidents.length+"건");}
     catch(error){console.error(error);operationNotice("현장 현황 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
@@ -1178,10 +1196,18 @@
     button.disabled=true;try{const response=await apiPost({action:"managerAccountUpsert",operation:"maintenanceUpdate",token:authToken,maintId,status,result,note});operationNotice(response.message||"저장하지 못했습니다.",!response.ok);if(response.ok)await loadOperationData();}catch(error){operationNotice("정비 상태 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
+  async function saveScheduleAdjustment(){
+    const button=document.getElementById("adjustmentSave"),body={action:"managerAccountUpsert",operation:"scheduleAdjustmentSave",token:authToken,date:document.getElementById("adjustmentDate").value,sequence:document.getElementById("adjustmentSequence").value,trip:document.getElementById("adjustmentTrip").value,before:document.getElementById("adjustmentBefore").value,after:document.getElementById("adjustmentAfter").value,reason:document.getElementById("adjustmentReason").value.trim()};
+    button.disabled=true;try{const result=await apiPost(body);operationNotice(result.message||"시간을 변경하지 못했습니다.",!result.ok);if(result.ok){document.getElementById("adjustmentBefore").value="";document.getElementById("adjustmentAfter").value="";await loadOperationData();}}catch(error){operationNotice("시간 변경 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  }
+
   for(let i=1;i<=11;i++)document.getElementById("incidentSequence").add(new Option(i+"순차",String(i)));
+  for(let i=1;i<=11;i++)document.getElementById("adjustmentSequence").add(new Option(i+"순차",String(i)));
+  for(let i=1;i<=5;i++)document.getElementById("adjustmentTrip").add(new Option(i+"탕",String(i)));
   document.getElementById("operationLoad").addEventListener("click",loadOperationData);
   document.getElementById("reserveVehicleSave").addEventListener("click",saveReserveVehicle);
   document.getElementById("incidentSave").addEventListener("click",saveIncident);
+  document.getElementById("adjustmentSave").addEventListener("click",saveScheduleAdjustment);
 
 
 
@@ -1256,6 +1282,11 @@
       card.append(tripRow("도착", trip.endPlace, trip.endTime));
       root.append(card);
     });
+    if(Array.isArray(data.timeAdjustments)&&data.timeAdjustments.length){
+      const notice=el("div",undefined,"notice");notice.append(el("strong","당일 변경시간 적용"));
+      data.timeAdjustments.forEach(v=>notice.append(el("div",v.trip+"탕 "+v.before+" → "+v.after+(v.reason?" · "+v.reason:""))));
+      root.append(notice);
+    }
     if (authToken && d.dispatchId && d.scheduleVersion) {
       document.getElementById("confirmScheduleButton").hidden = false;
     }
@@ -1315,7 +1346,7 @@
     root.replaceChildren(el("div", "운행정보 조회 중...", "notice"));
     button.disabled = true;
     try {
-      const data = await apiRequest({ action: "mySchedule", driverId: currentDriverId, date });
+      const data = await apiPost({ action: "myScheduleSecure", token:authToken, driverId: currentDriverId, date });
       // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
       if (requestId !== scheduleRequestId || document.getElementById("workDate").value !== date) return;
       lastSchedule = data;
