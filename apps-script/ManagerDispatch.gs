@@ -128,6 +128,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
   if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
   bus70EnsureBoardTestDrivers_(ds);
+  bus70EnsureKnownWorkChanges_(ds, ss.getSheetByName('근무변경DB'));
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]);
   const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),route:String(r[dc['현재노선']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
     .filter(function(v){return v.driverId && ['ADM-MASTER-001','MGR-MAJOR-001','CTR-CENTER-001'].indexOf(v.driverId)===-1;});
@@ -392,11 +393,26 @@ function bus70ManagerBootstrap_(rawDate) {
     return {ok:false, error:'DB_MISSING', message:'배차 편집에 필요한 DB를 찾을 수 없습니다.'};
   }
   bus70EnsureBoardTestDrivers_(driverSheet);
+  bus70EnsureKnownWorkChanges_(driverSheet, ss.getSheetByName('근무변경DB'));
   const allDrivers = bus70ManagerMasterRows_(driverSheet, 'driver');
   const unavailable={}, unavailableNames={}, workSheet=ss.getSheetByName('근무변경DB');
   const masterRows=driverSheet.getDataRange().getDisplayValues(),masterCols=makeHeaderMap_(masterRows[0]),driverNames={};
   for(let m=1;m<masterRows.length;m++)driverNames[String(masterRows[m][masterCols['driverId']]||'')]=String(masterRows[m][masterCols['성명']]||'').replace(/\s/g,'');
-  if(workSheet&&workSheet.getLastRow()>1){const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);for(let i=1;i<wr.length;i++){if(bus70ManagerDateKey_(wr[i][wc['날짜']])!==date)continue;const id=String(wr[i][wc['기사ID']]||''),name=driverNames[id]||'',type=String(wr[i][wc['유형']]||'');if(['휴무','병가','결근','퇴직'].indexOf(type)!==-1){unavailable[id]=type;if(name)unavailableNames[name]=type;}else if(type==='복귀'){delete unavailable[id];if(name)delete unavailableNames[name];}}}
+  if(workSheet&&workSheet.getLastRow()>1){
+    const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]),persistent={},daily={};
+    const changes=wr.slice(1).map(function(r,index){return {row:r,index:index,date:bus70ManagerDateKey_(r[wc['날짜']])};})
+      .filter(function(v){return v.date&&v.date<=date;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.index-b.index;});
+    changes.forEach(function(v){
+      const id=String(v.row[wc['기사ID']]||''),type=String(v.row[wc['유형']]||'');
+      if(!id)return;
+      if(type==='병가'||type==='퇴직')persistent[id]=type;
+      else if(type==='복귀')delete persistent[id];
+      else if(v.date===date&&(type==='휴무'||type==='결근'))daily[id]=type;
+    });
+    Object.keys(persistent).forEach(function(id){unavailable[id]=persistent[id];});
+    Object.keys(daily).forEach(function(id){unavailable[id]=daily[id];});
+    Object.keys(unavailable).forEach(function(id){const name=driverNames[id]||'';if(name)unavailableNames[name]=unavailable[id];});
+  }
   const drivers = allDrivers.filter(function(v){return !unavailable[v.id]&&!unavailableNames[String(v.name||'').replace(/\s/g,'')];});
   const vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle');
   const scheduleVersion = bus70ScheduleVersionForDate_(date);
@@ -444,6 +460,28 @@ function bus70EnsureBoardTestDrivers_(sheet) {
       '임시', '', '70', 900 + index, '재직', '', '', 'Y', '배차상황판 OCR 테스트용 임시기사'
     ]);
   });
+}
+
+function bus70EnsureKnownWorkChanges_(driverSheet, workSheet) {
+  if(!driverSheet||!workSheet)return;
+  const dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]);
+  let driverId='';
+  for(let i=1;i<dr.length;i++){
+    if(String(dr[i][dc['성명']]||'').replace(/\s/g,'')==='이재천'){
+      driverId=String(dr[i][dc['driverId']]||'').trim(); break;
+    }
+  }
+  if(!driverId)return;
+  const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);
+  for(let j=1;j<wr.length;j++){
+    if(String(wr[j][wc['기사ID']]||'')===driverId&&String(wr[j][wc['유형']]||'')==='병가'&&bus70ManagerDateKey_(wr[j][wc['날짜']])==='2026-07-01')return;
+  }
+  const row=new Array(wr[0].length).fill('');
+  row[wc['changeId']]='WORK-20260701-LEEJAECHUN-SICK';
+  row[wc['날짜']]='2026-07-01'; row[wc['기사ID']]=driverId; row[wc['유형']]='병가';
+  row[wc['사유']]='암 수술 및 회복 장기 병가 · 2026년 10월 복귀 예정(실제 복귀 승인 전까지 병가 유지)';
+  row[wc['처리자']]='SYSTEM'; row[wc['처리시간']]=new Date();
+  workSheet.appendRow(row);
 }
 
 function bus70ManagerMasterRows_(sheet, type) {
