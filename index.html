@@ -1524,10 +1524,15 @@
     try {
       const result = await apiPost({action:"managerDispatchBootstrap",token:authToken,date});
       if (!result.ok) return managerNotice(result.message || "배차 자료를 불러오지 못했습니다.", true);
+      const planned={};
+      (masterAdminData.workChanges||[]).slice().reverse().forEach(v=>{if(v.date!==date)return;const key=(v.driverName||"").replace(/\s/g,"");if(!key)return;if(["휴무","병가","결근","퇴직"].includes(v.type))planned[key]=v.type;else if(v.type==="복귀")delete planned[key];});
+      result.drivers=(result.drivers||[]).filter(v=>!planned[(v.name||"").replace(/\s/g,"")]);
+      result.unavailableNames=[...new Set([...(result.unavailableNames||[]),...Object.keys(planned)])];
       managerData = result; renderManagerRows(result);
       const shift=document.getElementById("managerShift").value;
       const assigned=(result.assignments||[]).filter(v=>v.shift===shift), confirmed=assigned.filter(v=>v.confirmed).length;
-      managerNotice("기사·차량·시간표를 불러왔습니다. 기사 확인 " + confirmed + "/" + assigned.length + "명");
+      const excluded=(result.unavailableNames||[]);
+      managerNotice("기사·차량·시간표를 불러왔습니다. 기사 확인 " + confirmed + "/" + assigned.length + "명"+(excluded.length?" · 사전 휴무 제외 "+excluded.length+"명: "+excluded.join(", "):""));
     } catch (error) { console.error(error); managerNotice("서버에서 소장 자료를 불러오지 못했습니다.", true); }
     finally { button.disabled = false; button.textContent = "기사·차량 불러오기"; }
   }
