@@ -1192,13 +1192,16 @@
       card.append(el("div",(v.sequence?v.sequence+"순차 · ":"")+(v.driverName?v.driverName+" · ":"")+v.content,"operation-meta"));
       card.append(el("div","상황 "+(v.status||"접수")+" / 정비 "+(v.maintenanceStatus||"접수")+(reserve?" / 예비차 "+(reserve.displayNo||reserve.no):""),"operation-meta"));
       if(v.result)card.append(el("div","정비결과: "+v.result,"operation-meta"));
+      if(v.completedDate||v.availableDate)card.append(el("div","정비 완료 "+(v.completedDate||"-")+" / 운행 가능 "+(v.availableDate||"-"),"operation-meta"));
       if(v.maintId&&!closed){
         const grid=el("div",undefined,"manager-tools"), status=el("select");
         ["접수","정비중","완료","운행불가"].forEach(x=>status.add(new Option(x,x))); status.value=v.maintenanceStatus||"접수";
         const result=el("input");result.placeholder="정비 결과";result.maxLength=100;
         const note=el("input");note.placeholder="정비 메모";note.maxLength=100;
-        grid.append(status,result,note);card.append(grid);
-        const button=el("button","정비 상태 저장");button.type="button";button.addEventListener("click",()=>saveMaintenance(v.maintId,status.value,result.value.trim(),note.value.trim(),button));card.append(button);
+        const completedDate=el("input");completedDate.type="date";completedDate.value=v.completedDate||localDateKey();completedDate.title="정비 완료일";
+        const availableDate=el("input");availableDate.type="date";availableDate.value=v.availableDate||localDateKey();availableDate.title="운행 가능 적용일";
+        grid.append(status,result,note,completedDate,availableDate);card.append(grid);
+        const button=el("button","정비 상태 저장");button.type="button";button.addEventListener("click",()=>saveMaintenance(v.maintId,status.value,result.value.trim(),note.value.trim(),completedDate.value,availableDate.value,button));card.append(button);
       }
       root.append(card);
     });
@@ -1248,8 +1251,9 @@
     try{const result=await apiPost(body);operationNotice(result.message||"접수하지 못했습니다.",!result.ok);if(result.ok){document.getElementById("incidentContent").value="";await loadOperationData();}}catch(error){operationNotice("돌발상황 접수 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
-  async function saveMaintenance(maintId,status,result,note,button){
-    button.disabled=true;try{const response=await apiPost({action:"managerAccountUpsert",operation:"maintenanceUpdate",token:authToken,maintId,status,result,note});operationNotice(response.message||"저장하지 못했습니다.",!response.ok);if(response.ok)await loadOperationData();}catch(error){operationNotice("정비 상태 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
+  async function saveMaintenance(maintId,status,result,note,completedDate,availableDate,button){
+    if(status==="완료"&&(!completedDate||!availableDate||availableDate<completedDate))return operationNotice("정비 완료일과 운행 가능일을 확인하세요.",true);
+    button.disabled=true;try{const response=await apiPost({action:"managerAccountUpsert",operation:"maintenanceUpdate",token:authToken,maintId,status,result,note,completedDate,availableDate});operationNotice(response.message||"저장하지 못했습니다.",!response.ok);if(response.ok)await loadOperationData();}catch(error){operationNotice("정비 상태 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
   async function saveScheduleAdjustment(){

@@ -33,18 +33,19 @@ function bus70OperationBootstrap_(requesterId) {
   if(!bus70CanOperate_(requesterId)) return {ok:false,error:'STAFF_REQUIRED',message:'운영계정 권한이 필요합니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ds=ss.getSheetByName('기사DB'), ps=ss.getSheetByName('배차DB'), gs=ss.getSheetByName('배차간격조정DB');
   if(!vs||!is||!ms||!ds) return {ok:false,error:'DB_MISSING',message:'현장 대응 DB를 찾을 수 없습니다.'};
+  bus70EnsureSheetColumns_(ms,['정비완료일','운행가능일']);
   const vr=vs.getDataRange().getDisplayValues(), vc=makeHeaderMap_(vr[0]);
   const vehicles=vr.slice(1).map(function(r){const no=String(r[vc['차량번호']]||'').replace(/\D/g,'');return {id:String(r[vc['vehicleId']]||''),no:no,displayNo:no.length===4?'경기71아'+no:no,type:String(r[vc['차량구분']]||''),status:String(r[vc['상태']]||''),route:String(r[vc['현재노선']]||''),note:String(r[vc['비고']]||''),order:Number(r[vc['표시순서']]||999),assignment:null,lastChangeReason:String(r[vc['비고']]||''),lastChangedAt:''};}).filter(function(v){return v.id;});
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]), names={};
   dr.slice(1).forEach(function(r){names[String(r[dc['driverId']]||'')]=String(r[dc['성명']]||'');});
   const mr=ms.getDataRange().getDisplayValues(), mc=makeHeaderMap_(mr[0]), maintByIncident={};
-  mr.slice(1).forEach(function(r){const incidentId=String(r[mc['incidentId']]||'');if(incidentId)maintByIncident[incidentId]={maintId:String(r[mc['maintId']]||''),status:String(r[mc['현재상태']]||''),reserveVehicleId:String(r[mc['예비차량ID']]||''),result:String(r[mc['정비결과']]||''),note:String(r[mc['비고']]||'')};});
+  mr.slice(1).forEach(function(r){const incidentId=String(r[mc['incidentId']]||'');if(incidentId)maintByIncident[incidentId]={maintId:String(r[mc['maintId']]||''),status:String(r[mc['현재상태']]||''),reserveVehicleId:String(r[mc['예비차량ID']]||''),result:String(r[mc['정비결과']]||''),note:String(r[mc['비고']]||''),completedDate:bus70ManagerDateKey_(r[mc['정비완료일']]),availableDate:bus70ManagerDateKey_(r[mc['운행가능일']])};});
   const ir=is.getDataRange().getDisplayValues(), ic=makeHeaderMap_(ir[0]);
-  const incidents=ir.slice(1).map(function(r){const id=String(r[ic['incidentId']]||''), m=maintByIncident[id]||{};return {incidentId:id,receivedAt:String(r[ic['접수시간']]||''),date:normalizeDate_(r[ic['날짜']]),driverId:String(r[ic['기사ID']]||''),driverName:names[String(r[ic['기사ID']]||'')]||'',vehicleId:String(r[ic['차량ID']]||''),sequence:Number(r[ic['순차']]||0),type:String(r[ic['유형']]||''),content:String(r[ic['내용']]||''),status:String(r[ic['상태']]||''),handler:String(r[ic['처리자']]||''),closedAt:String(r[ic['종결시간']]||''),maintId:m.maintId||'',maintenanceStatus:m.status||'',reserveVehicleId:m.reserveVehicleId||'',result:m.result||'',maintenanceNote:m.note||''};}).filter(function(v){return v.incidentId;}).slice(-30).reverse();
+  const incidents=ir.slice(1).map(function(r){const id=String(r[ic['incidentId']]||''), m=maintByIncident[id]||{};return {incidentId:id,receivedAt:String(r[ic['접수시간']]||''),date:normalizeDate_(r[ic['날짜']]),driverId:String(r[ic['기사ID']]||''),driverName:names[String(r[ic['기사ID']]||'')]||'',vehicleId:String(r[ic['차량ID']]||''),sequence:Number(r[ic['순차']]||0),type:String(r[ic['유형']]||''),content:String(r[ic['내용']]||''),status:String(r[ic['상태']]||''),handler:String(r[ic['처리자']]||''),closedAt:String(r[ic['종결시간']]||''),maintId:m.maintId||'',maintenanceStatus:m.status||'',reserveVehicleId:m.reserveVehicleId||'',result:m.result||'',maintenanceNote:m.note||'',completedDate:m.completedDate||'',availableDate:m.availableDate||''};}).filter(function(v){return v.incidentId;}).slice(-30).reverse();
   const vehicleMap={};vehicles.forEach(function(v){vehicleMap[v.id]=v;});
   incidents.slice().reverse().forEach(function(v){
     const original=vehicleMap[v.vehicleId], reserve=vehicleMap[v.reserveVehicleId];
-    if(original){original.lastChangeReason=v.status==='종결'?'정비 완료'+(v.result?' · '+v.result:''):v.type+' · '+v.content;original.lastChangedAt=v.closedAt||v.receivedAt;}
+    if(original){original.lastChangeReason=v.status==='종결'?'정비 완료'+(v.result?' · '+v.result:'')+(v.availableDate?' · '+v.availableDate+'부터 운행 가능':''):v.type+' · '+v.content;original.lastChangedAt=v.completedDate||v.closedAt||v.receivedAt;original.completedDate=v.completedDate||'';original.availableDate=v.availableDate||'';}
     if(reserve){reserve.lastChangeReason='예비차 투입 · '+v.content;reserve.lastChangedAt=v.receivedAt;}
   });
   if(ps&&ps.getLastRow()>1){
@@ -112,15 +113,23 @@ function bus70VehicleIncidentSave_(body, requesterId) {
 
 function bus70MaintenanceUpdate_(body, requesterId) {
   if(!bus70CanOperate_(requesterId))return {ok:false,error:'STAFF_REQUIRED',message:'운영계정 권한이 필요합니다.'};
-  const maintId=String(body.maintId||'').trim(), status=String(body.status||'').trim(), result=String(body.result||'').trim(), note=String(body.note||'').trim();
+  const maintId=String(body.maintId||'').trim(), status=String(body.status||'').trim(), result=String(body.result||'').trim(), note=String(body.note||'').trim(), completedDate=bus70ManagerDateKey_(body.completedDate), availableDate=bus70ManagerDateKey_(body.availableDate);
   if(!maintId||['접수','정비중','완료','운행불가'].indexOf(status)===-1)return {ok:false,error:'PARAM_REQUIRED',message:'정비 건과 처리 상태를 확인하세요.'};
+  if(status==='완료'&&(!completedDate||!availableDate||availableDate<completedDate))return {ok:false,error:'MAINTENANCE_DATES_REQUIRED',message:'정비 완료일과 운행 가능일을 확인하세요. 운행 가능일은 완료일보다 빠를 수 없습니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(),ms=ss.getSheetByName('정비DB'),hs=ss.getSheetByName('정비이력DB'),is=ss.getSheetByName('사건DB'),vs=ss.getSheetByName('차량DB');if(!ms||!hs||!is||!vs)return {ok:false,error:'DB_MISSING',message:'정비 처리 DB를 찾을 수 없습니다.'};
+  bus70EnsureSheetColumns_(ms,['정비완료일','운행가능일']);
   const mr=ms.getDataRange().getDisplayValues(),mc=makeHeaderMap_(mr[0]);let rowNo=0;for(let i=1;i<mr.length;i++)if(String(mr[i][mc['maintId']]||'')===maintId){rowNo=i+1;break;}if(!rowNo)return {ok:false,error:'MAINT_NOT_FOUND',message:'정비 요청을 찾을 수 없습니다.'};
-  const incidentId=String(mr[rowNo-1][mc['incidentId']]||''),vehicleId=String(mr[rowNo-1][mc['차량ID']]||'');ms.getRange(rowNo,mc['현재상태']+1).setValue(status);ms.getRange(rowNo,mc['정비결과']+1).setValue(result);ms.getRange(rowNo,mc['비고']+1).setValue(note);if(status==='정비중'&&!mr[rowNo-1][mc['입고시간']])ms.getRange(rowNo,mc['입고시간']+1).setValue(new Date());if(status==='완료')ms.getRange(rowNo,mc['출고시간']+1).setValue(new Date());
+  const incidentId=String(mr[rowNo-1][mc['incidentId']]||''),vehicleId=String(mr[rowNo-1][mc['차량ID']]||'');ms.getRange(rowNo,mc['현재상태']+1).setValue(status);ms.getRange(rowNo,mc['정비결과']+1).setValue(result);ms.getRange(rowNo,mc['비고']+1).setValue(note);if(status==='정비중'&&!mr[rowNo-1][mc['입고시간']])ms.getRange(rowNo,mc['입고시간']+1).setValue(new Date());if(status==='완료'){ms.getRange(rowNo,mc['출고시간']+1).setValue(new Date());ms.getRange(rowNo,mc['정비완료일']+1).setValue(completedDate);ms.getRange(rowNo,mc['운행가능일']+1).setValue(availableDate);}
   const ir=is.getDataRange().getDisplayValues(),ic=makeHeaderMap_(ir[0]);for(let j=1;j<ir.length;j++)if(String(ir[j][ic['incidentId']]||'')===incidentId){is.getRange(j+1,ic['상태']+1).setValue(status==='완료'?'종결':status);is.getRange(j+1,ic['처리자']+1).setValue(requesterId);if(status==='완료')is.getRange(j+1,ic['종결시간']+1).setValue(new Date());break;}
   const vr=vs.getDataRange().getDisplayValues(),vc=makeHeaderMap_(vr[0]);for(let k=1;k<vr.length;k++)if(String(vr[k][vc['vehicleId']]||'')===vehicleId){vs.getRange(k+1,vc['상태']+1).setValue(status==='완료'?'운행가능':status==='운행불가'?'운행불가':'정비중');break;}
   const hr=hs.getDataRange().getDisplayValues(),hc=makeHeaderMap_(hr[0]),hrow=new Array(hr[0].length).fill('');hrow[hc['historyId']]=newId_('MNH');hrow[hc['maintId']]=maintId;hrow[hc['처리시간']]=new Date();hrow[hc['상태']]=status;hrow[hc['처리자']]=requesterId;hrow[hc['내용']]=result;hrow[hc['예비차량ID']]=String(mr[rowNo-1][mc['예비차량ID']]||'');hrow[hc['비고']]=note;hs.appendRow(hrow);
-  return {ok:true,message:'정비 상태를 '+status+'로 저장했습니다.'};
+  return {ok:true,message:'정비 상태를 '+status+'로 저장했습니다.'+(status==='완료'?' '+availableDate+'부터 운행 가능합니다.':'')};
+}
+
+function bus70EnsureSheetColumns_(sheet, required) {
+  const rows=sheet.getDataRange().getDisplayValues(), headers=(rows[0]||[]).slice(), existing={};
+  headers.forEach(function(v){if(v)existing[String(v)]=true;});
+  required.forEach(function(header){if(!existing[header]){headers.push(header);sheet.getRange(1,headers.length).setValue(header);existing[header]=true;}});
 }
 
 function bus70MasterAdminBootstrap_(requesterId) {
@@ -445,7 +454,13 @@ function bus70ManagerBootstrap_(rawDate) {
     Object.keys(unavailable).forEach(function(id){const name=driverNames[id]||'';if(name)unavailableNames[name]=unavailable[id];});
   }
   const drivers = allDrivers.filter(function(v){return !unavailable[v.id]&&!unavailableNames[String(v.name||'').replace(/\s/g,'')];});
-  const vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle');
+  let vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle');
+  const maintenanceSheet=ss.getSheetByName('정비DB'), unavailableVehicles={};
+  if(maintenanceSheet&&maintenanceSheet.getLastRow()>1){
+    const mr=maintenanceSheet.getDataRange().getDisplayValues(),mc=makeHeaderMap_(mr[0]);
+    mr.slice(1).forEach(function(r){const vehicleId=String(r[mc['차량ID']]||''),status=String(r[mc['현재상태']]||''),available=bus70ManagerDateKey_(r[mc['운행가능일']]);if(vehicleId&&((status!=='완료'&&status!=='')||(status==='완료'&&available&&date<available)))unavailableVehicles[vehicleId]=status==='완료'?'정비완료·운행대기':status;});
+    vehicles=vehicles.filter(function(v){return !unavailableVehicles[v.id];});
+  }
   const scheduleVersion = bus70ScheduleVersionForDate_(date);
   const departures = bus70ManagerDepartures_(scheduleSheet, scheduleVersion);
   const assignments = bus70ManagerAssignments_(dispatchSheet, date);
@@ -455,7 +470,7 @@ function bus70ManagerBootstrap_(rawDate) {
     item.confirmedAt = confirmed[item.dispatchId] || '';
   });
   return {ok:true, date:date, scheduleVersion:scheduleVersion, drivers:drivers, unavailableDrivers:unavailable, unavailableNames:Object.keys(unavailableNames),
-    vehicles:vehicles, departures:departures, assignments:assignments};
+    vehicles:vehicles, unavailableVehicles:unavailableVehicles, departures:departures, assignments:assignments};
 }
 
 function bus70ManagerDateKey_(value) {
