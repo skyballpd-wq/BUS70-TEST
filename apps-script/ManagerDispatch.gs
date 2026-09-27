@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 40905)
+Total output lines: 2486
+
 /* BUS70 TEST - manager day dispatch editor.
  * Manager access is granted by 계정DB 권한(소장/관리자) or the
  * BUS70_MANAGER_DRIVER_IDS script property (comma-separated driver IDs). */
@@ -148,7 +151,7 @@ function bus70WorkChangeSave_(body, requesterId) {
   if(!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
   const date=normalizeDate_(body.date), driverId=String(body.driverId||'').trim(), type=String(body.type||'').trim();
   const sequence=Number(body.sequence||0), replacementId=String(body.replacementId||'').trim(), reason=String(body.reason||'').trim();
-  if(!date||!driverId||['휴무','병가','지각','조퇴','결근','퇴직','복귀','기타'].indexOf(type)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'날짜·기사·발생유형을 확인하세요.'};
+  if(!date||!driverId||['휴무','병가','지각','조퇴','결근','퇴직','복귀','재입사','기타'].indexOf(type)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'날짜·기사·발생유형을 확인하세요.'};
   if(replacementId===driverId) return {ok:false,error:'SAME_DRIVER',message:'대체기사는 기존 기사와 달라야 합니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), ws=ss.getSheetByName('근무변경DB'), ps=ss.getSheetByName('배차DB'), cs=ss.getSheetByName('배차확인DB');
   if(!ds||!ws||!ps) return {ok:false,error:'DB_MISSING',message:'근무변경 처리 DB를 찾을 수 없습니다.'};
@@ -173,7 +176,12 @@ function bus70WorkChangeSave_(body, requesterId) {
     ps.getRange(target,pc['기사ID']+1).setValue(replacementId); ps.getRange(target,pc['확정시간']+1).setValue(new Date()); ps.getRange(target,pc['비고']+1).setValue(type+' 대체투입'); dispatchChanged=true;
     if(cs&&cs.getLastRow()>1){const cr=cs.getDataRange().getDisplayValues(), cc=makeHeaderMap_(cr[0]); for(let k=1;k<cr.length;k++) if(String(cr[k][cc['dispatchId']]||'')===dispatchId) cs.getRange(k+1,cc['재확인필요']+1).setValue('Y');}
   }
-  if(type==='퇴직'||type==='복귀'){const row=dr[driverRow-1].slice(); row[dc['상태']]=type==='퇴직'?'퇴직':'재직'; if(type==='퇴직')row[dc['종료일']]=date; ds.getRange(driverRow,1,1,row.length).setValues([row]);}
+  if(type==='퇴직'||type==='복귀'||type==='재입사'){
+    const row=dr[driverRow-1].slice(); row[dc['상태']]=type==='퇴직'?'퇴직':'재직';
+    if(type==='퇴직')row[dc['종료일']]=date;
+    if(type==='재입사'){row[dc['투입일']]=date;row[dc['종료일']]='';}
+    ds.getRange(driverRow,1,1,row.length).setValues([row]);
+  }
   const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]), row=new Array(wr[0].length).fill('');
   row[wc['changeId']]=newId_('WORK'); row[wc['날짜']]=date; row[wc['기사ID']]=driverId; row[wc['유형']]=type; row[wc['적용순차']]=sequence||''; row[wc['대체기사ID']]=replacementId; row[wc['시작시간']]=String(body.startTime||''); row[wc['종료시간']]=String(body.endTime||''); row[wc['사유']]=reason; row[wc['처리자']]=requesterId; row[wc['처리시간']]=new Date(); ws.appendRow(row);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','근무변경DB',row[wc['changeId']],'추가',{},row,type+' 현장대응');
@@ -406,7 +414,7 @@ function bus70ManagerBootstrap_(rawDate) {
       const id=String(v.row[wc['기사ID']]||''),type=String(v.row[wc['유형']]||'');
       if(!id)return;
       if(type==='병가'||type==='퇴직')persistent[id]=type;
-      else if(type==='복귀')delete persistent[id];
+      else if(type==='복귀'||type==='재입사')delete persistent[id];
       else if(v.date===date&&(type==='휴무'||type==='결근'))daily[id]=type;
     });
     Object.keys(persistent).forEach(function(id){unavailable[id]=persistent[id];});
