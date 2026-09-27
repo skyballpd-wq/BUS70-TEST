@@ -49,8 +49,9 @@ function bus70AuthAction_(body) {
     let result = typeof bus70StaffLogin_ === 'function' ? bus70StaffLogin_(body.name, body.empId) : {ok:false,error:'STAFF_NOT_FOUND'};
     if (!result.ok && result.error === 'STAFF_NOT_FOUND') result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
-    const session = bus70IssueSession_(result.driver.driverId);
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(result.driver.driverId) : '';
+    if (!role && !bus70DriverLoginActive_(result.driver)) return {ok:false,error:'DRIVER_RETIRED',message:'퇴직 처리된 기사 계정입니다. 재입사 승인 후 로그인할 수 있습니다.'};
+    const session = bus70IssueSession_(result.driver.driverId);
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
@@ -66,6 +67,10 @@ function bus70AuthAction_(body) {
       return {ok:false, error:'DRIVER_UNAVAILABLE', message:'기사정보를 확인할 수 없습니다.'};
     }
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(driverId) : '';
+    if (!role && !bus70DriverLoginActive_(result.driver)) {
+      bus70RevokeSession_(body.token);
+      return {ok:false,error:'DRIVER_RETIRED',message:'퇴직 처리된 기사 계정입니다. 재입사 승인 후 로그인할 수 있습니다.'};
+    }
     const response = {ok:true, driver:result.driver,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
@@ -105,6 +110,11 @@ function bus70AuthAction_(body) {
     return bus70ChangeStaffPassword_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
+}
+
+function bus70DriverLoginActive_(driver) {
+  const status=String(driver&&driver.status||'').trim();
+  return !status||status==='재직'||status==='1';
 }
 
 function bus70ScheduleWithAdjustments_(schedule, rawDate) {
