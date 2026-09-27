@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 41684)
-Total output lines: 2517
-
 /* BUS70 TEST - manager day dispatch editor.
  * Manager access is granted by 계정DB 권한(소장/관리자) or the
  * BUS70_MANAGER_DRIVER_IDS script property (comma-separated driver IDs). */
@@ -158,6 +155,9 @@ function bus70WorkChangeSave_(body, requesterId) {
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]); let driverRow=0, replacementRow=0;
   for(let i=1;i<dr.length;i++){const id=String(dr[i][dc['driverId']]||''); if(id===driverId)driverRow=i+1; if(id===replacementId)replacementRow=i+1;}
   if(!driverRow||(replacementId&&!replacementRow)) return {ok:false,error:'DRIVER_NOT_FOUND',message:'기사 정보를 확인하세요.'};
+  const currentState=bus70PersistentWorkState_(ws,driverId,date);
+  if(type==='복귀'&&currentState!=='병가') return {ok:false,error:'RETURN_STATE_MISMATCH',message:'현재 병가 중인 기사만 복귀 처리할 수 있습니다.'};
+  if(type==='재입사'&&currentState!=='퇴직') return {ok:false,error:'REHIRE_STATE_MISMATCH',message:'퇴직 처리된 기사만 재입사 처리할 수 있습니다.'};
   let rehireEmpId='',rehireShift='',rehireRoute='';
   if(type==='재입사'){
     rehireEmpId=String(body.rehireEmpId||dr[driverRow-1][dc['사원번호']]||'').replace(/\D/g,'');
@@ -199,6 +199,16 @@ function bus70WorkChangeSave_(body, requesterId) {
   row[wc['changeId']]=newId_('WORK'); row[wc['날짜']]=date; row[wc['기사ID']]=driverId; row[wc['유형']]=type; row[wc['적용순차']]=sequence||''; row[wc['대체기사ID']]=replacementId; row[wc['시작시간']]=String(body.startTime||''); row[wc['종료시간']]=String(body.endTime||''); row[wc['사유']]=reason; row[wc['처리자']]=requesterId; row[wc['처리시간']]=new Date(); ws.appendRow(row);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','근무변경DB',row[wc['changeId']],'추가',{},row,type+' 현장대응');
   return {ok:true,message:type+' 처리를 저장했습니다.'+(dispatchChanged?' '+sequence+'순차 대체기사 배차도 변경했습니다.':'')};
+}
+
+function bus70PersistentWorkState_(workSheet,driverId,date) {
+  if(!workSheet||workSheet.getLastRow()<2)return '';
+  const rows=workSheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]); let state='';
+  rows.slice(1).map(function(r,index){return {r:r,index:index,date:bus70ManagerDateKey_(r[c['날짜']])};})
+    .filter(function(v){return v.date&&v.date<=date&&String(v.r[c['기사ID']]||'')===driverId;})
+    .sort(function(a,b){return a.date.localeCompare(b.date)||a.index-b.index;})
+    .forEach(function(v){const type=String(v.r[c['유형']]||'');if(type==='병가'||type==='퇴직')state=type;else if(type==='복귀'||type==='재입사')state='';});
+  return state;
 }
 
 function bus70MasterStaffUpsert_(body, requesterId) {
