@@ -63,6 +63,10 @@ assert.equal(combinedLogin.schedule.type, 'WORK');
 const combinedSession = context.bus70AuthAction_({action:'session',token:combinedLogin.token,date:'2026-09-21'});
 assert.equal(combinedSession.ok, true);
 assert.equal(combinedSession.schedule.date, '2026-09-21');
+const activeLogin=context.apiLogin_;
+context.apiLogin_=()=>({ok:true,driver:{driverId:'DRV-RETIRED',status:'퇴직'}});
+assert.equal(context.bus70AuthAction_({action:'loginSecure',name:'퇴직기사',empId:'1'}).error,'DRIVER_RETIRED');
+context.apiLogin_=activeLogin;
 const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combinedLogin.token,driverId:'DRV-1',date:'2026-09-24'});
 assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1);
 
