@@ -54,7 +54,7 @@ function bus70AuthAction_(body) {
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
-      response.schedule = apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}});
+      response.schedule = bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}}), body.date);
     }
     return response;
   }
@@ -69,7 +69,7 @@ function bus70AuthAction_(body) {
     const response = {ok:true, driver:result.driver,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
-      response.schedule = apiMySchedule_({parameter:{driverId:driverId, date:body.date}});
+      response.schedule = bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:driverId, date:body.date}}), body.date);
     }
     return response;
   }
@@ -82,6 +82,12 @@ function bus70AuthAction_(body) {
       return {ok:false, error:'DRIVER_MISMATCH', message:'로그인 기사와 요청 기사가 다릅니다.'};
     }
     return bus70ConfirmCurrentDispatch_(Object.assign({}, body, {driverId:driverId}));
+  }
+  if (action === 'myScheduleSecure') {
+    if (body.driverId && String(body.driverId).trim() !== driverId) {
+      return {ok:false, error:'DRIVER_MISMATCH', message:'로그인 기사와 요청 기사가 다릅니다.'};
+    }
+    return bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:driverId,date:body.date}}), body.date);
   }
   if (action === 'validateDispatchBoard' || action === 'registerDispatchBoard') {
     return bus70BoardAction_(body, driverId);
@@ -99,6 +105,29 @@ function bus70AuthAction_(body) {
     return bus70ChangeStaffPassword_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
+}
+
+function bus70ScheduleWithAdjustments_(schedule, rawDate) {
+  if (!schedule || !schedule.ok || schedule.type !== 'WORK' || !schedule.dispatch || !Array.isArray(schedule.trips)) return schedule;
+  const date = normalizeDate_(rawDate), sequence = Number(schedule.dispatch.seq || schedule.dispatch.sequence || 0);
+  if (!date || !sequence) return schedule;
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('배차간격조정DB');
+    if (!sheet || sheet.getLastRow() < 2) return schedule;
+    const rows = sheet.getDataRange().getDisplayValues(), c = makeHeaderMap_(rows[0]), applied = [];
+    for (let i = 1; i < rows.length; i++) {
+      if (normalizeDate_(rows[i][c['날짜']]) !== date || Number(rows[i][c['순차']]) !== sequence) continue;
+      const tripNo = Number(rows[i][c['탕']]), before = String(rows[i][c['기존시간']] || '').trim(), after = String(rows[i][c['조정시간']] || '').trim();
+      if (!tripNo || !before || !after) continue;
+      const trip = schedule.trips.find(function(v){ return Number(v.trip) === tripNo; });
+      if (!trip) continue;
+      let changed = false;
+      ['startTime','turnTime','endTime'].forEach(function(key){ if (String(trip[key] || '').trim() === before) { trip[key] = after; changed = true; } });
+      if (changed) applied.push({trip:tripNo,before:before,after:after,reason:String(rows[i][c['사유']] || '')});
+    }
+    if (applied.length) schedule.timeAdjustments = applied;
+  } catch (ignore) {}
+  return schedule;
 }
 
 function bus70ConfirmCurrentDispatch_(body) {
