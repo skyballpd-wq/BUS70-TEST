@@ -564,6 +564,7 @@
       <hr>
       <h3>사전 휴무·근태 발생·예비기사 대체</h3>
       <p class="muted">정상 휴무는 배차 확정 전에 날짜와 기사만 먼저 저장합니다. 확정 후 병가·지각 등 돌발상황은 순차와 대체기사를 함께 선택합니다.</p>
+      <div id="returnCandidateList" class="manager-status" aria-live="polite"></div>
       <div class="manager-tools">
         <div><label for="workChangeDate">적용 날짜</label><input id="workChangeDate" type="date"></div>
         <div><label for="workChangeType">유형</label><select id="workChangeType"><option>휴무</option><option>병가</option><option>지각</option><option>조퇴</option><option>결근</option><option>퇴직</option><option>복귀</option><option>기타</option></select></div>
@@ -1006,6 +1007,34 @@
     document.getElementById("masterAdminStatus").replaceChildren(el("div", text, ok ? "ok" : "error"));
   }
 
+  function persistentWorkStates(date) {
+    const states = {};
+    (masterAdminData?.workChanges || []).slice().sort((a,b)=>(a.date||"").localeCompare(b.date||"")).forEach(v=>{
+      if (!v.date || v.date > date || !v.driverId) return;
+      if (v.type === "병가" || v.type === "퇴직") states[v.driverId] = v;
+      else if (v.type === "복귀") delete states[v.driverId];
+    });
+    return states;
+  }
+
+  function refreshWorkChangeDrivers() {
+    if (!masterAdminData) return;
+    const date=document.getElementById("workChangeDate").value||todayLocal();
+    const type=document.getElementById("workChangeType").value;
+    const states=persistentWorkStates(date), affected=document.getElementById("workChangeDriver"), previous=affected.value;
+    const source=type==="복귀" ? masterAdminData.drivers.filter(d=>states[d.driverId]) : masterAdminData.drivers;
+    affected.replaceChildren(new Option(type==="복귀"?"복귀 대상 기사를 선택하세요":"기사를 선택하세요",""));
+    source.forEach(d=>{
+      const state=states[d.driverId], prefix=state?"["+state.type+"] ":"";
+      affected.add(new Option(prefix+d.name+" · "+d.empId+" · "+(d.route||"노선 미지정")+"번 · "+(d.shift||"조 미지정"),d.driverId));
+    });
+    if([...affected.options].some(o=>o.value===previous)) affected.value=previous;
+    const root=document.getElementById("returnCandidateList"); root.replaceChildren();
+    const candidates=masterAdminData.drivers.filter(d=>states[d.driverId]);
+    root.append(el("div",candidates.length ? "현재 복귀 대상: "+candidates.map(d=>d.name+"("+states[d.driverId].type+" "+states[d.driverId].date+"~)").join(", ") : "현재 장기 병가·퇴직 복귀 대상이 없습니다.",candidates.length?"notice":"ok"));
+    refreshWorkChangeReplacements();
+  }
+
   function populateMasterAdmin(data) {
     masterAdminData = data;
     document.getElementById("masterAccountTools").hidden = !data.canManageAccounts;
@@ -1014,12 +1043,10 @@
     data.accounts.forEach(a => staff.add(new Option(a.loginName + " · " + a.role + (a.enabled === "N" ? " · 중지" : ""), a.driverId)));
     const drivers = document.getElementById("masterDriverSelect");
     drivers.replaceChildren(new Option("새 기사 등록", ""));
+    const currentStates=persistentWorkStates(todayLocal());
     data.drivers.slice().sort((a,b) => (b.test === "Y") - (a.test === "Y") || a.name.localeCompare(b.name, "ko"))
-      .forEach(d => drivers.add(new Option((d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
-    const affected=document.getElementById("workChangeDriver");
-    affected.replaceChildren(new Option("기사를 선택하세요",""));
-    data.drivers.forEach(d=>affected.add(new Option(d.name+" · "+d.empId+" · "+(d.route||"노선 미지정")+"번 · "+(d.shift||"조 미지정"),d.driverId)));
-    refreshWorkChangeReplacements();
+      .forEach(d => drivers.add(new Option((currentStates[d.driverId]?"["+currentStates[d.driverId].type+"] ":d.test === "Y" ? "[임시] " : "") + d.name + " · " + d.empId, d.driverId)));
+    refreshWorkChangeDrivers();
     const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
     const history=document.getElementById("workChangeHistory"); history.replaceChildren();
     (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
@@ -1031,8 +1058,9 @@
     const affected=masterAdminData.drivers.find(d=>d.driverId===affectedId);
     replacement.replaceChildren(new Option(affected?"미정·대체 없음 (기준 "+affected.route+"번·"+affected.shift+"조)":"대상 기사를 먼저 선택하세요",""));
     if(!affected)return;
+    const unavailable=persistentWorkStates(document.getElementById("workChangeDate").value||todayLocal());
     masterAdminData.drivers
-      .filter(d=>d.driverId!==affectedId&&d.status==="재직")
+      .filter(d=>d.driverId!==affectedId&&d.status==="재직"&&!unavailable[d.driverId])
       .sort((a,b)=>Number(b.route===affected.route&&b.shift===affected.shift)-Number(a.route===affected.route&&a.shift===affected.shift)||Number(b.route===affected.route)-Number(a.route===affected.route)||a.name.localeCompare(b.name,"ko"))
       .forEach(d=>{
         const scope=d.route===affected.route&&d.shift===affected.shift?"추천":d.route===affected.route?"다른 조":"다른 노선";
@@ -1106,6 +1134,8 @@
   document.getElementById("masterStaffSave").addEventListener("click", saveMasterStaff);
   document.getElementById("masterDriverSave").addEventListener("click", saveMasterDriver);
   document.getElementById("workChangeSave").addEventListener("click", saveWorkChange);
+  document.getElementById("workChangeType").addEventListener("change",refreshWorkChangeDrivers);
+  document.getElementById("workChangeDate").addEventListener("change",refreshWorkChangeDrivers);
 
   function operationNotice(text,error=false){
     document.getElementById("operationStatus").replaceChildren(el("div",text,error?"error":"ok"));
