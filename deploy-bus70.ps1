@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Effective route transfer and dispatch prediction v48",
+  [string]$Description = "Privacy-safe driver promotion and route transfer v49",
   [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP"
 )
 
