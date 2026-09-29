@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Maintenance workflow and dispatch prediction v47",
+  [string]$Description = "Effective route transfer and dispatch prediction v48",
   [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP"
 )
 
