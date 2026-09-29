@@ -594,6 +594,8 @@
       <div id="transferFields" class="manager-tools" hidden>
         <div><label for="transferRoute">이동 노선</label><input id="transferRoute" type="text" maxlength="10" placeholder="예: 5"></div>
         <div><label for="transferShift">이동 후 근무조</label><select id="transferShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
+        <div><label for="transferEmpId">정규 전환 사원번호</label><input id="transferEmpId" type="text" inputmode="numeric" maxlength="6" placeholder="선택 입력 · 예: 426064"></div>
+        <div><label for="transferDriverType">전환 후 기사구분</label><select id="transferDriverType"><option value="">기존 구분 유지</option><option value="노선">정규 노선기사</option><option value="예비">예비기사</option></select></div>
       </div>
       <label for="workChangeReason">사유·현장 메모</label><input id="workChangeReason" type="text" maxlength="100">
       <button id="workChangeSave" type="button">근태·대체 처리 저장</button>
@@ -1079,7 +1081,7 @@
     if(!masterAdminData)return;
     const driver=masterAdminData.drivers.find(d=>d.driverId===document.getElementById("workChangeDriver").value);
     if(!driver)return;
-    if(transfer){document.getElementById("transferRoute").value="";document.getElementById("transferShift").value=["A","B","예비"].includes(driver.shift)?driver.shift:"B";}
+    if(transfer){document.getElementById("transferRoute").value="";document.getElementById("transferShift").value=["A","B","예비"].includes(driver.shift)?driver.shift:"B";document.getElementById("transferEmpId").value="";document.getElementById("transferDriverType").value="";}
     if(!rehire)return;
     document.getElementById("rehireEmpId").value=driver.empId||"";
     document.getElementById("rehireShift").value=["A","B","예비"].includes(driver.shift)?driver.shift:"B";
@@ -1100,7 +1102,7 @@
     refreshWorkChangeDrivers();
     const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
     const history=document.getElementById("workChangeHistory"); history.replaceChildren();
-    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.type==="노선이동"?" · "+(v.previousRoute||"-")+"번 → "+(v.newRoute||"-")+"번 "+(v.newShift||"")+"조":v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
+    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.type==="노선이동"?" · "+(v.previousRoute||"-")+"번 → "+(v.newRoute||"-")+"번 "+(v.newShift||"")+"조"+(v.newEmpId?" · 새 사원번호 "+v.newEmpId:"")+(v.newDriverType?" · "+v.newDriverType:""):v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
   }
 
   function refreshWorkChangeReplacements() {
@@ -1175,10 +1177,11 @@
   }
 
   async function saveWorkChange(){
-    const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim(),rehireEmpId:document.getElementById("rehireEmpId").value,rehireShift:document.getElementById("rehireShift").value,rehireRoute:document.getElementById("rehireRoute").value.trim(),newRoute:document.getElementById("transferRoute").value.trim(),newShift:document.getElementById("transferShift").value};
+    const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim(),rehireEmpId:document.getElementById("rehireEmpId").value,rehireShift:document.getElementById("rehireShift").value,rehireRoute:document.getElementById("rehireRoute").value.trim(),newRoute:document.getElementById("transferRoute").value.trim(),newShift:document.getElementById("transferShift").value,newEmpId:document.getElementById("transferEmpId").value.trim(),newDriverType:document.getElementById("transferDriverType").value};
     if(!body.driverId)return masterStatus("근태 대상 기사를 선택하세요.");
     if(body.type==="재입사"&&(!/^\d{6}$/.test(body.rehireEmpId)||!["A","B","예비"].includes(body.rehireShift)||!body.rehireRoute))return masterStatus("재입사 사원번호·근무조·노선을 확인하세요.");
     if(body.type==="노선이동"&&(!body.newRoute||!["A","B","예비"].includes(body.newShift)))return masterStatus("이동할 노선과 근무조를 확인하세요.");
+    if(body.type==="노선이동"&&body.newEmpId&&!/^4\d{5}$/.test(body.newEmpId))return masterStatus("정규 전환 사원번호는 4로 시작하는 6자리 번호를 입력하세요.");
     if((body.sequence&&!body.replacementId)||(!body.sequence&&body.replacementId))return masterStatus("배차 변경 시 순차와 대체기사를 함께 선택하세요.");
     button.disabled=true; try{const result=await apiPost(body); masterStatus(result.message||"저장하지 못했습니다.",result.ok); if(result.ok)await loadMasterAdmin();}catch(error){masterStatus("서버 통신에 실패했습니다.");}finally{button.disabled=false;}
   }
