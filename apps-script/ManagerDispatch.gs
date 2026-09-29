@@ -163,8 +163,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
   if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
-  bus70EnsureBoardTestDrivers_(ds);
-  bus70EnsureKnownWorkChanges_(ds, ss.getSheetByName('근무변경DB'));
+  bus70ApplyDueDriverTransitions_(ds, ss.getSheetByName('근무변경DB'));
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]);
   const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),route:String(r[dc['현재노선']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
     .filter(function(v){return v.driverId && ['ADM-MASTER-001','MGR-MAJOR-001','CTR-CENTER-001'].indexOf(v.driverId)===-1;});
@@ -176,7 +175,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
   }
   const ws=ss.getSheetByName('근무변경DB'), names={}; drivers.forEach(function(v){names[v.driverId]=v.name;});
   let workChanges=[];
-  if(ws&&ws.getLastRow()>1){bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조']);const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]); workChanges=wr.slice(1).map(function(r){return {changeId:String(r[wc['changeId']]||''),date:normalizeDate_(r[wc['날짜']]),driverId:String(r[wc['기사ID']]||''),driverName:names[String(r[wc['기사ID']]||'')]||'',type:String(r[wc['유형']]||''),sequence:Number(r[wc['적용순차']]||0),replacementId:String(r[wc['대체기사ID']]||''),replacementName:names[String(r[wc['대체기사ID']]||'')]||'',previousRoute:String(r[wc['변경전노선']]||''),newRoute:String(r[wc['변경노선']]||''),newShift:String(r[wc['변경근무조']]||''),reason:String(r[wc['사유']]||'')};}).filter(function(v){return v.changeId;}).slice(-30).reverse();}
+  if(ws&&ws.getLastRow()>1){bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]); workChanges=wr.slice(1).map(function(r){return {changeId:String(r[wc['changeId']]||''),date:normalizeDate_(r[wc['날짜']]),driverId:String(r[wc['기사ID']]||''),driverName:names[String(r[wc['기사ID']]||'')]||'',type:String(r[wc['유형']]||''),sequence:Number(r[wc['적용순차']]||0),replacementId:String(r[wc['대체기사ID']]||''),replacementName:names[String(r[wc['대체기사ID']]||'')]||'',previousRoute:String(r[wc['변경전노선']]||''),newRoute:String(r[wc['변경노선']]||''),newShift:String(r[wc['변경근무조']]||''),newEmpId:String(r[wc['새사원번호']]||''),newDriverType:String(r[wc['변경기사구분']]||''),reason:String(r[wc['사유']]||'')};}).filter(function(v){return v.changeId;}).slice(-30).reverse();}
   return {ok:true,drivers:drivers,accounts:accounts,workChanges:workChanges,canManageAccounts:bus70IsMaster_(requesterId)};
 }
 
@@ -204,8 +203,10 @@ function bus70WorkChangeSave_(body, requesterId) {
   }
   if(replacementId&&String(dr[replacementRow-1][dc['상태']]||'')!=='재직') return {ok:false,error:'REPLACEMENT_UNAVAILABLE',message:'재직 중인 기사만 대체 투입할 수 있습니다.'};
   const driverShift=String(dr[driverRow-1][dc['근무조']]||'').trim(), driverRoute=String(dr[driverRow-1][dc['현재노선']]||'').trim();
-  const newRoute=String(body.newRoute||'').trim(), newShift=String(body.newShift||driverShift).trim();
+  const newRoute=String(body.newRoute||'').trim(), newShift=String(body.newShift||driverShift).trim(), newEmpId=String(body.newEmpId||'').replace(/\D/g,''), newDriverType=String(body.newDriverType||'').trim();
   if(type==='노선이동'&&(!newRoute||newRoute.length>10||['A','B','예비'].indexOf(newShift)===-1)) return {ok:false,error:'TRANSFER_INFO_REQUIRED',message:'이동할 노선과 근무조를 확인하세요.'};
+  if(type==='노선이동'&&newEmpId&&!/^4\d{5}$/.test(newEmpId)) return {ok:false,error:'REGULAR_EMP_ID_REQUIRED',message:'정규 전환 사원번호는 4로 시작하는 6자리 번호를 입력하세요.'};
+  if(type==='노선이동'&&newEmpId){for(let r=1;r<dr.length;r++)if(r+1!==driverRow&&String(dr[r][dc['사원번호']]||'')===newEmpId)return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};}
   const replacementShift=replacementId?String(dr[replacementRow-1][dc['근무조']]||'').trim():'', replacementRoute=replacementId?String(dr[replacementRow-1][dc['현재노선']]||'').trim():'';
   if(replacementId&&(replacementShift!==driverShift||replacementRoute!==driverRoute)&&!reason) return {ok:false,error:'REPLACEMENT_OVERRIDE_REASON_REQUIRED',message:'다른 조 또는 다른 노선 기사를 투입할 때는 사유·현장 메모를 입력하세요.'};
   let dispatchChanged=false, dispatchId='';
@@ -233,10 +234,10 @@ function bus70WorkChangeSave_(body, requesterId) {
     }
     ds.getRange(driverRow,1,1,row.length).setValues([row]);
   }
-  bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조']);
+  bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);
   const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]), row=new Array(wr[0].length).fill('');
   row[wc['changeId']]=newId_('WORK'); row[wc['날짜']]=date; row[wc['기사ID']]=driverId; row[wc['유형']]=type; row[wc['적용순차']]=sequence||''; row[wc['대체기사ID']]=replacementId; row[wc['시작시간']]=String(body.startTime||''); row[wc['종료시간']]=String(body.endTime||''); row[wc['사유']]=reason; row[wc['처리자']]=requesterId; row[wc['처리시간']]=new Date();
-  if(type==='노선이동'){row[wc['변경전노선']]=driverRoute;row[wc['변경노선']]=newRoute;row[wc['변경근무조']]=newShift;}
+  if(type==='노선이동'){row[wc['변경전노선']]=driverRoute;row[wc['변경노선']]=newRoute;row[wc['변경근무조']]=newShift;row[wc['새사원번호']]=newEmpId;row[wc['변경기사구분']]=newDriverType||(newEmpId?'노선':'');}
   ws.appendRow(row);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','근무변경DB',row[wc['changeId']],'추가',{},row,type+' 현장대응');
   return {ok:true,message:type+' 처리를 저장했습니다.'+(type==='노선이동'?' '+date+'부터 '+newRoute+'번 '+newShift+'조로 적용됩니다.':'')+(dispatchChanged?' '+sequence+'순차 대체기사 배차도 변경했습니다.':'')};
@@ -305,7 +306,7 @@ function bus70IsMaster_(driverId) {
 function bus70RoleFor_(driverId) {
   const id = String(driverId || '').trim();
   if (!id) return '';
-  // 박철완 기사는 현장 기사 계정이며 운영계정 권한을 겸하지 않는다.
+  // 현장 기사 계정에는 운영계정 권한을 함께 부여하지 않는다.
   // 이전 시험 데이터에 남은 마스터 행이 있어도 기사 권한으로 고정한다.
   if (id === 'DRV-B-TEST-002') return '';
   const configured = String(PropertiesService.getScriptProperties().getProperty('BUS70_MANAGER_DRIVER_IDS') || '')
@@ -349,7 +350,7 @@ function bus70EnsureInitialAccounts_() {
   required.forEach(function (header) { if (headers.indexOf(header) === -1) { headers.push(header); accountSheet.getRange(1,headers.length).setValue(header); } });
   accountRows = accountSheet.getDataRange().getDisplayValues();
   const ac = makeHeaderMap_(accountRows[0]);
-  // STEP 9 시험 때 박철완 기사에 임시 부여했던 마스터 권한을 제거한다.
+  // 시험 단계에서 현장 기사에게 임시 부여했던 운영권한을 제거한다.
   for (let i=1;i<accountRows.length;i++) {
     if (String(accountRows[i][ac['driverId']]||'').trim() !== 'DRV-B-TEST-002') continue;
     if (String(accountRows[i][ac['권한']]||'').trim() !== '마스터') continue;
@@ -464,8 +465,7 @@ function bus70ManagerBootstrap_(rawDate) {
   if (!driverSheet || !vehicleSheet || !dispatchSheet || !scheduleSheet) {
     return {ok:false, error:'DB_MISSING', message:'배차 편집에 필요한 DB를 찾을 수 없습니다.'};
   }
-  bus70EnsureBoardTestDrivers_(driverSheet);
-  bus70EnsureKnownWorkChanges_(driverSheet, ss.getSheetByName('근무변경DB'));
+  bus70ApplyDueDriverTransitions_(driverSheet, ss.getSheetByName('근무변경DB'));
   const allDrivers = bus70ManagerMasterRows_(driverSheet, 'driver');
   const unavailable={}, unavailableNames={}, workSheet=ss.getSheetByName('근무변경DB');
   const masterRows=driverSheet.getDataRange().getDisplayValues(),masterCols=makeHeaderMap_(masterRows[0]),driverNames={};
@@ -551,55 +551,21 @@ function bus70ManagerDateKey_(value) {
   return '';
 }
 
-function bus70EnsureBoardTestDrivers_(sheet) {
-  const candidates = [
-    ['790001','이재천'], ['790002','양인모'], ['790003','이성준'],
-    ['790004','노성진'], ['790005','김호'], ['790006','권경율'],
-    ['790007','강호익'], ['790008','김춘식'], ['790009','천승준'],
-    ['790010','이응주'], ['790011','오상훈'], ['790012','박철완']
-  ];
-  const rows = sheet.getDataRange().getDisplayValues();
-  if (!rows.length) return;
-  const c = makeHeaderMap_(rows[0]);
-  const knownNames = {};
-  const knownEmpIds = {};
-  for (let i = 1; i < rows.length; i++) {
-    knownNames[String(rows[i][c['성명']] || '').replace(/\s/g, '')] = true;
-    knownEmpIds[String(rows[i][c['사원번호']] || '').trim()] = true;
-  }
-  candidates.forEach(function (candidate, index) {
-    const empId = candidate[0], name = candidate[1];
-    if (knownNames[name.replace(/\s/g, '')] || knownEmpIds[empId]) return;
-    sheet.appendRow([
-      'DRV-B-OCR-' + ('00' + (index + 1)).slice(-3), empId, name, 'B', '노선',
-      '임시', '', '70', 900 + index, '재직', '', '', 'Y', '배차상황판 OCR 테스트용 임시기사'
-    ]);
-  });
-}
-
-function bus70EnsureKnownWorkChanges_(driverSheet, workSheet) {
-  if(!driverSheet||!workSheet)return;
-  bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조']);
-  const dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]);
-  const idsByName={};
-  for(let i=1;i<dr.length;i++){
-    idsByName[String(dr[i][dc['성명']]||'').replace(/\s/g,'')]=String(dr[i][dc['driverId']]||'').trim();
-  }
-  const driverId=idsByName['이재천'];
+function bus70ApplyDueDriverTransitions_(driverSheet,workSheet){
+  if(!driverSheet||!workSheet||workSheet.getLastRow()<2)return;
+  bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);
+  const today=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd'),dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),rowsById={};
+  for(let i=1;i<dr.length;i++)rowsById[String(dr[i][dc['driverId']]||'')]=i+1;
   const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);
-  const known={};
-  for(let j=1;j<wr.length;j++){
-    known[String(wr[j][wc['기사ID']]||'')+'|'+String(wr[j][wc['유형']]||'')+'|'+bus70ManagerDateKey_(wr[j][wc['날짜']])]=true;
-  }
-  if(driverId&&!known[driverId+'|병가|2026-07-01']){
-    const row=new Array(wr[0].length).fill('');
-    row[wc['changeId']]='WORK-20260701-LEEJAECHUN-SICK';row[wc['날짜']]='2026-07-01';row[wc['기사ID']]=driverId;row[wc['유형']]='병가';
-    row[wc['사유']]='암 수술 및 회복 장기 병가 · 2026년 10월 복귀 예정(실제 복귀 승인 전까지 병가 유지)';row[wc['처리자']]='SYSTEM';row[wc['처리시간']]=new Date();workSheet.appendRow(row);
-  }
-  [['김민석','16','A'],['여승철','23','A'],['박철완','5','B'],['천승준','6','B']].forEach(function(item){
-    const id=idsByName[item[0]];if(!id||known[id+'|노선이동|2026-10-01'])return;
-    const row=new Array(wr[0].length).fill('');row[wc['changeId']]='WORK-20261001-TRANSFER-'+id;row[wc['날짜']]='2026-10-01';row[wc['기사ID']]=id;row[wc['유형']]='노선이동';row[wc['변경전노선']]='70';row[wc['변경노선']]=item[1];row[wc['변경근무조']]=item[2];row[wc['사유']]='양성 3개월 종료 후 '+item[1]+'번 노선 이동 확정';row[wc['처리자']]='SYSTEM';row[wc['처리시간']]=new Date();workSheet.appendRow(row);
-  });
+  wr.slice(1).map(function(r,index){return {r:r,index:index,date:bus70ManagerDateKey_(r[wc['날짜']])};})
+    .filter(function(v){return v.date&&v.date<=today&&String(v.r[wc['유형']]||'')==='노선이동';})
+    .sort(function(a,b){return a.date.localeCompare(b.date)||a.index-b.index;})
+    .forEach(function(v){
+      const id=String(v.r[wc['기사ID']]||''),rowNo=rowsById[id];if(!rowNo)return;
+      const row=dr[rowNo-1].slice(),newRoute=String(v.r[wc['변경노선']]||''),newShift=String(v.r[wc['변경근무조']]||''),newEmpId=String(v.r[wc['새사원번호']]||''),newType=String(v.r[wc['변경기사구분']]||'');
+      if(newRoute)row[dc['현재노선']]=newRoute;if(newShift)row[dc['근무조']]=newShift;if(newEmpId)row[dc['사원번호']]=newEmpId;if(newType)row[dc['기사구분']]=newType;
+      driverSheet.getRange(rowNo,1,1,row.length).setValues([row]);
+    });
 }
 
 function bus70ManagerMasterRows_(sheet, type) {
