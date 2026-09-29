@@ -10,6 +10,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Keep Korean source, JSON, Apps Script and console text in UTF-8 on both
+# Windows PowerShell 5.1 and PowerShell 7+.
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$utf8Bom = [System.Text.UTF8Encoding]::new($true)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$PSDefaultParameterValues["Out-File:Encoding"] = "utf8"
+$PSDefaultParameterValues["Set-Content:Encoding"] = "utf8"
+$PSDefaultParameterValues["Add-Content:Encoding"] = "utf8"
+
 function Step([string]$Message) {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
@@ -56,7 +67,7 @@ try {
   [System.IO.File]::WriteAllText(
     (Join-Path (Get-Location) "ManagerDispatch.js"),
     $downloaded,
-    [System.Text.UTF8Encoding]::new($false)
+    $utf8NoBom
   )
 }
 finally {
