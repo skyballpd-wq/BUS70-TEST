@@ -23,16 +23,16 @@ $required = @(
   "ManagerDispatch.js"
 )
 
-Step "배포 폴더와 실행 도구 확인"
+Step "Checking deployment folder and tools"
 foreach ($file in $required) {
   if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
-    throw "필수 파일이 없습니다: $file"
+    throw "Required file is missing: $file"
   }
 }
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js를 찾을 수 없습니다." }
-if (-not (Get-Command npx -ErrorAction SilentlyContinue)) { throw "npx를 찾을 수 없습니다." }
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js was not found." }
+if (-not (Get-Command npx -ErrorAction SilentlyContinue)) { throw "npx was not found." }
 
-Step "현재 파일 외부 백업"
+Step "Creating external backup"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $parent = Split-Path -Parent (Get-Location)
 $backup = Join-Path $parent "BUS70_DEPLOY_backup-$stamp"
@@ -40,9 +40,9 @@ New-Item -ItemType Directory -Path $backup -Force | Out-Null
 foreach ($file in $required) {
   Copy-Item -LiteralPath $file -Destination $backup -Force
 }
-Write-Host "백업: $backup" -ForegroundColor DarkGray
+Write-Host "Backup: $backup" -ForegroundColor DarkGray
 
-Step "GitHub 최신 서버 코드 동기화"
+Step "Downloading latest server code from GitHub"
 $source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/ManagerDispatch.gs"
 $temporary = Join-Path (Get-Location) "ManagerDispatch.download.tmp"
 try {
@@ -50,7 +50,7 @@ try {
   $downloaded = Get-Content -LiteralPath $temporary -Raw -Encoding UTF8
   foreach ($marker in @("bus70PredictManagerAssignments_", "OPEN_MAINTENANCE_EXISTS")) {
     if (-not $downloaded.Contains($marker)) {
-      throw "다운로드 코드에서 필수 기능을 찾지 못했습니다: $marker"
+      throw "Required feature marker was not found: $marker"
     }
   }
   [System.IO.File]::WriteAllText(
@@ -65,43 +65,43 @@ finally {
   }
 }
 
-Step "JavaScript 문법 검사"
+Step "Checking JavaScript syntax"
 foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js")) {
   & node --check $file
-  if ($LASTEXITCODE -ne 0) { throw "문법 검사 실패: $file" }
+  if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $file" }
 }
-Write-Host "문법 검사 통과" -ForegroundColor Green
+Write-Host "Syntax checks passed." -ForegroundColor Green
 
-Write-Host "`n배포 대상: $DeploymentId" -ForegroundColor Yellow
-$confirmation = Read-Host "계속하려면 DEPLOY 입력"
+Write-Host "`nDeployment: $DeploymentId" -ForegroundColor Yellow
+$confirmation = Read-Host "Type DEPLOY to continue"
 if ($confirmation -cne "DEPLOY") {
-  Write-Host "사용자가 배포를 취소했습니다. 백업은 유지됩니다." -ForegroundColor Yellow
+  Write-Host "Deployment cancelled. The backup was retained." -ForegroundColor Yellow
   exit 0
 }
 
-Step "Apps Script 파일 업로드"
+Step "Uploading Apps Script files"
 & npx.cmd @google/clasp push --force
-if ($LASTEXITCODE -ne 0) { throw "clasp push 실패" }
+if ($LASTEXITCODE -ne 0) { throw "clasp push failed" }
 
-Step "새 버전 생성"
+Step "Creating a new Apps Script version"
 $versionOutput = & npx.cmd @google/clasp version $Description 2>&1
 $versionOutput | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) { throw "clasp version 실패" }
+if ($LASTEXITCODE -ne 0) { throw "clasp version failed" }
 $versionText = $versionOutput -join "`n"
 $versionMatch = [regex]::Match($versionText, "Created version\s+(\d+)")
-if (-not $versionMatch.Success) { throw "생성된 버전 번호를 확인하지 못했습니다." }
+if (-not $versionMatch.Success) { throw "Could not detect the new version number." }
 $versionNumber = $versionMatch.Groups[1].Value
 
-Step "기존 웹앱 배포 갱신"
+Step "Updating the existing web app deployment"
 & npx.cmd @google/clasp deploy `
   --deploymentId $DeploymentId `
   --versionNumber $versionNumber `
   --description $Description
-if ($LASTEXITCODE -ne 0) { throw "clasp deploy 실패" }
+if ($LASTEXITCODE -ne 0) { throw "clasp deploy failed" }
 
-Step "배포 결과 확인"
+Step "Verifying deployment"
 & npx.cmd @google/clasp deployments
-if ($LASTEXITCODE -ne 0) { throw "배포 목록 확인 실패" }
+if ($LASTEXITCODE -ne 0) { throw "Could not verify deployments" }
 
-Write-Host "`n완료: Apps Script 버전 $versionNumber" -ForegroundColor Green
-Write-Host "백업 위치: $backup" -ForegroundColor Green
+Write-Host "`nCompleted: Apps Script version $versionNumber" -ForegroundColor Green
+Write-Host "Backup: $backup" -ForegroundColor Green
