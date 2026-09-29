@@ -579,7 +579,7 @@
       <div id="returnCandidateList" class="manager-status" aria-live="polite"></div>
       <div class="manager-tools">
         <div><label for="workChangeDate">적용 날짜</label><input id="workChangeDate" type="date"></div>
-        <div><label for="workChangeType">유형</label><select id="workChangeType"><option>휴무</option><option>병가</option><option>지각</option><option>조퇴</option><option>결근</option><option>퇴직</option><option>복귀</option><option>재입사</option><option>기타</option></select></div>
+        <div><label for="workChangeType">유형</label><select id="workChangeType"><option>휴무</option><option>병가</option><option>지각</option><option>조퇴</option><option>결근</option><option>퇴직</option><option>복귀</option><option>재입사</option><option>노선이동</option><option>기타</option></select></div>
         <div><label for="workChangeDriver">대상 기사</label><select id="workChangeDriver"><option value="">기사를 선택하세요</option></select></div>
         <div><label for="workChangeSequence">적용 순차</label><select id="workChangeSequence"><option value="">배차 변경 없음</option></select></div>
         <div><label for="workChangeReplacement">대체기사</label><select id="workChangeReplacement"><option value="">미정·대체 없음</option></select></div>
@@ -590,6 +590,10 @@
         <div><label for="rehireEmpId">재입사 사원번호</label><input id="rehireEmpId" type="text" inputmode="numeric" maxlength="6" placeholder="기존 또는 새 6자리 사원번호"></div>
         <div><label for="rehireShift">재입사 근무조</label><select id="rehireShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
         <div><label for="rehireRoute">재입사 노선</label><input id="rehireRoute" type="text" maxlength="10" placeholder="예: 70"></div>
+      </div>
+      <div id="transferFields" class="manager-tools" hidden>
+        <div><label for="transferRoute">이동 노선</label><input id="transferRoute" type="text" maxlength="10" placeholder="예: 5"></div>
+        <div><label for="transferShift">이동 후 근무조</label><select id="transferShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
       </div>
       <label for="workChangeReason">사유·현장 메모</label><input id="workChangeReason" type="text" maxlength="100">
       <button id="workChangeSave" type="button">근태·대체 처리 저장</button>
@@ -1068,11 +1072,15 @@
   }
 
   function refreshRehireFields() {
-    const rehire=document.getElementById("workChangeType").value==="재입사";
+    const selectedType=document.getElementById("workChangeType").value;
+    const rehire=selectedType==="재입사",transfer=selectedType==="노선이동";
     const panel=document.getElementById("rehireFields"); panel.hidden=!rehire;
-    if(!rehire||!masterAdminData)return;
+    document.getElementById("transferFields").hidden=!transfer;
+    if(!masterAdminData)return;
     const driver=masterAdminData.drivers.find(d=>d.driverId===document.getElementById("workChangeDriver").value);
     if(!driver)return;
+    if(transfer){document.getElementById("transferRoute").value="";document.getElementById("transferShift").value=["A","B","예비"].includes(driver.shift)?driver.shift:"B";}
+    if(!rehire)return;
     document.getElementById("rehireEmpId").value=driver.empId||"";
     document.getElementById("rehireShift").value=["A","B","예비"].includes(driver.shift)?driver.shift:"B";
     document.getElementById("rehireRoute").value=driver.route||"70";
@@ -1092,7 +1100,7 @@
     refreshWorkChangeDrivers();
     const seq=document.getElementById("workChangeSequence"); seq.replaceChildren(new Option("배차 변경 없음","")); for(let i=1;i<=11;i++)seq.add(new Option(i+"순차",String(i)));
     const history=document.getElementById("workChangeHistory"); history.replaceChildren();
-    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
+    (data.workChanges||[]).forEach(v=>history.append(el("div",v.date+" · "+v.driverName+" · "+v.type+(v.type==="노선이동"?" · "+(v.previousRoute||"-")+"번 → "+(v.newRoute||"-")+"번 "+(v.newShift||"")+"조":v.sequence?" · "+v.sequence+"순차":" · 배차 전 사전등록")+(v.replacementName?" → "+v.replacementName:"")+(v.reason?" · "+v.reason:""),"notice")));
   }
 
   function refreshWorkChangeReplacements() {
@@ -1167,9 +1175,10 @@
   }
 
   async function saveWorkChange(){
-    const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim(),rehireEmpId:document.getElementById("rehireEmpId").value,rehireShift:document.getElementById("rehireShift").value,rehireRoute:document.getElementById("rehireRoute").value.trim()};
+    const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim(),rehireEmpId:document.getElementById("rehireEmpId").value,rehireShift:document.getElementById("rehireShift").value,rehireRoute:document.getElementById("rehireRoute").value.trim(),newRoute:document.getElementById("transferRoute").value.trim(),newShift:document.getElementById("transferShift").value};
     if(!body.driverId)return masterStatus("근태 대상 기사를 선택하세요.");
     if(body.type==="재입사"&&(!/^\d{6}$/.test(body.rehireEmpId)||!["A","B","예비"].includes(body.rehireShift)||!body.rehireRoute))return masterStatus("재입사 사원번호·근무조·노선을 확인하세요.");
+    if(body.type==="노선이동"&&(!body.newRoute||!["A","B","예비"].includes(body.newShift)))return masterStatus("이동할 노선과 근무조를 확인하세요.");
     if((body.sequence&&!body.replacementId)||(!body.sequence&&body.replacementId))return masterStatus("배차 변경 시 순차와 대체기사를 함께 선택하세요.");
     button.disabled=true; try{const result=await apiPost(body); masterStatus(result.message||"저장하지 못했습니다.",result.ok); if(result.ok)await loadMasterAdmin();}catch(error){masterStatus("서버 통신에 실패했습니다.");}finally{button.disabled=false;}
   }
