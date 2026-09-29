@@ -487,10 +487,10 @@
       <div id="vehicleStatusList" class="vehicle-status-list"></div>
 
       <div id="driverMaintenanceRequest" hidden>
-        <h3>내 차량 정비 요청</h3>
-        <p class="hint">오늘 본인에게 배차된 차량의 이상 증상을 요청하면 소장과 정비소에 즉시 공유됩니다.</p>
+        <h3 id="maintenanceRequestTitle">내 차량 정비 요청</h3>
+        <p id="maintenanceRequestHelp" class="hint">오늘 본인에게 배차된 차량의 이상 증상을 요청하면 소장과 정비소에 자동 공유됩니다.</p>
         <div class="manager-tools">
-          <div><label for="driverIncidentVehicle">배차 차량</label><select id="driverIncidentVehicle"><option value="">차량 선택</option></select></div>
+          <div><label id="maintenanceVehicleLabel" for="driverIncidentVehicle">배차 차량</label><select id="driverIncidentVehicle"><option value="">차량 선택</option></select></div>
           <div><label for="driverIncidentType">요청 유형</label><select id="driverIncidentType"><option>정기점검</option><option>이상 증상</option><option>고장</option><option>사고</option><option>기타</option></select></div>
         </div>
         <label for="driverIncidentContent">증상·요청 내용</label><input id="driverIncidentContent" type="text" maxlength="150" placeholder="증상과 입고 가능 시점을 입력하세요">
@@ -767,7 +767,13 @@
     document.getElementById("managerPanel").hidden = !currentIsManager;
     document.getElementById("centerPanel").hidden = false;
     document.getElementById("reserveVehicleTools").hidden = !currentIsManager;
-    document.getElementById("driverMaintenanceRequest").hidden = isStaff;
+    const sharedRequestVisible = !currentIsManager;
+    document.getElementById("driverMaintenanceRequest").hidden = !sharedRequestVisible;
+    document.getElementById("maintenanceRequestTitle").textContent = currentRole === "CENTER" ? "차량 정비 요청" : "내 차량 정비 요청";
+    document.getElementById("maintenanceRequestHelp").textContent = currentRole === "CENTER"
+      ? "정기점검 입고 요청이나 확인된 이상 증상을 등록하면 기사·소장·마스터에게 자동 공유됩니다."
+      : "오늘 본인에게 배차된 차량의 이상 증상을 요청하면 소장·정비소·마스터에게 자동 공유됩니다.";
+    document.getElementById("maintenanceVehicleLabel").textContent = currentRole === "CENTER" ? "요청 차량" : "배차 차량";
     document.getElementById("masterAdminPanel").hidden = !currentIsManager;
     document.getElementById("masterAccountTools").hidden = currentRole !== "MASTER";
     document.getElementById("staffAccountPanel").hidden = !isStaff;
@@ -1212,7 +1218,10 @@
       const vehicle=vehicles[v.vehicleId], reserve=vehicles[v.reserveVehicleId];
       card.append(el("strong",v.date+" · "+v.type+" · "+(vehicle?.displayNo||vehicle?.no||v.vehicleId||"차량 미상")));
       card.append(el("div",(v.sequence?v.sequence+"순차 · ":"")+(v.driverName?v.driverName+" · ":"")+v.content,"operation-meta"));
+      const roleNames={DRIVER:"기사",MANAGER:"소장",CENTER:"정비소",MASTER:"마스터"};
+      if(v.requesterName)card.append(el("div","요청: "+v.requesterName+" ("+(roleNames[v.requesterRole]||"사용자")+")","operation-meta"));
       card.append(el("div","상황 "+(v.status||"접수")+" / 정비 "+(v.maintenanceStatus||"접수")+(reserve?" / 예비차 "+(reserve.displayNo||reserve.no):""),"operation-meta"));
+      if(v.handlerName&&v.handler!==v.requesterId)card.append(el("div","최근 처리: "+v.handlerName+" ("+(roleNames[v.handlerRole]||"사용자")+")","operation-meta"));
       if(v.result)card.append(el("div","정비결과: "+v.result,"operation-meta"));
       if(v.completedDate||v.availableDate)card.append(el("div","정비 완료 "+(v.completedDate||"-")+" / 운행 가능 "+(v.availableDate||"-"),"operation-meta"));
       if(v.maintId&&!closed&&(currentRole==="CENTER"||currentRole==="MASTER")){
@@ -1275,7 +1284,7 @@
 
   async function saveDriverIncident(){
     const button=document.getElementById("driverIncidentSave"),body={action:"managerAccountUpsert",operation:"vehicleIncidentSave",token:authToken,date:todayLocal(),vehicleId:document.getElementById("driverIncidentVehicle").value,type:document.getElementById("driverIncidentType").value,content:document.getElementById("driverIncidentContent").value.trim()};
-    if(!body.vehicleId||!body.content)return operationNotice("배차 차량과 증상·요청 내용을 입력하세요.",true);
+    if(!body.vehicleId||!body.content)return operationNotice((currentRole==="CENTER"?"요청 차량":"배차 차량")+"과 증상·요청 내용을 입력하세요.",true);
     button.disabled=true;
     try{const result=await apiPost(body);operationNotice(result.message||"정비 요청을 보내지 못했습니다.",!result.ok);if(result.ok){document.getElementById("driverIncidentContent").value="";await loadOperationData();}}
     catch(error){operationNotice("정비 요청 통신에 실패했습니다.",true);}
