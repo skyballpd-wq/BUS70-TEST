@@ -1239,7 +1239,7 @@
   }
 
   function renderAdjustmentHistory(){
-    const root=document.getElementById("adjustmentHistory");root.replaceChildren();
+    const root=document.getElementById("adjustmentHistory");if(!root)return;root.replaceChildren();
     (operationData.adjustments||[]).slice(0,10).forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 · "+v.trip+"탕 · "+operationalClockLabel(v.before)+" → "+operationalClockLabel(v.after)+(v.reason?" · "+v.reason:""),"notice")));
   }
 
