@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Privacy-safe driver promotion and route transfer v49",
+  [string]$Description = "Driver alerts and run logs v51",
   [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP"
 )
 
@@ -54,25 +54,30 @@ foreach ($file in $required) {
 Write-Host "Backup: $backup" -ForegroundColor DarkGray
 
 Step "Downloading latest server code from GitHub"
-$source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/ManagerDispatch.gs"
-$temporary = Join-Path (Get-Location) "ManagerDispatch.download.tmp"
-try {
-  Invoke-WebRequest -Uri $source -OutFile $temporary -UseBasicParsing
-  $downloaded = Get-Content -LiteralPath $temporary -Raw -Encoding UTF8
-  foreach ($marker in @("bus70PredictManagerAssignments_", "OPEN_MAINTENANCE_EXISTS")) {
-    if (-not $downloaded.Contains($marker)) {
-      throw "Required feature marker was not found: $marker"
-    }
+$modules = @(
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/ManagerDispatch.gs"
+    Destination = "ManagerDispatch.js"
+    Markers = @("bus70PredictManagerAssignments_", "OPEN_MAINTENANCE_EXISTS", "bus70OperatingShiftForDate_", "driverRunLogSave")
+  },
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/AuthStep9.gs"
+    Destination = "AuthStep9.js"
+    Markers = @("driverAlertSettingsGet", "bus70DriverRunLogSave_", "bus70DriverAlertSettingsSave_")
   }
-  [System.IO.File]::WriteAllText(
-    (Join-Path (Get-Location) "ManagerDispatch.js"),
-    $downloaded,
-    $utf8NoBom
-  )
-}
-finally {
-  if (Test-Path -LiteralPath $temporary) {
-    Remove-Item -LiteralPath $temporary -Force
+)
+foreach ($module in $modules) {
+  $temporary = Join-Path (Get-Location) ($module.Destination + ".download.tmp")
+  try {
+    Invoke-WebRequest -Uri $module.Source -OutFile $temporary -UseBasicParsing
+    $downloaded = Get-Content -LiteralPath $temporary -Raw -Encoding UTF8
+    foreach ($marker in $module.Markers) {
+      if (-not $downloaded.Contains($marker)) { throw "Required feature marker was not found: $marker" }
+    }
+    [System.IO.File]::WriteAllText((Join-Path (Get-Location) $module.Destination), $downloaded, $utf8NoBom)
+  }
+  finally {
+    if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
   }
 }
 
