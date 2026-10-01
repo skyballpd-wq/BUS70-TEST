@@ -281,6 +281,17 @@
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
     .schedule-panel .confirm-button { background: #166534; }
     .schedule-panel .confirm-button[hidden] { display: none; }
+    .settings-box { margin-top: 18px; padding: 14px; border: 1px solid #dbe3ec; border-radius: 12px; background: #f8fafc; }
+    .settings-box h3 { margin: 0 0 6px; }
+    .check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 14px; font-weight: 700; }
+    .check-row input { width: 20px; height: 20px; margin: 0; }
+    .inline-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .inline-actions button { margin-top: 10px; height: 44px; font-size: 14px; }
+    .trip-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .trip-actions button { margin-top: 10px; height: 42px; font-size: 14px; }
+    .run-log-row { border-bottom: 1px solid #e5e7eb; padding: 10px 0; font-size: 13px; line-height: 1.5; white-space: pre-line; }
+    .run-log-row:last-child { border-bottom: 0; }
+    @media print { body * { visibility: hidden; } #runLogPanel, #runLogPanel * { visibility: visible; } #runLogPanel { position: absolute; inset: 0; border: 0; } #runLogPanel button { display:none; } }
     .board-panel { margin-top: 24px; padding: 20px; border: 1px solid #dbe3ec; border-radius: 14px; }
     .board-panel[hidden], .board-review[hidden] { display: none !important; }
     .board-panel h2 { font-size: 20px; margin: 0 0 8px; }
@@ -425,6 +436,28 @@
       <div id="scheduleResult" class="result" aria-live="polite"></div>
       <button id="confirmScheduleButton" class="confirm-button" type="button" hidden>이 배차 확인하기</button>
       <div id="confirmResult" class="result" aria-live="polite"></div>
+
+      <div id="alertSettings" class="settings-box">
+        <h3>내 운행 알림</h3>
+        <p class="hint">출근 준비와 각 탕 발차 전에 알림과 음성으로 안내합니다. 현재 웹 알림은 화면이 켜져 있거나 앱이 살아 있을 때 작동하며, 화면 종료 상태의 정확한 알람은 Android 설치형 모듈 연결 후 보장됩니다.</p>
+        <label for="commuteMinutes">출근 알림(분 전, 쉼표 구분)</label><input id="commuteMinutes" type="text" inputmode="numeric" value="60,15" placeholder="예: 60,15">
+        <label for="tripMinutes">탕별 준비 알림(분 전, 쉼표 구분)</label><input id="tripMinutes" type="text" inputmode="numeric" value="10,3" placeholder="예: 10,3">
+        <label class="check-row"><input id="exactAlarm" type="checkbox" checked> 발차 정시에도 알림</label>
+        <label class="check-row"><input id="voiceAlarm" type="checkbox" checked> 음성 안내</label>
+        <label class="check-row"><input id="vibrationAlarm" type="checkbox" checked> 진동 사용</label>
+        <label for="alarmSoundMode">알람음</label><select id="alarmSoundMode"><option value="SYSTEM_DEFAULT">휴대폰 기본 알람음</option><option value="DEVICE_SELECTED">기사 선택 내장음(Android 연결)</option></select>
+        <label class="check-row"><input id="alarmEnabled" type="checkbox" checked> 운행 알림 사용</label>
+        <div class="inline-actions"><button id="requestNotification" type="button">알림 권한 허용</button><button id="saveAlertSettings" type="button">알림 설정 저장</button></div>
+        <div id="alertStatus" class="result" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="runLogPanel" class="schedule-panel" hidden>
+      <h2>내 운행기록</h2>
+      <p class="hint">발차·도착 기록을 날짜별로 조회하고 인쇄할 수 있습니다.</p>
+      <div class="control-row"><div><label for="runLogFrom">시작일</label><input id="runLogFrom" type="date"></div><div><label for="runLogTo">종료일</label><input id="runLogTo" type="date"></div></div>
+      <div class="inline-actions"><button id="loadRunLogs" type="button">운행기록 조회</button><button id="printRunLogs" class="secondary" type="button">조회 결과 인쇄</button></div>
+      <div id="runLogResult" class="result" aria-live="polite"></div>
     </section>
 
     <section id="boardPanel" class="board-panel" hidden>
@@ -456,10 +489,10 @@
 
     <section id="managerPanel" class="manager-panel" hidden>
       <h2>소장 배차 현황 작성</h2>
-      <p class="hint">날짜와 근무조를 선택하면 그날 시간표의 실제 운행 순차만 표시됩니다. 사진 OCR은 저장 데이터와 다른 항목을 찾는 보조 확인입니다.</p>
+      <p class="hint">운행 날짜를 선택하면 전 노선 공통 A/B 격일 근무조가 자동 적용되고 그날 시간표의 실제 운행 순차만 표시됩니다. 사진 OCR은 저장 데이터와 다른 항목을 찾는 보조 확인입니다.</p>
       <div class="manager-tools">
         <div><label for="managerDate">운행 날짜</label><input id="managerDate" type="date"></div>
-        <div><label for="managerShift">근무조</label><select id="managerShift"><option value="A">A조</option><option value="B" selected>B조</option></select></div>
+        <div><label for="managerShift">근무조 (날짜 자동)</label><select id="managerShift" disabled><option value="A">A조</option><option value="B">B조</option></select></div>
       </div>
       <button id="managerLoad" type="button">기사·차량 불러오기</button>
       <div id="managerRows"></div>
@@ -742,8 +775,14 @@
   let masterAdminData = {accounts: [], drivers: []};
   let operationData = {vehicles: [], incidents: [], adjustments: []};
   let operationTimer = 0;
+  let driverAlertSettings = {commuteMinutes:[60,15],tripMinutes:[10,3],exact:true,voice:true,vibration:true,soundMode:"SYSTEM_DEFAULT",soundName:"휴대폰 기본 알람음",enabled:true};
+  let alarmTimers = [];
+  // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
+  // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
+  // 02:30~03:29 준비 시간에도 새 운행이 시작되지 않았으므로 전날을 유지합니다.
   const todayLocal = () => {
     const d = new Date();
+    if (d.getHours() < 3 || (d.getHours() === 3 && d.getMinutes() < 30)) d.setDate(d.getDate() - 1);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
 
@@ -769,6 +808,7 @@
     const roleLabel = currentRole === "MASTER" ? "마스터님" : currentRole === "MANAGER" ? "소장님" : currentRole === "CENTER" ? "정비소님" : "기사님";
     document.getElementById("sessionGreeting").textContent = (driver.name || "") + " " + roleLabel;
     document.getElementById("schedulePanel").hidden = isStaff;
+    document.getElementById("runLogPanel").hidden = isStaff;
     document.getElementById("boardPanel").hidden = isStaff || !BOARD_ENTRY_ENABLED;
     document.getElementById("managerPanel").hidden = !currentIsManager;
     document.getElementById("centerPanel").hidden = false;
@@ -788,6 +828,7 @@
     document.getElementById("workDate").value = todayLocal();
     document.getElementById("boardDate").value = todayLocal();
     document.getElementById("managerDate").value = todayLocal();
+    syncManagerShiftToDate();
     document.getElementById("workChangeDate").value = todayLocal();
     document.getElementById("incidentDate").value = todayLocal();
     document.getElementById("adjustmentDate").value = todayLocal();
@@ -796,6 +837,7 @@
     clearInterval(operationTimer);
     operationTimer=setInterval(()=>{if(authToken&&!document.hidden)loadOperationData(true);},45000);
     if (automatic && !isStaff) loadMySchedule();
+    if (!isStaff) { loadAlertSettings(); loadRunLogs(); }
   }
 
   function resetConfirmation() {
@@ -826,6 +868,7 @@
     authToken = "";
     clearInterval(operationTimer);
     operationTimer = 0;
+    clearDriverAlarms();
   }
 
   function saveLegacyDriver(driver, role = "") {
@@ -862,6 +905,7 @@
     document.getElementById("driverCard").classList.remove("show");
     document.getElementById("sessionBar").hidden = true;
     document.getElementById("schedulePanel").hidden = true;
+    document.getElementById("runLogPanel").hidden = true;
     document.getElementById("boardPanel").hidden = true;
     document.getElementById("managerPanel").hidden = true;
     document.getElementById("centerPanel").hidden = true;
@@ -1392,6 +1436,75 @@
     return row;
   }
 
+  function minuteList(value, fallback) {
+    const values=String(value||"").split(",").map(v=>Number(v.trim())).filter(v=>Number.isInteger(v)&&v>=0&&v<=180);
+    return values.length?[...new Set(values)].sort((a,b)=>b-a).slice(0,4):fallback;
+  }
+
+  function scheduleMoment(serviceDate, time) {
+    const match=String(time||"").match(/^(\d{1,2}):(\d{2})$/); if(!match)return null;
+    const moment=new Date(serviceDate+"T00:00:00+09:00"), hour=Number(match[1]), minute=Number(match[2]);
+    if(hour*60+minute<210)moment.setDate(moment.getDate()+1);
+    moment.setHours(hour,minute,0,0); return moment;
+  }
+
+  async function fireDriverAlert(title, message) {
+    if(driverAlertSettings.vibration&&navigator.vibrate)navigator.vibrate([300,150,300]);
+    if("Notification" in window&&Notification.permission==="granted"){
+      try{const registration=await navigator.serviceWorker?.ready; if(registration)await registration.showNotification(title,{body:message,icon:"./icons/bus70-192.png",badge:"./icons/bus70-192.png",tag:"bus70-driver-alert",renotify:true,vibrate:driverAlertSettings.vibration?[300,150,300]:undefined});else new Notification(title,{body:message});}catch(error){console.warn("알림 표시 실패",error);}
+    }
+    if(driverAlertSettings.voice&&"speechSynthesis" in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(message);speech.lang="ko-KR";speech.rate=.95;speechSynthesis.speak(speech);}
+  }
+
+  function clearDriverAlarms(){alarmTimers.forEach(clearTimeout);alarmTimers=[];}
+
+  function hasAndroidBridge(){return Boolean(window.Bus70Android&&typeof window.Bus70Android.syncSchedule==="function");}
+
+  function nativeSchedulePayload(data){
+    const d=data.dispatch||{},vehicle=data.vehicle||{};
+    return {date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||""),scheduleVersion:String(d.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||""),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,trips:(data.trips||[]).map(v=>({trip:Number(v.trip),startTime:v.startTime,turnTime:v.turnTime||"",endTime:v.endTime||v.startTime}))};
+  }
+
+  function syncNativeSchedule(data){
+    if(!hasAndroidBridge())return false;
+    try{window.Bus70Android.syncSchedule(JSON.stringify(nativeSchedulePayload(data)));return true;}
+    catch(error){document.getElementById("alertStatus").replaceChildren(el("div","Android 스케줄 연결에 실패했습니다: "+error.message,"notice error"));return false;}
+  }
+
+  window.bus70NativeSyncResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;const message=result.ok?("Android 정확한 알람 "+result.alarmCount+"개"+(result.calendarCount!==undefined?" · 캘린더 "+result.calendarCount+"건":"")+" 등록 완료"):(result.message||"Android 자동연동 실패");document.getElementById("alertStatus").replaceChildren(el("div",message,result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
+  window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
+
+  function armDriverAlarms() {
+    clearDriverAlarms(); const data=lastSchedule;
+    if(!driverAlertSettings.enabled||!data?.ok||data.type!=="WORK"||!Array.isArray(data.trips)||!data.trips.length)return;
+    if(syncNativeSchedule(data)){document.getElementById("alertStatus").replaceChildren(el("div","Android 캘린더·정확한 알람 등록 중...","notice"));return;}
+    const now=Date.now(), date=data.date?.value||document.getElementById("workDate").value, seq=data.dispatch?.seq||data.dispatch?.sequence;
+    const alarms=[], first=scheduleMoment(date,data.trips[0].startTime);
+    if(first)driverAlertSettings.commuteMinutes.forEach(min=>alarms.push({at:first.getTime()-min*60000,title:"BUS70 출근 준비",message:min+"분 후 "+seq+"순차 운행이 시작됩니다."}));
+    data.trips.forEach(trip=>{const at=scheduleMoment(date,trip.startTime);if(!at)return;driverAlertSettings.tripMinutes.forEach(min=>alarms.push({at:at.getTime()-min*60000,title:"BUS70 "+trip.trip+"탕 준비",message:min+"분 후 "+trip.trip+"탕 출발입니다. 출발 예정 "+trip.startTime+"."}));if(driverAlertSettings.exact)alarms.push({at:at.getTime(),title:"BUS70 "+trip.trip+"탕 출발",message:trip.trip+"탕 출발 예정 시각입니다."});});
+    alarms.filter(v=>v.at>now&&v.at-now<=2147483647).forEach(v=>alarmTimers.push(setTimeout(()=>fireDriverAlert(v.title,v.message),v.at-now)));
+    const status=document.getElementById("alertStatus"); status.replaceChildren(el("div",alarmTimers.length?alarmTimers.length+"개 알림을 이 기기에 예약했습니다.":"현재부터 24일 안에 울릴 알림이 없습니다.","notice"));
+  }
+
+  async function requestNotificationPermission(){
+    const root=document.getElementById("alertStatus");
+    if(hasAndroidBridge()){window.Bus70Android.requestSetup();root.replaceChildren(el("div","캘린더·알림·정확한 알람 권한을 승인한 뒤 알림 설정을 저장하세요.","notice"));return;}
+    if(!("Notification" in window))return root.replaceChildren(el("div","이 브라우저는 알림을 지원하지 않습니다.","notice error"));
+    const permission=await Notification.requestPermission();
+    root.replaceChildren(el("div",permission==="granted"?"알림 권한이 허용되었습니다. 시험 음성 안내를 실행합니다.":"알림 권한이 허용되지 않았습니다.",permission==="granted"?"notice":"notice error"));
+    if(permission==="granted")fireDriverAlert("BUS70 알림 시험","운행 알림과 음성 안내가 정상 설정되었습니다.");
+  }
+
+  function fillAlertSettings(settings){driverAlertSettings=settings||driverAlertSettings;document.getElementById("commuteMinutes").value=driverAlertSettings.commuteMinutes.join(",");document.getElementById("tripMinutes").value=driverAlertSettings.tripMinutes.join(",");document.getElementById("exactAlarm").checked=driverAlertSettings.exact;document.getElementById("voiceAlarm").checked=driverAlertSettings.voice;document.getElementById("vibrationAlarm").checked=driverAlertSettings.vibration;document.getElementById("alarmSoundMode").value=driverAlertSettings.soundMode||"SYSTEM_DEFAULT";document.getElementById("alarmEnabled").checked=driverAlertSettings.enabled;}
+
+  async function loadAlertSettings(){try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverAlertSettingsGet",token:authToken});if(result.ok){fillAlertSettings(result.settings);if(lastSchedule)armDriverAlarms();}}catch(error){console.warn("알림 설정 조회 실패",error);}}
+
+  async function saveAlertSettings(){const soundMode=document.getElementById("alarmSoundMode").value,settings={commuteMinutes:minuteList(document.getElementById("commuteMinutes").value,[60,15]),tripMinutes:minuteList(document.getElementById("tripMinutes").value,[10,3]),exact:document.getElementById("exactAlarm").checked,voice:document.getElementById("voiceAlarm").checked,vibration:document.getElementById("vibrationAlarm").checked,soundMode:soundMode,soundName:soundMode==="DEVICE_SELECTED"?"기사 선택 내장음":"휴대폰 기본 알람음",enabled:document.getElementById("alarmEnabled").checked};const result=await apiPost(Object.assign({action:"managerAccountUpsert",operation:"driverAlertSettingsSave",token:authToken},settings));document.getElementById("alertStatus").replaceChildren(el("div",result.message||"알림 설정을 저장하지 못했습니다.",result.ok?"notice":"notice error"));if(result.ok){fillAlertSettings(result.settings);armDriverAlarms();}}
+
+  async function saveRunEvent(trip,event,button){button.disabled=true;try{const data=lastSchedule,d=data.dispatch;const result=await apiPost({action:"managerAccountUpsert",operation:"driverRunLogSave",token:authToken,date:document.getElementById("workDate").value,sequence:d.seq||d.sequence,trip:trip.trip,event:event,plannedStart:trip.startTime,plannedEnd:trip.endTime,plannedFrontGap:trip.plannedFrontGapMinutes,plannedRearGap:trip.plannedRearGapMinutes});document.getElementById("confirmResult").replaceChildren(el("div",result.message||"운행시간을 기록하지 못했습니다.",result.ok?"notice":"notice error"));if(result.ok)loadRunLogs();}finally{button.disabled=false;}}
+
+  async function loadRunLogs(){if(!authToken||currentRole)return;const from=document.getElementById("runLogFrom").value||todayLocal(),to=document.getElementById("runLogTo").value||from;document.getElementById("runLogFrom").value=from;document.getElementById("runLogTo").value=to;const root=document.getElementById("runLogResult");root.replaceChildren(el("div","운행기록 조회 중...","notice"));try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverRunLogs",token:authToken,from,to});root.replaceChildren();if(!result.ok)return root.append(el("div",result.message||"조회하지 못했습니다.","notice error"));if(!result.logs.length)return root.append(el("div","선택 기간의 운행기록이 없습니다.","notice"));result.logs.forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 "+v.trip+"탕 · "+(v.status||"기록")+"\n발차 "+(v.actualStart||"-")+" / 도착 "+(v.actualEnd||"-"),"run-log-row")));}catch(error){root.replaceChildren(el("div","운행기록 서버 연결에 실패했습니다.","notice error"));}}
+
   function renderSchedule() {
     const root = document.getElementById("scheduleResult");
     root.replaceChildren();
@@ -1424,6 +1537,7 @@
       card.append(tripRow("발차", trip.startPlace, trip.startTime));
       if (trip.turnPlace || trip.turnTime) card.append(tripRow("회차", trip.turnPlace, trip.turnTime));
       card.append(tripRow("도착", trip.endPlace, trip.endTime));
+      const actions=el("div",undefined,"trip-actions"),depart=el("button","발차 기록"),arrive=el("button","도착 기록");depart.type=arrive.type="button";depart.addEventListener("click",()=>saveRunEvent(trip,"DEPART",depart));arrive.addEventListener("click",()=>saveRunEvent(trip,"ARRIVE",arrive));actions.append(depart,arrive);card.append(actions);
       root.append(card);
     });
     if(Array.isArray(data.timeAdjustments)&&data.timeAdjustments.length){
@@ -1434,6 +1548,7 @@
     if (authToken && d.dispatchId && d.scheduleVersion) {
       document.getElementById("confirmScheduleButton").hidden = false;
     }
+    armDriverAlarms();
   }
 
   async function confirmMySchedule() {
@@ -1510,9 +1625,15 @@
   }
 
   document.getElementById("loadSchedule").addEventListener("click", loadMySchedule);
+  document.getElementById("requestNotification").addEventListener("click",requestNotificationPermission);
+  document.getElementById("saveAlertSettings").addEventListener("click",saveAlertSettings);
+  document.getElementById("alarmSoundMode").addEventListener("change",event=>{if(event.target.value==="DEVICE_SELECTED"&&hasAndroidBridge())window.Bus70Android.chooseAlarmSound();else if(event.target.value==="DEVICE_SELECTED")document.getElementById("alertStatus").replaceChildren(el("div","내장음 선택은 BUS70 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));});
+  document.getElementById("loadRunLogs").addEventListener("click",loadRunLogs);
+  document.getElementById("printRunLogs").addEventListener("click",()=>window.print());
   document.getElementById("timeMode").addEventListener("change", renderSchedule);
   document.getElementById("workDate").addEventListener("change", () => {
     scheduleRequestId++;
+    clearDriverAlarms();
     lastSchedule = null;
     resetConfirmation();
     document.getElementById("scheduleResult").replaceChildren();
@@ -1637,6 +1758,22 @@
     }));
   }
 
+  function operatingShiftForDate(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return "";
+    const [y,m,d] = date.split("-").map(Number);
+    // 월별로 다시 시작하지 않는 연속 격일 교대 기준점입니다.
+    const anchor = Date.UTC(2026, 9, 1); // 2026-10-01 운행일 = A조
+    const days = Math.round((Date.UTC(y,m-1,d)-anchor)/86400000);
+    return ((days % 2) + 2) % 2 === 0 ? "A" : "B";
+  }
+
+  function syncManagerShiftToDate(serverShift = "") {
+    const date = document.getElementById("managerDate").value;
+    const shift = serverShift || operatingShiftForDate(date);
+    if (shift) document.getElementById("managerShift").value = shift;
+    return shift;
+  }
+
   function renderManagerRows(data) {
     const root = document.getElementById("managerRows"); root.replaceChildren();
     const selectedShift=document.getElementById("managerShift").value;
@@ -1674,17 +1811,17 @@
     try {
       const result = await apiPost({action:"managerDispatchBootstrap",token:authToken,date});
       if (!result.ok) return managerNotice(result.message || "배차 자료를 불러오지 못했습니다.", true);
+      const shift=syncManagerShiftToDate(result.operatingShift);
       const planned={};
       (masterAdminData.workChanges||[]).slice().reverse().forEach(v=>{if(v.date!==date)return;const key=(v.driverName||"").replace(/\s/g,"");if(!key)return;if(["휴무","병가","결근","퇴직"].includes(v.type))planned[key]=v.type;else if(v.type==="복귀"||v.type==="재입사")delete planned[key];});
       result.drivers=(result.drivers||[]).filter(v=>!planned[(v.name||"").replace(/\s/g,"")]);
       result.unavailableNames=[...new Set([...(result.unavailableNames||[]),...Object.keys(planned)])];
       managerData = result; renderManagerRows(result);
-      const shift=document.getElementById("managerShift").value;
       const assigned=(result.assignments||[]).filter(v=>v.shift===shift), confirmed=assigned.filter(v=>v.confirmed).length;
       const excluded=(result.unavailableNames||[]);
       const prediction=result.predictions&&result.predictions[shift];
       const predictionText=!assigned.length&&prediction&&prediction.assignments&&prediction.assignments.length?" · "+prediction.sourceDate+" 확정 배차에서 "+prediction.offset+"순차 회전 예측 적용":"";
-      managerNotice("기사·차량·시간표를 불러왔습니다. 기사 확인 " + confirmed + "/" + assigned.length + "명"+predictionText+(excluded.length?" · 사전 휴무 제외 "+excluded.length+"명: "+excluded.join(", "):""));
+      managerNotice(date+"은 "+shift+"조 근무일입니다. 기사·차량·시간표를 불러왔습니다. 기사 확인 " + confirmed + "/" + assigned.length + "명"+predictionText+(excluded.length?" · 사전 휴무 제외 "+excluded.length+"명: "+excluded.join(", "):""));
     } catch (error) { console.error(error); managerNotice("서버에서 소장 자료를 불러오지 못했습니다.", true); }
     finally { button.disabled = false; button.textContent = "기사·차량 불러오기"; }
   }
@@ -1793,8 +1930,7 @@
   document.getElementById("managerGenerate").addEventListener("click",generateManagerImage);
   document.getElementById("managerShare").addEventListener("click",shareManagerImage);
   document.getElementById("managerDownload").addEventListener("click",downloadManagerImage);
-  document.getElementById("managerShift").addEventListener("change",()=>{if(managerData)renderManagerRows(managerData);});
-  document.getElementById("managerDate").addEventListener("change",()=>{managerData=null;document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
+  document.getElementById("managerDate").addEventListener("change",()=>{syncManagerShiftToDate();managerData=null;document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
   // 설치된 PWA의 정적 화면 파일만 캐시합니다. 배차 API 응답은 캐시하지 않습니다.
   if ("serviceWorker" in navigator && location.protocol === "https:") {

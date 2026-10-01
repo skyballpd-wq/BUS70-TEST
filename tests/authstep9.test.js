@@ -8,7 +8,8 @@ function sheet(rows) {
     getLastRow() { return this.rows.length; },
     getDataRange() { return { getDisplayValues: () => this.rows.map(r => r.map(String)) }; },
     appendRow(row) { this.rows.push(row); },
-    getRange(row,col) { return {setValue:value => {this.rows[row-1][col-1]=value;}}; }
+    getRange(row,col) { return {setValue:value => {this.rows[row-1][col-1]=value;},setValues:values => {values.forEach((rr,ri)=>rr.forEach((value,ci)=>{this.rows[row-1+ri][col-1+ci]=value;}));}}; },
+    setFrozenRows() {}
   };
 }
 
@@ -23,6 +24,9 @@ const adjustments = sheet([
   ['gapId','날짜','순차','탕','기존시간','조정시간','기존간격','지시간격','사유','적용시작','적용종료','처리자','처리시간'],
   ['G1','2026-09-24','1','2','07:20','07:35','','','차량 고장','','','','']
 ]);
+const alertSettings = sheet([['기사ID','출근알림분','탕알림분','정시알림','음성안내','진동','사용여부','수정시간']]);
+const runLogs = sheet([['logId','날짜','기사ID','차량ID','순차','탕','발차예정','발차실제','회차예정','회차실제','도착예정','도착실제','앞차예정간격','앞차실제간격','앞차편차','뒷차예정간격','뒷차실제간격','뒷차편차','시간표버전','노선버전','상태','비고']]);
+const schedules = sheet([['버전','순차','탕','발차시간','상태'],['WD-V1','1','2','07:20','사용'],['WD-V1','2','2','07:50','사용']]);
 const properties = new Map();
 const context = {
   console,
@@ -34,7 +38,8 @@ const context = {
   Utilities: {
     DigestAlgorithm: {SHA_256:'SHA_256'},
     computeDigest: () => Array(32).fill(1),
-    getUuid: (() => { let n = 0; return () => `00000000-0000-0000-0000-${String(++n).padStart(12,'0')}`; })()
+    getUuid: (() => { let n = 0; return () => `00000000-0000-0000-0000-${String(++n).padStart(12,'0')}`; })(),
+    formatDate: () => '2026-09-18 07:20:00'
   },
   PropertiesService: {getScriptProperties: () => ({
     setProperty: (k,v) => properties.set(k,v),
@@ -42,7 +47,7 @@ const context = {
     deleteProperty: k => properties.delete(k)
   })},
   LockService: {getScriptLock: () => ({waitLock(){},releaseLock(){}})},
-  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : null})},
+  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : name === '알림설정DB' ? alertSettings : name === '운행일지' ? runLogs : name === '스케줄' ? schedules : null})},
   normalizeDate_: value => String(value).slice(0,10),
   makeHeaderMap_: headers => Object.fromEntries(headers.map((h,i) => [h,i])),
   newId_: () => 'CONF-NEW',
@@ -68,7 +73,7 @@ context.apiLogin_=()=>({ok:true,driver:{driverId:'DRV-RETIRED',status:'퇴직'}}
 assert.equal(context.bus70AuthAction_({action:'loginSecure',name:'퇴직기사',empId:'1'}).error,'DRIVER_RETIRED');
 context.apiLogin_=activeLogin;
 const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combinedLogin.token,driverId:'DRV-1',date:'2026-09-24'});
-assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1);
+assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1); assert.equal(adjusted.trips[0].plannedRearGapMinutes,15);
 
 const body = {action:'confirmSchedule',token:session.token,driverId:'DRV-1',date:'2026-09-18',dispatchId:'DSP-1',scheduleVersion:'WD-V1'};
 const first = context.bus70AuthAction_(body);
@@ -95,5 +100,17 @@ assert.equal(changed.error, 'DISPATCH_CHANGED');
 
 const mismatched = context.bus70AuthAction_(Object.assign({}, body, {driverId:'DRV-2'}));
 assert.equal(mismatched.error, 'DRIVER_MISMATCH');
+
+const savedSettings=context.bus70AuthAction_({action:'driverAlertSettingsSave',token:session.token,commuteMinutes:[90,20],tripMinutes:[10,3],exact:true,voice:true,vibration:false,enabled:true});
+assert.equal(savedSettings.ok,true); assert.deepEqual(Array.from(savedSettings.settings.commuteMinutes),[90,20]);
+const readSettings=context.bus70AuthAction_({action:'driverAlertSettingsGet',token:session.token});
+assert.equal(readSettings.settings.vibration,false); assert.equal(alertSettings.rows.length,2);
+assert.equal(readSettings.settings.soundMode,'SYSTEM_DEFAULT');
+const depart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'DEPART',plannedStart:'07:20',plannedEnd:'09:00'});
+assert.equal(depart.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'운행중');
+const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
+assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'완료');
+const listed=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-09-18',to:'2026-09-18'});
+assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1);
 
 console.log('AuthStep9 tests passed');
