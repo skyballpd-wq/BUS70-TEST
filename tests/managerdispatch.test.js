@@ -8,13 +8,21 @@ function sheet(rows) {
 }
 const drivers=sheet([['driverId','사원번호','성명','근무조','기사구분','사번구분','기수','현재노선','표시순서','상태','투입일','종료일','TEST','비고'],
   ...Array.from({length:11},(_,i)=>['D'+(i+1),String(600001+i),'기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y','']),
+  ...[
+    ['790001','이재천'],['790002','양인모'],['790003','이성준'],['790004','노성진'],
+    ['790005','김호'],['790006','권경율'],['790007','강호익'],['790008','김춘식'],
+    ['790009','천승준'],['790010','이응주'],['790011','오상훈'],['790012','박철완']
+  ].map((v,i)=>['DRV-B-OCR-'+String(i+1).padStart(3,'0'),v[0],v[1],'B','노선','임시','','70',900+i,'재직','','','Y','검증 전용 임시기사']),
   ['ADM-MASTER-001','90000','Master','','마스터','','','70',999,'재직','','','Y',''],
   ['MGR-MAJOR-001','700000','Major','','관리','','','70',999,'재직','','','Y',''],
   ['CTR-CENTER-001','800000','Center','','정비','','','70',999,'재직','','','Y','']]);
 const vehicles=sheet([['vehicleId','차량번호','차량구분','상태','현재노선','기본기사ID','표시순서','비고'],...Array.from({length:11},(_,i)=>['V'+(i+1),String(1499+i),'일반','운행가능','70','',i+1,''])]);
 const dispatch=sheet([['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']]);
 const confirmations=sheet([['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']]);
-const workChanges=sheet([['changeId','날짜','기사ID','유형','적용순차','적용탕','대체기사ID','시작시간','종료시간','사유','처리자','처리시간']]);
+const workChanges=sheet([['changeId','날짜','기사ID','유형','적용순차','적용탕','대체기사ID','시작시간','종료시간','사유','처리자','처리시간','변경전노선','변경노선','변경근무조','새사원번호','변경기사구분'],
+  ['WORK-20260701-LEEJAECHUN-SICK','2026-07-01','DRV-B-OCR-001','병가','','','','','','암 수술 및 회복 장기 병가','SYSTEM','2026-07-01 00:00','','','','',''],
+  ['WORK-20261001-PARK-TRANSFER','2026-10-01','DRV-B-OCR-012','노선이동','','','','','','5번 노선 이동 및 정규직 전환','SYSTEM','2026-10-01 00:00','70','5','B','426064','노선'],
+  ['WORK-20261001-CHEON-TRANSFER','2026-10-01','DRV-B-OCR-009','노선이동','','','','','','6번 노선 이동','SYSTEM','2026-10-01 00:00','70','6','B','','노선']]);
 const incidents=sheet([['incidentId','접수시간','날짜','기사ID','차량ID','순차','탕','유형','위도','경도','내용','사진링크','상태','처리자','종결시간','비고']]);
 const maintenance=sheet([['maintId','incidentId','요청시간','차량ID','기사ID','요청내용','현재상태','입고시간','출고시간','예비차량ID','정비결과','비고','정비완료일','운행가능일']]);
 const maintenanceHistory=sheet([['historyId','maintId','처리시간','상태','처리자','내용','예비차량ID','비고']]);
@@ -28,7 +36,7 @@ const accounts=sheet([['accountId','권한','driverId','로그인이름','로그
 const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges,
   '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory,'배차간격조정DB':adjustments};
 let idCounter=0;
-const context={console,JSON,Date,Number,String,Object,Array,PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
+const context={console,JSON,Date,Number,String,Object,Array,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
   normalizeDate_:v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v):'',makeHeaderMap_:h=>Object.fromEntries(h.map((v,i)=>[v,i])),
   bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{},newId_:prefix=>prefix+'-TEST-'+(++idCounter)};
@@ -72,8 +80,9 @@ assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal
 confirmations.appendRow(['C1','2026-09-18','D1','DSP-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
 const adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',date:'2026-09-18',sequence:1,trip:2,before:'07:20',after:'07:35',reason:'차량 고장'},'D1');
 assert.equal(adjusted.ok,true); assert.equal(adjustments.rows.length,2); assert.equal(confirmations.rows[1][9],'Y'); confirmations.rows[1][9]='N';
+const workChangeCountBeforeReplace=workChanges.rows.length;
 const replaced=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D1',type:'병가',sequence:1,replacementId:'DRV-B-OCR-002',reason:'시험'},'D1');
-assert.equal(replaced.ok,true); assert.equal(dispatch.rows[1][4],'DRV-B-OCR-002'); assert.equal(confirmations.rows[1][9],'Y'); assert.equal(workChanges.rows.length,7);
+assert.equal(replaced.ok,true); assert.equal(dispatch.rows[1][4],'DRV-B-OCR-002'); assert.equal(confirmations.rows[1][9],'Y'); assert.equal(workChanges.rows.length,workChangeCountBeforeReplace+1);
 drivers.appendRow(['DRV-A-RESERVE','626777','A조예비','A','예비','','','70',99,'재직','','','N','']);
 const wrongShift=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'workChangeSave',date:'2026-09-18',driverId:'D2',type:'휴무',sequence:2,replacementId:'DRV-A-RESERVE',reason:'조 불일치 시험'},'D1');
 assert.equal(wrongShift.ok,true); assert.equal(dispatch.rows[2][4],'DRV-A-RESERVE');
@@ -139,6 +148,18 @@ assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operatio
 const predicted=context.bus70ManagerBootstrap_('2026-09-22').predictions.B;
 assert.equal(predicted.sourceDate,'2026-09-18');assert.equal(predicted.offset,4);
 assert.equal(predicted.assignments.find(v=>v.sequence===5).driverId,'DRV-B-OCR-002');
+const october=context.bus70ManagerBootstrap_('2026-10-02');
+assert.equal(october.drivers.find(v=>v.name==='박철완').route,'5');
+assert.equal(october.drivers.find(v=>v.name==='천승준').route,'6');
+const wcHeaders=Object.fromEntries(workChanges.rows[0].map((v,i)=>[v,i]));
+const parkTransfer=workChanges.rows.find(r=>r[wcHeaders['유형']]==='노선이동'&&r[wcHeaders['기사ID']]==='DRV-B-OCR-012');
+assert.equal(parkTransfer[wcHeaders['새사원번호']],'426064');assert.equal(parkTransfer[wcHeaders['변경기사구분']],'노선');
+const movedPrediction=context.bus70PredictManagerAssignments_(dispatch,'2026-09-22',11,[{id:'D1',route:'16'}],Array.from({length:11},(_,i)=>({id:'V'+(i+1)})));
+assert.equal(movedPrediction.B.assignments.some(v=>v.driverId==='D1'),false);
+const transferSaved=context.bus70WorkChangeSave_({date:'2026-10-10',driverId:'D3',type:'노선이동',newRoute:'23',newShift:'A',reason:'양성 종료 정규 노선 이동'},'D1');
+assert.equal(transferSaved.ok,true);
+assert.equal(context.bus70ManagerBootstrap_('2026-10-10').drivers.find(v=>v.id==='D3').route,'23');
+assert.equal(context.bus70WorkChangeSave_({date:'2026-10-11',driverId:'D4',type:'노선이동',newRoute:'16',newShift:'A',newEmpId:'626999'},'D1').error,'REGULAR_EMP_ID_REQUIRED');
 const retired=context.bus70WorkChangeSave_({date:'2026-10-01',driverId:'D2',type:'퇴직',reason:'타 회사 이직'},'D1');
 assert.equal(retired.ok,true); assert.equal(drivers.rows[2][9],'퇴직'); assert.equal(drivers.rows[2][11],'2026-10-01');
 assert.equal(context.bus70ManagerBootstrap_('2026-10-02').drivers.some(v=>v.id==='D2'),false);
