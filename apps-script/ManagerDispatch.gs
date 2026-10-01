@@ -5,6 +5,11 @@
 function bus70ManagerAction_(body, driverId) {
   // 기존 Code.js 최상위 허용 action을 유지하면서 새 관리 작업을 operation으로 전달한다.
   const action = String(body.operation || body.action || '').trim();
+  // 구형 Code.js의 허용 action을 그대로 통과시키기 위한 기사 기능 호환 경로.
+  if (action === 'driverAlertSettingsGet') return bus70DriverAlertSettingsGet_(driverId);
+  if (action === 'driverAlertSettingsSave') return bus70DriverAlertSettingsSave_(body, driverId);
+  if (action === 'driverRunLogs') return bus70DriverRunLogs_(body, driverId);
+  if (action === 'driverRunLogSave') return bus70DriverRunLogSave_(body, driverId);
   if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId);
   if (action === 'vehicleIncidentSave') return bus70VehicleIncidentSave_(body, driverId);
   if (action === 'maintenanceUpdate') return bus70MaintenanceUpdate_(body, driverId);
@@ -509,7 +514,7 @@ function bus70ManagerBootstrap_(rawDate) {
     item.confirmed = Boolean(confirmed[item.dispatchId]);
     item.confirmedAt = confirmed[item.dispatchId] || '';
   });
-  return {ok:true, date:date, scheduleVersion:scheduleVersion, drivers:drivers, unavailableDrivers:unavailable, unavailableNames:Object.keys(unavailableNames),
+  return {ok:true, date:date, operatingShift:bus70OperatingShiftForDate_(date), scheduleVersion:scheduleVersion, drivers:drivers, unavailableDrivers:unavailable, unavailableNames:Object.keys(unavailableNames),
     vehicles:vehicles, unavailableVehicles:unavailableVehicles, departures:departures, assignments:assignments,predictions:predictions};
 }
 
@@ -542,6 +547,24 @@ function bus70ManagerDaysBetween_(fromDate,toDate){
   return Math.round((Date.UTC(to[0],to[1]-1,to[2])-Date.UTC(from[0],from[1]-1,from[2]))/86400000);
 }
 
+// 월 경계와 무관한 전 노선 공통 연속 격일 근무: 2026-10-01 운행일은 A조입니다.
+function bus70OperatingShiftForDate_(rawDate){
+  const date=bus70ManagerDateKey_(rawDate);
+  if(!date)return '';
+  const days=bus70ManagerDaysBetween_('2026-10-01',date);
+  return ((days%2)+2)%2===0?'A':'B';
+}
+
+// 운행일 경계는 한국시간 03:30입니다. 00:00~03:29는 전날 운행일로 봅니다.
+function bus70ServiceDateKey_(now){
+  const instant=now instanceof Date?now:new Date();
+  const date=Utilities.formatDate(instant,'Asia/Seoul','yyyy-MM-dd');
+  const time=Utilities.formatDate(instant,'Asia/Seoul','HH:mm');
+  if(time>='03:30')return date;
+  const parts=date.split('-').map(Number);
+  return Utilities.formatDate(new Date(Date.UTC(parts[0],parts[1]-1,parts[2])-86400000),'UTC','yyyy-MM-dd');
+}
+
 function bus70ManagerDateKey_(value) {
   const normalized=normalizeDate_(value);
   if(/^\d{4}-\d{2}-\d{2}$/.test(String(normalized||'')))return normalized;
@@ -554,7 +577,7 @@ function bus70ManagerDateKey_(value) {
 function bus70ApplyDueDriverTransitions_(driverSheet,workSheet){
   if(!driverSheet||!workSheet||workSheet.getLastRow()<2)return;
   bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);
-  const today=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd'),dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),rowsById={};
+  const today=bus70ServiceDateKey_(new Date()),dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),rowsById={};
   for(let i=1;i<dr.length;i++)rowsById[String(dr[i][dc['driverId']]||'')]=i+1;
   const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);
   wr.slice(1).map(function(r,index){return {r:r,index:index,date:bus70ManagerDateKey_(r[wc['날짜']])};})
@@ -642,6 +665,10 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
   const input = Array.isArray(body.assignments) ? body.assignments : [];
   if (!date || (shift !== 'A' && shift !== 'B')) {
     return {ok:false, error:'PARAM_REQUIRED', message:'날짜와 근무조를 확인하세요.'};
+  }
+  const operatingShift=bus70OperatingShiftForDate_(date);
+  if(shift!==operatingShift){
+    return {ok:false,error:'SHIFT_DATE_MISMATCH',message:date+'은 '+operatingShift+'조 근무일입니다. 날짜 기준 근무조로 다시 불러오세요.'};
   }
   const bootstrap = bus70ManagerBootstrap_(date);
   if (!bootstrap.ok) return bootstrap;
