@@ -289,6 +289,13 @@
     .inline-actions button { margin-top: 10px; height: 44px; font-size: 14px; }
     .trip-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .trip-actions button { margin-top: 10px; height: 42px; font-size: 14px; }
+    .end-shift-box { margin-top: 12px; padding: 12px; border: 1px solid #86efac; border-radius: 10px; background: #f0fdf4; }
+    .end-shift-box h4 { margin: 0 0 6px; color: #166534; }
+    .end-shift-box p { margin: 4px 0; font-size: 13px; line-height: 1.45; }
+    .end-shift-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .end-shift-actions button { margin-top: 8px; height: 42px; font-size: 13px; }
+    .break-charge-box { margin-top: 10px; padding: 10px; border-radius: 9px; background: #eff6ff; color: #1e3a8a; }
+    .break-charge-box p { margin: 0 0 6px; font-size: 13px; }
     .run-log-row { border-bottom: 1px solid #e5e7eb; padding: 10px 0; font-size: 13px; line-height: 1.5; white-space: pre-line; }
     .run-log-row:last-child { border-bottom: 0; }
     @media print { body * { visibility: hidden; } #runLogPanel, #runLogPanel * { visibility: visible; } #runLogPanel { position: absolute; inset: 0; border: 0; } #runLogPanel button { display:none; } }
@@ -1461,8 +1468,8 @@
   function hasAndroidBridge(){return Boolean(window.Bus70Android&&typeof window.Bus70Android.syncSchedule==="function");}
 
   function nativeSchedulePayload(data){
-    const d=data.dispatch||{},vehicle=data.vehicle||{};
-    return {date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||""),scheduleVersion:String(d.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||""),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,trips:(data.trips||[]).map(v=>({trip:Number(v.trip),startTime:v.startTime,turnTime:v.turnTime||"",endTime:v.endTime||v.startTime}))};
+    const d=data.dispatch||{},vehicle=data.vehicle||{},trips=data.trips||[],last=trips[trips.length-1],finish=last?endOfShiftMeta(data,last,trips.length-1):null;
+    return {date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||""),scheduleVersion:String(d.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||""),electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,endOfShift:finish,trips:trips.map(v=>({trip:Number(v.trip),startTime:v.startTime,turnTime:v.turnTime||"",endTime:v.endTime||v.startTime}))};
   }
 
   function syncNativeSchedule(data){
@@ -1501,9 +1508,18 @@
 
   async function saveAlertSettings(){const soundMode=document.getElementById("alarmSoundMode").value,settings={commuteMinutes:minuteList(document.getElementById("commuteMinutes").value,[60,15]),tripMinutes:minuteList(document.getElementById("tripMinutes").value,[10,3]),exact:document.getElementById("exactAlarm").checked,voice:document.getElementById("voiceAlarm").checked,vibration:document.getElementById("vibrationAlarm").checked,soundMode:soundMode,soundName:soundMode==="DEVICE_SELECTED"?"기사 선택 내장음":"휴대폰 기본 알람음",enabled:document.getElementById("alarmEnabled").checked};const result=await apiPost(Object.assign({action:"managerAccountUpsert",operation:"driverAlertSettingsSave",token:authToken},settings));document.getElementById("alertStatus").replaceChildren(el("div",result.message||"알림 설정을 저장하지 못했습니다.",result.ok?"notice":"notice error"));if(result.ok){fillAlertSettings(result.settings);armDriverAlarms();}}
 
-  async function saveRunEvent(trip,event,button){button.disabled=true;try{const data=lastSchedule,d=data.dispatch;const result=await apiPost({action:"managerAccountUpsert",operation:"driverRunLogSave",token:authToken,date:document.getElementById("workDate").value,sequence:d.seq||d.sequence,trip:trip.trip,event:event,plannedStart:trip.startTime,plannedEnd:trip.endTime,plannedFrontGap:trip.plannedFrontGapMinutes,plannedRearGap:trip.plannedRearGapMinutes});document.getElementById("confirmResult").replaceChildren(el("div",result.message||"운행시간을 기록하지 못했습니다.",result.ok?"notice":"notice error"));if(result.ok)loadRunLogs();}finally{button.disabled=false;}}
+  function endOfShiftMeta(data,trip,index){
+    const explicit=trip.endOfShift||data.endOfShift||{};
+    const last=index===data.trips.length-1, marker=String(trip.endPlace||trip.note||explicit.serviceEndPlace||"");
+    if(!last||!(explicit.enabled||trip.serviceEndType==="UPBOUND_ONLY"||/테크노.*종료|상행.*종료/.test(marker)))return null;
+    return {serviceEndType:"UPBOUND_ONLY",serviceEndPlace:explicit.serviceEndPlace||trip.endPlace||"테크노파크4차 정류장",deadheadDestination:explicit.deadheadDestination||"고강동공영차고지"};
+  }
 
-  async function loadRunLogs(){if(!authToken||currentRole)return;const from=document.getElementById("runLogFrom").value||todayLocal(),to=document.getElementById("runLogTo").value||from;document.getElementById("runLogFrom").value=from;document.getElementById("runLogTo").value=to;const root=document.getElementById("runLogResult");root.replaceChildren(el("div","운행기록 조회 중...","notice"));try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverRunLogs",token:authToken,from,to});root.replaceChildren();if(!result.ok)return root.append(el("div",result.message||"조회하지 못했습니다.","notice error"));if(!result.logs.length)return root.append(el("div","선택 기간의 운행기록이 없습니다.","notice"));result.logs.forEach(v=>root.append(el("div",v.date+" · "+v.sequence+"순차 "+v.trip+"탕 · "+(v.status||"기록")+"\n발차 "+(v.actualStart||"-")+" / 도착 "+(v.actualEnd||"-"),"run-log-row")));}catch(error){root.replaceChildren(el("div","운행기록 서버 연결에 실패했습니다.","notice error"));}}
+  function isElectricSchedule(data){const v=data.vehicle||{},type=String(data.energyType||v.energyType||v.fuelType||v.vehicleType||"").toUpperCase();return data.electricVehicle===true||v.electric===true||type.includes("전기")||type.includes("ELECTRIC")||type==="EV";}
+
+  async function saveRunEvent(trip,event,button,extra){button.disabled=true;try{const data=lastSchedule,d=data.dispatch;const result=await apiPost(Object.assign({action:"managerAccountUpsert",operation:"driverRunLogSave",token:authToken,date:document.getElementById("workDate").value,sequence:d.seq||d.sequence,trip:trip.trip,event:event,plannedStart:trip.startTime,plannedEnd:trip.endTime,plannedFrontGap:trip.plannedFrontGapMinutes,plannedRearGap:trip.plannedRearGapMinutes},extra||{}));document.getElementById("confirmResult").replaceChildren(el("div",result.message||"운행시간을 기록하지 못했습니다.",result.ok?"notice":"notice error"));if(result.ok)loadRunLogs();}finally{button.disabled=false;}}
+
+  async function loadRunLogs(){if(!authToken||currentRole)return;const from=document.getElementById("runLogFrom").value||todayLocal(),to=document.getElementById("runLogTo").value||from;document.getElementById("runLogFrom").value=from;document.getElementById("runLogTo").value=to;const root=document.getElementById("runLogResult");root.replaceChildren(el("div","운행기록 조회 중...","notice"));try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverRunLogs",token:authToken,from,to});root.replaceChildren();if(!result.ok)return root.append(el("div",result.message||"조회하지 못했습니다.","notice error"));if(!result.logs.length)return root.append(el("div","선택 기간의 운행기록이 없습니다.","notice"));result.logs.forEach(v=>{let detail=v.date+" · "+v.sequence+"순차 "+v.trip+"탕 · "+(v.status||"기록")+"\n발차 "+(v.actualStart||"-")+" / 도착 "+(v.actualEnd||"-");if(v.breakChargeConnectedAt)detail+="\n휴식 충전잭 연결"+(v.breakChargeDisconnectedAt?" · 다음 운행 전 분리 완료":"");if(v.serviceEndPlace)detail+="\n영업종료 "+v.serviceEndPlace+" → "+(v.deadheadDestination||"차고지")+" 회송";if(v.cleanedAt)detail+="\n차량 청소 완료";if(v.chargerConnectedAt)detail+=" · 충전잭 연결 완료";if(v.shiftEndedAt)detail+=" · 퇴근 완료";root.append(el("div",detail,"run-log-row"));});}catch(error){root.replaceChildren(el("div","운행기록 서버 연결에 실패했습니다.","notice error"));}}
 
   function renderSchedule() {
     const root = document.getElementById("scheduleResult");
@@ -1531,13 +1547,20 @@
       root.append(el("div", "등록된 탕별 시간표가 없습니다.", "notice error"));
       return;
     }
-    data.trips.forEach(trip => {
+    data.trips.forEach((trip,index) => {
       const card = el("article", undefined, "trip");
       card.append(el("h3", trip.trip + "탕"));
       card.append(tripRow("발차", trip.startPlace, trip.startTime));
       if (trip.turnPlace || trip.turnTime) card.append(tripRow("회차", trip.turnPlace, trip.turnTime));
       card.append(tripRow("도착", trip.endPlace, trip.endTime));
       const actions=el("div",undefined,"trip-actions"),depart=el("button","발차 기록"),arrive=el("button","도착 기록");depart.type=arrive.type="button";depart.addEventListener("click",()=>saveRunEvent(trip,"DEPART",depart));arrive.addEventListener("click",()=>saveRunEvent(trip,"ARRIVE",arrive));actions.append(depart,arrive);card.append(actions);
+      const finish=endOfShiftMeta(data,trip,index);
+      if(isElectricSchedule(data)&&!finish){const charge=el("div",undefined,"break-charge-box"),buttons=el("div",undefined,"trip-actions");charge.append(el("p","운행 중 휴식 충전은 배터리 상태와 대기시간에 따라 기사가 필요할 때 선택합니다. 충전했다면 다음 운행 전 충전잭 분리와 출발 준비를 확인하세요."));[["필요시 휴식 충전 연결","BREAK_CHARGE_CONNECTED"],["충전 분리·출발 준비","BREAK_CHARGE_DISCONNECTED"]].forEach(v=>{const b=el("button",v[0]);b.type="button";b.addEventListener("click",()=>saveRunEvent(trip,v[1],b));buttons.append(b);});charge.append(buttons);card.append(charge);}
+      if(finish){
+        const box=el("div",undefined,"end-shift-box");box.append(el("h4","막탕 종료·퇴근 절차"),el("p",finish.serviceEndPlace+"에서 상행 영업운행을 종료하고 "+finish.deadheadDestination+"로 회송합니다."),el("p","차고지 복귀 후 차량 청소와 충전잭 연결을 완료합니다. 충전 진행 상태는 사무실 컴퓨터·모니터에서 확인합니다."));
+        const flow=el("div",undefined,"end-shift-actions");
+        [["상행 영업종료","SERVICE_END"],["차고지 회송 완료","DEADHEAD_RETURN"],["차량 청소 완료","CLEANING_DONE"],["충전잭 연결 완료","CHARGER_CONNECTED"],["퇴근 처리","SHIFT_END"]].forEach(v=>{const b=el("button",v[0]);b.type="button";b.addEventListener("click",()=>saveRunEvent(trip,v[1],b,finish));flow.append(b);});box.append(flow);card.append(box);
+      }
       root.append(card);
     });
     if(Array.isArray(data.timeAdjustments)&&data.timeAdjustments.length){

@@ -15,7 +15,8 @@ function sheet(rows) {
 
 const dispatch = sheet([
   ['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고'],
-  ['DSP-1','2026-09-18','B','4','DRV-1','VEH-1','WD-V1','확정','','']
+  ['DSP-1','2026-09-18','B','4','DRV-1','VEH-1','WD-V1','확정','',''],
+  ['DSP-ROUTE5','2026-10-04','B','15','DRV-1','VEH-1671','HOL-18-V1','확정','','']
 ]);
 const confirmations = sheet([
   ['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']
@@ -110,7 +111,25 @@ const depart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.t
 assert.equal(depart.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'운행중');
 const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
 assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'완료');
+const breakConnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_CONNECTED'});
+assert.equal(breakConnected.ok,true); assert.equal(breakConnected.status,'휴식충전중');
+const breakDisconnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_DISCONNECTED'});
+assert.equal(breakDisconnected.ok,true); assert.equal(breakDisconnected.status,'다음운행준비');
 const listed=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-09-18',to:'2026-09-18'});
-assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1);
+assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
+
+const finishBase={action:'driverRunLogSave',token:session.token,date:'2026-10-04',sequence:15,trip:6,plannedStart:'22:35',plannedEnd:'23:36'};
+assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'SERVICE_END',serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'테크노파크4차 정류장',deadheadDestination:'고강동공영차고지'})).ok,true);
+assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'DEADHEAD_RETURN'})).ok,true);
+assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'CLEANING_DONE'})).ok,true);
+assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'CHARGER_CONNECTED'})).ok,true);
+const shiftEnd=context.bus70AuthAction_(Object.assign({},finishBase,{event:'SHIFT_END'}));
+assert.equal(shiftEnd.ok,true); assert.equal(shiftEnd.status,'근무종료');
+const route5Log=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-10-04',to:'2026-10-04'}).logs[0];
+assert.equal(route5Log.sequence,15); assert.equal(route5Log.vehicleId,'VEH-1671');
+assert.equal(route5Log.serviceEndPlace,'테크노파크4차 정류장');
+assert.equal(route5Log.deadheadDestination,'고강동공영차고지');
+assert.equal(route5Log.officeChargeStatus,'사무실 모니터 확인');
+assert.ok(route5Log.cleanedAt); assert.ok(route5Log.chargerConnectedAt); assert.ok(route5Log.shiftEndedAt);
 
 console.log('AuthStep9 tests passed');
