@@ -180,7 +180,7 @@ function bus70MasterAdminBootstrap_(requesterId) {
   }
   const ws=ss.getSheetByName('근무변경DB'), names={}; drivers.forEach(function(v){names[v.driverId]=v.name;});
   let workChanges=[];
-  if(ws&&ws.getLastRow()>1){bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]); workChanges=wr.slice(1).map(function(r){return {changeId:String(r[wc['changeId']]||''),date:normalizeDate_(r[wc['날짜']]),driverId:String(r[wc['기사ID']]||''),driverName:names[String(r[wc['기사ID']]||'')]||'',type:String(r[wc['유형']]||''),sequence:Number(r[wc['적용순차']]||0),replacementId:String(r[wc['대체기사ID']]||''),replacementName:names[String(r[wc['대체기사ID']]||'')]||'',previousRoute:String(r[wc['변경전노선']]||''),newRoute:String(r[wc['변경노선']]||''),newShift:String(r[wc['변경근무조']]||''),newEmpId:String(r[wc['새사원번호']]||''),newDriverType:String(r[wc['변경기사구분']]||''),reason:String(r[wc['사유']]||'')};}).filter(function(v){return v.changeId;}).slice(-30).reverse();}
+  if(ws&&ws.getLastRow()>1){bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','이전사원번호','새사원번호','변경전기사구분','변경기사구분']);const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]); workChanges=wr.slice(1).map(function(r){return {changeId:String(r[wc['changeId']]||''),date:normalizeDate_(r[wc['날짜']]),driverId:String(r[wc['기사ID']]||''),driverName:names[String(r[wc['기사ID']]||'')]||'',type:String(r[wc['유형']]||''),sequence:Number(r[wc['적용순차']]||0),replacementId:String(r[wc['대체기사ID']]||''),replacementName:names[String(r[wc['대체기사ID']]||'')]||'',previousRoute:String(r[wc['변경전노선']]||''),newRoute:String(r[wc['변경노선']]||''),newShift:String(r[wc['변경근무조']]||''),previousEmpId:String(r[wc['이전사원번호']]||''),newEmpId:String(r[wc['새사원번호']]||''),previousDriverType:String(r[wc['변경전기사구분']]||''),newDriverType:String(r[wc['변경기사구분']]||''),reason:String(r[wc['사유']]||'')};}).filter(function(v){return v.changeId;}).slice(-30).reverse();}
   return {ok:true,drivers:drivers,accounts:accounts,workChanges:workChanges,canManageAccounts:bus70IsMaster_(requesterId)};
 }
 
@@ -239,10 +239,10 @@ function bus70WorkChangeSave_(body, requesterId) {
     }
     ds.getRange(driverRow,1,1,row.length).setValues([row]);
   }
-  bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);
+  bus70EnsureSheetColumns_(ws,['변경전노선','변경노선','변경근무조','이전사원번호','새사원번호','변경전기사구분','변경기사구분']);
   const wr=ws.getDataRange().getDisplayValues(), wc=makeHeaderMap_(wr[0]), row=new Array(wr[0].length).fill('');
   row[wc['changeId']]=newId_('WORK'); row[wc['날짜']]=date; row[wc['기사ID']]=driverId; row[wc['유형']]=type; row[wc['적용순차']]=sequence||''; row[wc['대체기사ID']]=replacementId; row[wc['시작시간']]=String(body.startTime||''); row[wc['종료시간']]=String(body.endTime||''); row[wc['사유']]=reason; row[wc['처리자']]=requesterId; row[wc['처리시간']]=new Date();
-  if(type==='노선이동'){row[wc['변경전노선']]=driverRoute;row[wc['변경노선']]=newRoute;row[wc['변경근무조']]=newShift;row[wc['새사원번호']]=newEmpId;row[wc['변경기사구분']]=newDriverType||(newEmpId?'노선':'');}
+  if(type==='노선이동'){row[wc['변경전노선']]=driverRoute;row[wc['변경노선']]=newRoute;row[wc['변경근무조']]=newShift;row[wc['이전사원번호']]=String(dr[driverRow-1][dc['사원번호']]||'');row[wc['새사원번호']]=newEmpId;row[wc['변경전기사구분']]=String(dr[driverRow-1][dc['기사구분']]||'');row[wc['변경기사구분']]=newDriverType||(newEmpId?'노선':'');}
   ws.appendRow(row);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','근무변경DB',row[wc['changeId']],'추가',{},row,type+' 현장대응');
   return {ok:true,message:type+' 처리를 저장했습니다.'+(type==='노선이동'?' '+date+'부터 '+newRoute+'번 '+newShift+'조로 적용됩니다.':'')+(dispatchChanged?' '+sequence+'순차 대체기사 배차도 변경했습니다.':'')};
@@ -576,7 +576,7 @@ function bus70ManagerDateKey_(value) {
 
 function bus70ApplyDueDriverTransitions_(driverSheet,workSheet){
   if(!driverSheet||!workSheet||workSheet.getLastRow()<2)return;
-  bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조','새사원번호','변경기사구분']);
+  bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조','이전사원번호','새사원번호','변경전기사구분','변경기사구분']);
   const today=bus70ServiceDateKey_(new Date()),dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),rowsById={};
   for(let i=1;i<dr.length;i++)rowsById[String(dr[i][dc['driverId']]||'')]=i+1;
   const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);
