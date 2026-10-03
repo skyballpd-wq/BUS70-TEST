@@ -204,16 +204,18 @@ function bus70DriverRunLogs_(body, driverId) {
   if (!sheet || sheet.getLastRow() < 2) return {ok:true,logs:[]};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
   const logs=rows.slice(1).filter(function(r){const d=normalizeDate_(r[c['날짜']]);return String(r[c['기사ID']]||'')===driverId&&(!from||d>=from)&&(!to||d<=to);})
-    .map(function(r){return {logId:String(r[c['logId']]||''),date:normalizeDate_(r[c['날짜']]),vehicleId:String(r[c['차량ID']]||''),sequence:Number(r[c['순차']]||0),trip:Number(r[c['탕']]||0),plannedStart:String(r[c['발차예정']]||''),actualStart:String(r[c['발차실제']]||''),plannedEnd:String(r[c['도착예정']]||''),actualEnd:String(r[c['도착실제']]||''),plannedFrontGap:String(r[c['앞차예정간격']]||''),actualFrontGap:String(r[c['앞차실제간격']]||''),frontDeviation:String(r[c['앞차편차']]||''),plannedRearGap:String(r[c['뒷차예정간격']]||''),actualRearGap:String(r[c['뒷차실제간격']]||''),rearDeviation:String(r[c['뒷차편차']]||''),status:String(r[c['상태']]||''),note:String(r[c['비고']]||'')};});
+    .map(function(r){return {logId:String(r[c['logId']]||''),date:normalizeDate_(r[c['날짜']]),vehicleId:String(r[c['차량ID']]||''),sequence:Number(r[c['순차']]||0),trip:Number(r[c['탕']]||0),plannedStart:String(r[c['발차예정']]||''),actualStart:String(r[c['발차실제']]||''),plannedEnd:String(r[c['도착예정']]||''),actualEnd:String(r[c['도착실제']]||''),plannedFrontGap:String(r[c['앞차예정간격']]||''),actualFrontGap:String(r[c['앞차실제간격']]||''),frontDeviation:String(r[c['앞차편차']]||''),plannedRearGap:String(r[c['뒷차예정간격']]||''),actualRearGap:String(r[c['뒷차실제간격']]||''),rearDeviation:String(r[c['뒷차편차']]||''),status:String(r[c['상태']]||''),note:String(r[c['비고']]||''),breakChargeConnectedAt:String(r[c['휴식충전연결']]||''),breakChargeDisconnectedAt:String(r[c['휴식충전해제']]||''),serviceEndType:String(r[c['영업종료형태']]||''),serviceEndPlace:String(r[c['영업종료지']]||''),deadheadDestination:String(r[c['회송목적지']]||''),deadheadReturnedAt:String(r[c['회송완료']]||''),cleanedAt:String(r[c['청소완료']]||''),chargerConnectedAt:String(r[c['충전잭연결']]||''),officeChargeStatus:String(r[c['사무실충전확인']]||''),shiftEndedAt:String(r[c['근무종료시간']]||'')};});
   logs.sort(function(a,b){return b.date.localeCompare(a.date)||b.sequence-a.sequence||b.trip-a.trip;});
   return {ok:true,logs:logs};
 }
 
 function bus70DriverRunLogSave_(body, driverId) {
   const date=normalizeDate_(body.date), sequence=Number(body.sequence||0), trip=Number(body.trip||0), event=String(body.event||'');
-  if(!date||!Number.isInteger(sequence)||sequence<1||sequence>11||!Number.isInteger(trip)||trip<1||trip>9||['DEPART','ARRIVE'].indexOf(event)<0) return {ok:false,error:'PARAM_REQUIRED',message:'운행기록 정보를 확인하세요.'};
-  const ss=SpreadsheetApp.getActiveSpreadsheet(), dispatch=ss.getSheetByName('배차DB'), logSheet=ss.getSheetByName('운행일지');
-  if(!dispatch||!logSheet) return {ok:false,error:'DB_MISSING',message:'배차 또는 운행일지 DB를 찾을 수 없습니다.'};
+  const allowedEvents=['DEPART','ARRIVE','BREAK_CHARGE_CONNECTED','BREAK_CHARGE_DISCONNECTED','SERVICE_END','DEADHEAD_RETURN','CLEANING_DONE','CHARGER_CONNECTED','SHIFT_END'];
+  if(!date||!Number.isInteger(sequence)||sequence<1||sequence>99||!Number.isInteger(trip)||trip<1||trip>20||allowedEvents.indexOf(event)<0) return {ok:false,error:'PARAM_REQUIRED',message:'운행기록 정보를 확인하세요.'};
+  const logHeaders=['logId','날짜','기사ID','차량ID','순차','탕','발차예정','발차실제','회차예정','회차실제','도착예정','도착실제','앞차예정간격','앞차실제간격','앞차편차','뒷차예정간격','뒷차실제간격','뒷차편차','시간표버전','노선버전','상태','비고','휴식충전연결','휴식충전해제','영업종료형태','영업종료지','회송목적지','회송완료','청소완료','충전잭연결','사무실충전확인','근무종료시간'];
+  const ss=SpreadsheetApp.getActiveSpreadsheet(), dispatch=ss.getSheetByName('배차DB'), logSheet=bus70EnsureDriverFeatureSheet_('운행일지',logHeaders);
+  if(!dispatch) return {ok:false,error:'DB_MISSING',message:'배차 DB를 찾을 수 없습니다.'};
   const dr=dispatch.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]); let current=null;
   for(let i=1;i<dr.length;i++) if(normalizeDate_(dr[i][dc['날짜']])===date&&Number(dr[i][dc['순차']])===sequence&&String(dr[i][dc['기사ID']]||'')===driverId&&String(dr[i][dc['상태']]||'')==='확정'){current=dr[i];break;}
   if(!current) return {ok:false,error:'DISPATCH_NOT_FOUND',message:'로그인 기사에게 확정된 배차를 찾을 수 없습니다.'};
@@ -221,10 +223,19 @@ function bus70DriverRunLogSave_(body, driverId) {
   for(let j=1;j<rows.length;j++) if(normalizeDate_(rows[j][c['날짜']])===date&&String(rows[j][c['기사ID']]||'')===driverId&&Number(rows[j][c['순차']])===sequence&&Number(rows[j][c['탕']])===trip){rowNo=j+1;break;}
   const row=rowNo?rows[rowNo-1].slice():new Array(rows[0].length).fill(''), now=new Date();
   if(!rowNo){row[c['logId']]=newId_('RUN');row[c['날짜']]=date;row[c['기사ID']]=driverId;row[c['차량ID']]=String(current[dc['차량ID']]||'');row[c['순차']]=sequence;row[c['탕']]=trip;row[c['발차예정']]=String(body.plannedStart||'');row[c['도착예정']]=String(body.plannedEnd||'');row[c['앞차예정간격']]=String(body.plannedFrontGap||'');row[c['뒷차예정간격']]=String(body.plannedRearGap||'');row[c['시간표버전']]=String(current[dc['시간표버전']]||'');}
-  if(event==='DEPART'){row[c['발차실제']]=now;row[c['상태']]='운행중';}else{row[c['도착실제']]=now;row[c['상태']]='완료';}
+  if(event==='DEPART'){row[c['발차실제']]=now;row[c['상태']]='운행중';}
+  else if(event==='ARRIVE'){row[c['도착실제']]=now;row[c['상태']]='완료';}
+  else if(event==='BREAK_CHARGE_CONNECTED'){if(!row[c['도착실제']])return {ok:false,error:'ARRIVE_REQUIRED',message:'탕 운행 도착 기록 후 충전잭을 연결하세요.'};row[c['휴식충전연결']]=now;row[c['상태']]='휴식충전중';}
+  else if(event==='BREAK_CHARGE_DISCONNECTED'){if(!row[c['휴식충전연결']])return {ok:false,error:'BREAK_CHARGE_REQUIRED',message:'휴식 충전잭 연결 기록을 먼저 확인하세요.'};row[c['휴식충전해제']]=now;row[c['상태']]='다음운행준비';}
+  else if(event==='SERVICE_END'){row[c['도착실제']]=row[c['도착실제']]||now;row[c['영업종료형태']]=String(body.serviceEndType||'UPBOUND_ONLY');row[c['영업종료지']]=String(body.serviceEndPlace||'').slice(0,80);row[c['회송목적지']]=String(body.deadheadDestination||'').slice(0,80);row[c['상태']]='영업종료';}
+  else if(event==='DEADHEAD_RETURN'){if(!row[c['영업종료지']])return {ok:false,error:'SERVICE_END_REQUIRED',message:'먼저 막탕 영업종료를 기록하세요.'};row[c['회송완료']]=now;row[c['상태']]='차고지회송완료';}
+  else if(event==='CLEANING_DONE'){if(!row[c['회송완료']])return {ok:false,error:'DEADHEAD_REQUIRED',message:'먼저 차고지 회송 완료를 기록하세요.'};row[c['청소완료']]=now;row[c['상태']]='청소완료';}
+  else if(event==='CHARGER_CONNECTED'){if(!row[c['청소완료']])return {ok:false,error:'CLEANING_REQUIRED',message:'퇴근 전 차량 청소를 먼저 완료하세요.'};row[c['충전잭연결']]=now;row[c['사무실충전확인']]='사무실 모니터 확인';row[c['상태']]='충전잭연결';}
+  else if(event==='SHIFT_END'){if(!row[c['충전잭연결']])return {ok:false,error:'CHARGER_REQUIRED',message:'충전잭 연결 완료 후 퇴근 처리하세요.'};row[c['근무종료시간']]=now;row[c['상태']]='근무종료';}
   if(body.note) row[c['비고']]=String(body.note).slice(0,200);
   if(rowNo) logSheet.getRange(rowNo,1,1,row.length).setValues([row]); else logSheet.appendRow(row);
-  return {ok:true,logId:row[c['logId']],event:event,recordedAt:Utilities.formatDate(now,'Asia/Seoul','yyyy-MM-dd HH:mm:ss'),message:event==='DEPART'?'발차 시간을 기록했습니다.':'도착 시간을 기록했습니다.'};
+  const messages={DEPART:'발차 시간을 기록했습니다.',ARRIVE:'도착 시간을 기록했습니다.',BREAK_CHARGE_CONNECTED:'기사 판단에 따른 휴식 충전잭 연결을 기록했습니다.',BREAK_CHARGE_DISCONNECTED:'다음 운행 전 충전잭 분리와 출발 준비를 기록했습니다.',SERVICE_END:'막탕 상행 영업종료를 기록했습니다.',DEADHEAD_RETURN:'고강동공영차고지 회송 완료를 기록했습니다.',CLEANING_DONE:'퇴근 전 차량 청소 완료를 기록했습니다.',CHARGER_CONNECTED:'다음 조 운행을 위한 필수 충전잭 연결을 기록했습니다. 충전 상태는 사무실 모니터에서 확인합니다.',SHIFT_END:'근무 종료와 퇴근 처리를 기록했습니다.'};
+  return {ok:true,logId:row[c['logId']],event:event,status:row[c['상태']],recordedAt:Utilities.formatDate(now,'Asia/Seoul','yyyy-MM-dd HH:mm:ss'),message:messages[event]};
 }
 
 function bus70DriverLoginActive_(driver) {
