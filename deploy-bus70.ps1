@@ -3,8 +3,9 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Driver alerts and run logs v51",
-  [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP"
+  [string]$Description = "Route 5 B-shift schedules v52",
+  [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP",
+  [switch]$SkipSelfUpdate
 )
 
 Set-StrictMode -Version Latest
@@ -23,6 +24,42 @@ $PSDefaultParameterValues["Add-Content:Encoding"] = "utf8"
 
 function Step([string]$Message) {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+# A locally saved deployment script can become older than the application
+# modules it downloads. Refresh the script first and relaunch it exactly once,
+# so future deployments keep picking up newly added modules automatically.
+if (-not $SkipSelfUpdate) {
+  Step "Checking the deployment script version"
+  $scriptSource = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/deploy-bus70.ps1"
+  $scriptTemporary = "$PSCommandPath.update.tmp"
+  try {
+    Invoke-WebRequest -Uri $scriptSource -OutFile $scriptTemporary -UseBasicParsing
+    $latestScript = Get-Content -LiteralPath $scriptTemporary -Raw -Encoding UTF8
+    foreach ($marker in @("SkipSelfUpdate", "Route5Schedule.js")) {
+      if (-not $latestScript.Contains($marker)) {
+        throw "The latest deployment script is missing a safety marker: $marker"
+      }
+    }
+
+    $currentHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    $latestHash = (Get-FileHash -LiteralPath $scriptTemporary -Algorithm SHA256).Hash
+    if ($currentHash -ne $latestHash) {
+      $previousScript = "$PSCommandPath.previous"
+      Copy-Item -LiteralPath $PSCommandPath -Destination $previousScript -Force
+      [System.IO.File]::WriteAllText($PSCommandPath, $latestScript, $utf8Bom)
+      Write-Host "Deployment script updated. Relaunching the latest version." -ForegroundColor Green
+      & $PSCommandPath -Description $Description -DeploymentId $DeploymentId -SkipSelfUpdate
+      if (-not $?) { throw "The updated deployment script failed." }
+      exit 0
+    }
+    Write-Host "Deployment script is current." -ForegroundColor Green
+  }
+  finally {
+    if (Test-Path -LiteralPath $scriptTemporary) {
+      Remove-Item -LiteralPath $scriptTemporary -Force
+    }
+  }
 }
 
 $required = @(
