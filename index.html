@@ -455,6 +455,7 @@
         <label for="alarmSoundMode">알람음</label><select id="alarmSoundMode"><option value="SYSTEM_DEFAULT">휴대폰 기본 알람음</option><option value="DEVICE_SELECTED">기사 선택 내장음(Android 연결)</option></select>
         <label class="check-row"><input id="alarmEnabled" type="checkbox" checked> 운행 알림 사용</label>
         <div class="inline-actions"><button id="requestNotification" type="button">알림 권한 허용</button><button id="saveAlertSettings" type="button">알림 설정 저장</button></div>
+        <div class="inline-actions"><button id="testScreenOffAlarm" type="button">2분 후 화면 꺼짐 시험</button><button id="checkNativeAlarms" class="secondary" type="button">예약 상태 확인</button></div>
         <div id="alertStatus" class="result" aria-live="polite"></div>
       </div>
     </section>
@@ -1469,7 +1470,7 @@
 
   function nativeSchedulePayload(data){
     const d=data.dispatch||{},vehicle=data.vehicle||{},trips=data.trips||[],last=trips[trips.length-1],finish=last?endOfShiftMeta(data,last,trips.length-1):null;
-    return {date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||""),scheduleVersion:String(d.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||""),electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,endOfShift:finish,trips:trips.map(v=>({trip:Number(v.trip),startTime:v.startTime,turnTime:v.turnTime||"",endTime:v.endTime||v.startTime}))};
+    return {route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||""),electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,endOfShift:finish,trips:trips.map(v=>({trip:Number(v.trip),startTime:v.startTime,turnTime:v.turnTime||"",endTime:v.endTime||v.startTime}))};
   }
 
   function syncNativeSchedule(data){
@@ -1480,6 +1481,11 @@
 
   window.bus70NativeSyncResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;const message=result.ok?("Android 정확한 알람 "+result.alarmCount+"개"+(result.calendarCount!==undefined?" · 캘린더 "+result.calendarCount+"건":"")+" 등록 완료"):(result.message||"Android 자동연동 실패");document.getElementById("alertStatus").replaceChildren(el("div",message,result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
+  window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
+  window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
+
+  function testScreenOffAlarm(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.scheduleTestAlarm!=="function"){root.replaceChildren(el("div","화면 꺼짐 시험은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.scheduleTestAlarm(120,driverAlertSettings.voice,driverAlertSettings.vibration);root.replaceChildren(el("div","2분 후 시험 알람을 예약했습니다. 지금 앱을 닫고 화면을 잠그세요.","notice"));}
+  function checkNativeAlarms(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.alarmStatus!=="function"){root.replaceChildren(el("div","예약 확인은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.alarmStatus();}
 
   function armDriverAlarms() {
     clearDriverAlarms(); const data=lastSchedule;
@@ -1650,6 +1656,8 @@
   document.getElementById("loadSchedule").addEventListener("click", loadMySchedule);
   document.getElementById("requestNotification").addEventListener("click",requestNotificationPermission);
   document.getElementById("saveAlertSettings").addEventListener("click",saveAlertSettings);
+  document.getElementById("testScreenOffAlarm").addEventListener("click",testScreenOffAlarm);
+  document.getElementById("checkNativeAlarms").addEventListener("click",checkNativeAlarms);
   document.getElementById("alarmSoundMode").addEventListener("change",event=>{if(event.target.value==="DEVICE_SELECTED"&&hasAndroidBridge())window.Bus70Android.chooseAlarmSound();else if(event.target.value==="DEVICE_SELECTED")document.getElementById("alertStatus").replaceChildren(el("div","내장음 선택은 BUS70 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));});
   document.getElementById("loadRunLogs").addEventListener("click",loadRunLogs);
   document.getElementById("printRunLogs").addEventListener("click",()=>window.print());
