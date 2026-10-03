@@ -1,6 +1,13 @@
 # BUS70-TEST
 소신여객 양성기사 운행 관리 테스트 버전
 
+## 안전 배포
+
+- 배포 폴더에서 `./deploy-bus70.ps1`을 실행하면 먼저 GitHub의 최신 배포 스크립트를 확인합니다.
+- 스크립트가 바뀌었으면 기존 파일을 `deploy-bus70.ps1.previous`로 보관하고 최신판으로 한 번만 자동 재실행합니다.
+- 업로드 직전 각 서버 모듈의 기능 표식과 JavaScript 문법을 검사합니다.
+- 5번 노선 모듈이 포함된 정상 출력은 `Pushed 6 files`이며 목록에 `Route5Schedule.js`가 표시되어야 합니다.
+
 ## 배차판 사진 확인 등록
 
 - `apps-script/BoardEntry.gs`를 Apps Script 프로젝트에 추가합니다.
