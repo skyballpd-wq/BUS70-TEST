@@ -46,6 +46,19 @@ function bus70AuthAction_(body) {
   const action = String(body.action || '').trim();
   if (action === 'loginSecure') {
     if (typeof bus70EnsureInitialAccounts_ === 'function') bus70EnsureInitialAccounts_();
+    // A trainee keeps the same internal driverId when becoming a regular
+    // driver, but the employee number and route change on the effective date.
+    // Apply due transitions before looking up the submitted employee number so
+    // the new regular employee number works even when no manager has opened the
+    // dispatch screen since midnight.
+    if (typeof bus70ApplyDueDriverTransitions_ === 'function') {
+      try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        bus70ApplyDueDriverTransitions_(ss.getSheetByName('기사DB'), ss.getSheetByName('근무변경DB'));
+      } catch (transitionError) {
+        console.error('Driver transition sync failed before login', transitionError);
+      }
+    }
     let result = typeof bus70StaffLogin_ === 'function' ? bus70StaffLogin_(body.name, body.empId) : {ok:false,error:'STAFF_NOT_FOUND'};
     if (!result.ok && result.error === 'STAFF_NOT_FOUND') result = apiLogin_(body.name, body.empId);
     if (!result.ok) return result;
