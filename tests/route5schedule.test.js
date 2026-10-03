@@ -1,0 +1,13 @@
+const assert=require('assert');const fs=require('fs');const vm=require('vm');
+const context={console,normalizeDate_:value=>String(value).slice(0,10)};vm.createContext(context);vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),context);
+const weekday=context.bus70Route5ReferenceData_('2026-10-02');
+assert.equal(weekday.ok,true);assert.equal(weekday.route,'5');assert.equal(weekday.shift,'B');assert.equal(weekday.timetableSequences,27);assert.equal(weekday.assignments.length,27);
+const parkWeekday=weekday.assignments.find(v=>v.driverName==='박철완');assert.equal(parkWeekday.sequence,19);assert.equal(parkWeekday.vehicleNo,'1653');
+const parkWeekdayTrip=weekday.trips.find(v=>v.sequence===19&&v.trip===1);assert.equal(parkWeekdayTrip.startTime,'06:20');assert.equal(parkWeekdayTrip.plannedFrontGapMinutes,6);assert.equal(parkWeekdayTrip.plannedRearGapMinutes,5);
+const holiday=context.bus70Route5ReferenceData_('2026-10-04');
+assert.equal(holiday.ok,true);assert.equal(holiday.serviceType,'휴일·공휴일');assert.equal(holiday.timetableSequences,18);assert.equal(holiday.assignments.length,15);
+const parkHoliday=holiday.assignments.find(v=>v.driverName==='박철완');assert.equal(parkHoliday.sequence,15);assert.equal(parkHoliday.vehicleNo,'1671');
+const finalTrip=holiday.trips.find(v=>v.sequence===15&&v.trip===6);assert.equal(finalTrip.startTime,'22:35');assert.equal(finalTrip.serviceEndType,'UPBOUND_ONLY');assert.equal(finalTrip.deadheadDestination,'고강동공영차고지');
+const schedule=context.bus70Route5ScheduleForDriver_({driverId:'DRV-PARK',name:'박철완'},'2026-10-04');assert.equal(schedule.dispatch.sequence,15);assert.equal(schedule.dispatch.vehicleNo,'1671');assert.equal(schedule.trips.length,6);
+assert.equal(context.bus70Route5ReferenceData_('2026-10-03').error,'REFERENCE_NOT_FOUND');
+console.log('Route5Schedule tests passed');

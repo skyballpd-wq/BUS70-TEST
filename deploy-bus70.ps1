@@ -64,6 +64,11 @@ $modules = @(
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/AuthStep9.gs"
     Destination = "AuthStep9.js"
     Markers = @("driverAlertSettingsGet", "bus70DriverRunLogSave_", "bus70DriverAlertSettingsSave_")
+  },
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/Route5Schedule.gs"
+    Destination = "Route5Schedule.js"
+    Markers = @("bus70Route5ReferenceData_", "bus70Route5ScheduleForDriver_", "R5-HD-20251018")
   }
 )
 foreach ($module in $modules) {
@@ -82,7 +87,7 @@ foreach ($module in $modules) {
 }
 
 Step "Checking JavaScript syntax"
-foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js")) {
+foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js", "Route5Schedule.js")) {
   & node --check $file
   if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $file" }
 }

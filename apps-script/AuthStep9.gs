@@ -68,7 +68,7 @@ function bus70AuthAction_(body) {
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
-      response.schedule = bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:result.driver.driverId, date:body.date}}), body.date);
+      response.schedule = bus70SecureScheduleForDriver_(result.driver.driverId, body.date, result.driver);
     }
     return response;
   }
@@ -87,7 +87,7 @@ function bus70AuthAction_(body) {
     const response = {ok:true, driver:result.driver,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
-      response.schedule = bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:driverId, date:body.date}}), body.date);
+      response.schedule = bus70SecureScheduleForDriver_(driverId, body.date, result.driver);
     }
     return response;
   }
@@ -105,12 +105,13 @@ function bus70AuthAction_(body) {
     if (body.driverId && String(body.driverId).trim() !== driverId) {
       return {ok:false, error:'DRIVER_MISMATCH', message:'로그인 기사와 요청 기사가 다릅니다.'};
     }
-    return bus70ScheduleWithAdjustments_(apiMySchedule_({parameter:{driverId:driverId,date:body.date}}), body.date);
+    return bus70SecureScheduleForDriver_(driverId, body.date);
   }
   if (action === 'driverAlertSettingsGet') return bus70DriverAlertSettingsGet_(driverId);
   if (action === 'driverAlertSettingsSave') return bus70DriverAlertSettingsSave_(body, driverId);
   if (action === 'driverRunLogs') return bus70DriverRunLogs_(body, driverId);
   if (action === 'driverRunLogSave') return bus70DriverRunLogSave_(body, driverId);
+  if (action === 'route5ReferenceData' && typeof bus70Route5ReferenceData_ === 'function') return bus70Route5ReferenceData_(body.date);
   if (action === 'validateDispatchBoard' || action === 'registerDispatchBoard') {
     return bus70BoardAction_(body, driverId);
   }
@@ -127,6 +128,14 @@ function bus70AuthAction_(body) {
     return bus70ChangeStaffPassword_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
+}
+
+function bus70SecureScheduleForDriver_(driverId, date, knownDriver) {
+  const base=apiMySchedule_({parameter:{driverId:driverId,date:date}});
+  if(base&&base.ok&&base.type==='WORK')return bus70ScheduleWithAdjustments_(base,date);
+  if(typeof bus70Route5ScheduleForDriver_!=='function')return bus70ScheduleWithAdjustments_(base,date);
+  const driver=knownDriver||(apiGetDriver_(driverId).driver||{}), reference=bus70Route5ScheduleForDriver_(driver,date);
+  return reference||bus70ScheduleWithAdjustments_(base,date);
 }
 
 function bus70EnsureDriverFeatureSheet_(name, headers) {

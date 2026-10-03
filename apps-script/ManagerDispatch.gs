@@ -10,6 +10,7 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'driverAlertSettingsSave') return bus70DriverAlertSettingsSave_(body, driverId);
   if (action === 'driverRunLogs') return bus70DriverRunLogs_(body, driverId);
   if (action === 'driverRunLogSave') return bus70DriverRunLogSave_(body, driverId);
+  if (action === 'route5ReferenceData' && typeof bus70Route5ReferenceData_ === 'function') return bus70Route5ReferenceData_(body.date);
   if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId);
   if (action === 'vehicleIncidentSave') return bus70VehicleIncidentSave_(body, driverId);
   if (action === 'maintenanceUpdate') return bus70MaintenanceUpdate_(body, driverId);

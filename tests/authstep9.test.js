@@ -75,6 +75,12 @@ assert.equal(context.bus70AuthAction_({action:'loginSecure',name:'퇴직기사',
 context.apiLogin_=activeLogin;
 const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combinedLogin.token,driverId:'DRV-1',date:'2026-09-24'});
 assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1); assert.equal(adjusted.trips[0].plannedRearGapMinutes,15);
+const originalScheduleApi=context.apiMySchedule_;
+context.apiMySchedule_=()=>({ok:true,type:'REST',message:'등록된 배차가 없습니다.'});
+context.bus70Route5ScheduleForDriver_=(driver,date)=>date==='2026-10-04'?{ok:true,type:'WORK',route:'5',dispatch:{sequence:15,vehicleNo:'1671'},trips:[{trip:6,startTime:'22:35'}]}:null;
+const route5Fallback=context.bus70SecureScheduleForDriver_('DRV-1','2026-10-04',{driverId:'DRV-1',name:'박철완'});
+assert.equal(route5Fallback.route,'5');assert.equal(route5Fallback.dispatch.sequence,15);assert.equal(route5Fallback.trips[0].startTime,'22:35');
+context.apiMySchedule_=originalScheduleApi;
 
 const body = {action:'confirmSchedule',token:session.token,driverId:'DRV-1',date:'2026-09-18',dispatchId:'DSP-1',scheduleVersion:'WD-V1'};
 const first = context.bus70AuthAction_(body);
