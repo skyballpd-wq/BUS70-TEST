@@ -111,7 +111,9 @@ function bus70AuthAction_(body) {
   if (action === 'driverAlertSettingsSave') return bus70DriverAlertSettingsSave_(body, driverId);
   if (action === 'driverRunLogs') return bus70DriverRunLogs_(body, driverId);
   if (action === 'driverRunLogSave') return bus70DriverRunLogSave_(body, driverId);
-  if (action === 'route5ReferenceData' && typeof bus70Route5ReferenceData_ === 'function') return bus70Route5ReferenceData_(body.date);
+  if (action === 'route5ReferenceData' && typeof bus70Route5ReferenceData_ === 'function') {
+    const route5Driver=apiGetDriver_(driverId);return bus70Route5ReferenceData_(body.date,route5Driver&&route5Driver.driver);
+  }
   if (action === 'validateDispatchBoard' || action === 'registerDispatchBoard') {
     return bus70BoardAction_(body, driverId);
   }

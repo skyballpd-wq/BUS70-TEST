@@ -39,15 +39,28 @@ const BUS70_ROUTE5_REFERENCE_ = {
   }
 };
 
+// Test identities intentionally contain no real employee numbers.  The stable
+// IDs keep dispatch/run history linkable until a manager maps each person to a
+// verified production account.  The currently logged-in matching driver is
+// replaced with that real internal driverId in the API response.
+const BUS70_ROUTE5_TEST_DRIVER_IDS_ = {
+  '이한욱':'R5-TMP-001','이정우':'R5-TMP-002','조영선':'R5-TMP-003','황대웅':'R5-TMP-004','박현우':'R5-TMP-005','윤솔뫼':'R5-TMP-006','천명서':'R5-TMP-007','윤재현':'R5-TMP-008','박복만':'R5-TMP-009','심현국':'R5-TMP-010','오금철':'R5-TMP-011','김영욱':'R5-TMP-012','이춘열':'R5-TMP-013',
+  '이병익':'R5-TMP-014','한청규':'R5-TMP-015','김동영':'R5-TMP-016','김현섭':'R5-TMP-017','박주신':'R5-TMP-018','박철완':'R5-TMP-019','김종근':'R5-TMP-020','김대연':'R5-TMP-021','김경이':'R5-TMP-022','정문식':'R5-TMP-023','조종진':'R5-TMP-024','김성훈':'R5-TMP-025','최관복':'R5-TMP-026','변상수':'R5-TMP-027','박구봉':'R5-TMP-028'
+};
+
 function bus70Route5OperationalMinutes_(value) {
   const match=String(value||'').match(/^(\d{2}):(\d{2})$/);if(!match)return null;
   let minutes=Number(match[1])*60+Number(match[2]);if(minutes<210)minutes+=1440;return minutes;
 }
 
-function bus70Route5ReferenceData_(rawDate) {
+function bus70Route5ReferenceData_(rawDate, requester) {
   const date=normalizeDate_(rawDate), source=BUS70_ROUTE5_REFERENCE_[date];
   if(!source)return {ok:false,error:'REFERENCE_NOT_FOUND',message:'선택 날짜의 5번 노선 기준 자료가 없습니다.'};
-  const assignments=source.assignments.map(function(row){return {sequence:row[0],driverName:row[1],vehicleNo:row[2],vehicleId:'VEH-'+row[2]};});
+  const requesterName=String(requester&&requester.name||requester&&requester.driverName||'').replace(/\s/g,''),requesterId=String(requester&&requester.driverId||'');
+  const assignments=source.assignments.map(function(row){
+    const matched=Boolean(requesterId&&requesterName&&row[1].replace(/\s/g,'')===requesterName);
+    return {sequence:row[0],driverName:row[1],driverId:matched?requesterId:BUS70_ROUTE5_TEST_DRIVER_IDS_[row[1]],identityMode:matched?'REAL_ACCOUNT':'TEST_VIRTUAL',vehicleNo:row[2],vehicleId:'VEH-'+row[2]};
+  });
   const trips=[];
   source.departures.forEach(function(row,index){
     row.forEach(function(time,tripIndex){if(time)trips.push({sequence:index+1,trip:tripIndex+1,startTime:time});});
@@ -61,11 +74,11 @@ function bus70Route5ReferenceData_(rawDate) {
     const exception=source.serviceExceptions&&source.serviceExceptions[item.sequence]&&source.serviceExceptions[item.sequence][item.trip];
     if(exception)Object.keys(exception).forEach(function(key){item[key]=exception[key];});
   });
-  return {ok:true,route:'5',date:date,shift:'B',serviceType:source.serviceType,scheduleVersion:source.scheduleVersion,timetableSequences:source.timetableSequences,observedAssignments:assignments.length,assignments:assignments,trips:trips,sourceNote:source.sourceNote,verificationStatus:'사진 판독 1차 데이터'};
+  return {ok:true,route:'5',date:date,shift:'B',serviceType:source.serviceType,scheduleVersion:source.scheduleVersion,timetableSequences:source.timetableSequences,observedAssignments:assignments.length,assignments:assignments,trips:trips,identityPolicy:'TEST_VIRTUAL_EXCEPT_MATCHED_LOGIN',sourceNote:source.sourceNote,verificationStatus:'사진 판독 1차 데이터'};
 }
 
 function bus70Route5ScheduleForDriver_(driver, rawDate) {
-  const reference=bus70Route5ReferenceData_(rawDate);if(!reference.ok)return null;
+  const reference=bus70Route5ReferenceData_(rawDate,driver);if(!reference.ok)return null;
   const name=String(driver&&driver.name||driver&&driver.driverName||'').replace(/\s/g,''), assignment=reference.assignments.find(function(v){return v.driverName.replace(/\s/g,'')===name;});
   if(!assignment)return null;
   return {ok:true,type:'WORK',route:'5',date:reference.date,driverId:String(driver&&driver.driverId||''),dispatch:{id:'R5-'+reference.date.replace(/-/g,'')+'-B-'+('0'+assignment.sequence).slice(-2),date:reference.date,shift:'B',seq:assignment.sequence,sequence:assignment.sequence,vehicleId:assignment.vehicleId,vehicleNo:assignment.vehicleNo,scheduleVersion:reference.scheduleVersion,status:'확정',reference:true},scheduleVersion:reference.scheduleVersion,trips:reference.trips.filter(function(v){return v.sequence===assignment.sequence;}),sourceNote:reference.sourceNote,verificationStatus:reference.verificationStatus};
