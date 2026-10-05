@@ -42,6 +42,21 @@ const BUS70_ROUTE5_REFERENCE_ = {
 // Test identities intentionally contain no real employee numbers.  The stable
 // IDs keep dispatch/run history linkable until a manager maps each person to a
 // verified production account.  The currently logged-in matching driver is
+// Test identities intentionally
+// 2026-10-06 uses the same published weekday timetable as 2026-10-02.
+// The photographed B-shift board has no driver/vehicle card in sequence 26,
+// so that assignment remains intentionally absent until a manager confirms it.
+BUS70_ROUTE5_REFERENCE_['2026-10-06'] = {
+  serviceType:'평일', scheduleVersion:'R5-WD-20260810', timetableSequences:27,
+  sourceNote:'2026-10-06 5번 27대 평일시간표 및 B조 상황판 사진 판독',
+  assignments:[
+    [1,'조종진','1659'],[2,'김성훈','1660'],[3,'최관복','1661'],[4,'변상수','1662'],[5,'이한욱','1663'],[6,'이정우','1664'],[7,'조영선','1665'],[8,'황대웅','1666'],[9,'박현우','1667'],[10,'윤솔뫼','1668'],[11,'천명서','1669'],[12,'윤재현','1670'],[13,'박복만','1671'],[14,'심현국','1672'],[15,'오금철','1673'],[16,'박구봉','1674'],[17,'이춘열','1145'],
+    [18,'이병익','1117'],[19,'한청규','1121'],[20,'김동영','1148'],[21,'김현섭','1438'],[22,'박주신','1556'],[23,'박철완','1653'],[24,'김종근','1654'],[25,'김대연','1655'],[27,'정문식','1658']
+  ],
+  departures:BUS70_ROUTE5_REFERENCE_['2026-10-02'].departures.map(function(row){return row.slice();}),
+  unassignedSequences:[26]
+};
+
 // replaced with that real internal driverId in the API response.
 const BUS70_ROUTE5_TEST_DRIVER_IDS_ = {
   '이한욱':'R5-TMP-001','이정우':'R5-TMP-002','조영선':'R5-TMP-003','황대웅':'R5-TMP-004','박현우':'R5-TMP-005','윤솔뫼':'R5-TMP-006','천명서':'R5-TMP-007','윤재현':'R5-TMP-008','박복만':'R5-TMP-009','심현국':'R5-TMP-010','오금철':'R5-TMP-011','김영욱':'R5-TMP-012','이춘열':'R5-TMP-013',
