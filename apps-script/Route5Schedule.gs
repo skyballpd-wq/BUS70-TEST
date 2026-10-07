@@ -1,67 +1,6 @@
-/* Route 5 B-shift reference schedules transcribed from the 2026-10-02 and
- * 2026-10-04 dispatch-board/timetable photographs supplied by the operator.
- *
- * The timetable and the observed board are deliberately kept separate: on
- * 2026-10-04 the holiday timetable has 18 sequence rows while 15 assignments
- * were visible on the photographed board. Missing assignments are never
- * invented. Times use the service-day clock (03:30 through next-day 02:29).
+/* Route 5 schedule calculations. Real rosters and dated timetable values are
+ * loaded through PrivateRouteStore.gs and never committed to this repository.
  */
-
-const BUS70_ROUTE5_REFERENCE_ = {
-  '2026-10-02': {
-    serviceType:'평일', scheduleVersion:'R5-WD-20260810', timetableSequences:27,
-    sourceNote:'2026-10-02 5번 27대 평일시간표 및 B조 상황판 사진 판독',
-    assignments:[
-      [1,'이한욱','1663'],[2,'이정우','1664'],[3,'조영선','1665'],[4,'황대웅','1666'],[5,'박현우','1667'],[6,'윤솔뫼','1668'],[7,'천명서','1669'],[8,'윤재현','1670'],[9,'박복만','1671'],[10,'심현국','1672'],[11,'오금철','1673'],[12,'김영욱','1674'],[13,'이춘열','1145'],
-      [14,'이병익','1117'],[15,'한청규','1121'],[16,'김동영','1148'],[17,'김현섭','1438'],[18,'박주신','1556'],[19,'박철완','1653'],[20,'김종근','1654'],[21,'김대연','1655'],[22,'김경이','1656'],[23,'정문식','1658'],[24,'조종진','1659'],[25,'김성훈','1660'],[26,'최관복','1661'],[27,'변상수','1662']
-    ],
-    departures:[
-      ['05:00','07:05','10:30','13:38','16:40','20:07'],['','07:10','10:37','13:45','16:46','20:14','23:00'],['05:15','07:15','10:44','13:52','16:52','20:21'],['','07:20','10:51','13:59','16:59','20:28','23:10'],['05:30','07:26','10:58','14:06','17:06','20:35'],
-      ['04:40','07:32','11:05','14:13','17:13','20:42'],['04:50','07:38','11:12','14:20','17:20','20:49'],['04:58','07:44','11:19','14:27','17:27','20:56'],['05:06','07:52','11:26','14:34','17:34','21:03'],['05:14','08:00','11:33','14:41','17:41','21:10'],
-      ['05:22','08:09','11:40','14:48','17:48','21:16'],['05:30','08:18','11:47','14:55','17:56','21:22'],['05:38','08:27','11:54','15:02','18:04','21:28'],['05:46','08:36','12:01','15:09','18:12','21:34'],['05:53','08:45','12:08','15:16','18:20','21:40'],
-      ['06:00','08:54','12:15','15:23','18:29','21:46'],['06:07','09:03','12:21','15:30','18:38','21:52'],['06:14','09:12','12:28','15:37','18:47','21:58'],['06:20','09:21','12:35','15:44','18:56','22:04'],['06:25','09:30','12:42','15:51','19:05','22:10'],
-      ['06:30','09:38','12:49','15:58','19:14','22:16'],['06:35','09:46','12:56','16:04','19:22','22:22'],['06:40','09:54','13:03','16:10','19:30','22:28'],['06:45','10:02','13:10','16:16','19:38'],['06:50','10:09','13:17','16:22','19:46'],['06:55','10:16','13:24','16:28','19:53','22:40'],['07:00','10:23','13:31','16:34','20:00','22:50']
-    ]
-  },
-  '2026-10-04': {
-    serviceType:'휴일·공휴일', scheduleVersion:'R5-HD-20251018', timetableSequences:18,
-    sourceNote:'2026-10-04 5번 18대 휴·공휴일 시간표 및 B조 상황판 사진 판독',
-    assignments:[
-      [1,'최관복','1661'],[2,'박주신','1556'],[3,'이한욱','1663'],[4,'이정우','1664'],[5,'조영선','1665'],[6,'황대웅','1666'],[7,'박현우','1667'],[8,'김종근','1654'],[9,'김대연','1655'],[10,'김경이','1656'],[11,'정문식','1658'],[12,'심현국','1672'],[13,'김성훈','1660'],[14,'박구봉','1674'],[15,'박철완','1671']
-    ],
-    departures:[
-      ['05:00','07:00','10:18','13:30','16:52','20:10'],['','07:10','10:30','13:40','17:04','20:20','23:04'],['05:15','07:20','10:42','13:50','17:15','20:30'],['','07:30','10:54','14:00','17:26','20:40','23:10'],['05:30','07:40','11:05','14:11','17:37','20:50'],
-      ['04:40','07:50','11:16','14:22','17:48','21:00'],['04:52','08:00','11:27','14:33','17:59','21:11'],['05:04','08:10','11:38','14:44','18:10','21:22'],['05:16','08:20','11:49','14:55','18:21','21:33'],['05:28','08:30','12:00','15:06','18:32','21:44'],
-      ['05:39','08:42','12:10','15:17','18:43','21:55'],['05:50','08:54','12:20','15:28','18:54','22:06'],['06:00','09:06','12:30','15:40','19:05','22:17'],['06:10','09:18','12:40','15:52','19:16','22:28'],['06:20','09:30','12:50','16:04','19:27','22:35'],
-      ['06:30','09:42','13:00','16:16','19:38','22:42'],['06:40','09:54','13:10','16:28','19:49','22:49'],['06:50','10:06','13:20','16:40','20:00','22:56']
-    ],
-    serviceExceptions:{15:{6:{serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'테크노파크4차 정류장',deadheadDestination:'고강동공영차고지',postShift:['차량 청소','충전잭 연결','사무실 모니터 충전상태 확인']}}}
-  }
-};
-
-// Test identities intentionally contain no real employee numbers.  The stable
-// IDs keep dispatch/run history linkable until a manager maps each person to a
-// verified production account.  The currently logged-in matching driver is
-// Test identities intentionally
-// 2026-10-06 uses the same published weekday timetable as 2026-10-02.
-// The photographed B-shift board has no driver/vehicle card in sequence 26,
-// so that assignment remains intentionally absent until a manager confirms it.
-BUS70_ROUTE5_REFERENCE_['2026-10-06'] = {
-  serviceType:'평일', scheduleVersion:'R5-WD-20260810', timetableSequences:27,
-  sourceNote:'2026-10-06 5번 27대 평일시간표 및 B조 상황판 사진 판독',
-  assignments:[
-    [1,'조종진','1659'],[2,'김성훈','1660'],[3,'최관복','1661'],[4,'변상수','1662'],[5,'이한욱','1663'],[6,'이정우','1664'],[7,'조영선','1665'],[8,'황대웅','1666'],[9,'박현우','1667'],[10,'윤솔뫼','1668'],[11,'천명서','1669'],[12,'윤재현','1670'],[13,'박복만','1671'],[14,'심현국','1672'],[15,'오금철','1673'],[16,'박구봉','1674'],[17,'이춘열','1145'],
-    [18,'이병익','1117'],[19,'한청규','1121'],[20,'김동영','1148'],[21,'김현섭','1438'],[22,'박주신','1556'],[23,'박철완','1653'],[24,'김종근','1654'],[25,'김대연','1655'],[27,'정문식','1658']
-  ],
-  departures:BUS70_ROUTE5_REFERENCE_['2026-10-02'].departures.map(function(row){return row.slice();}),
-  unassignedSequences:[26]
-};
-
-// replaced with that real internal driverId in the API response.
-const BUS70_ROUTE5_TEST_DRIVER_IDS_ = {
-  '이한욱':'R5-TMP-001','이정우':'R5-TMP-002','조영선':'R5-TMP-003','황대웅':'R5-TMP-004','박현우':'R5-TMP-005','윤솔뫼':'R5-TMP-006','천명서':'R5-TMP-007','윤재현':'R5-TMP-008','박복만':'R5-TMP-009','심현국':'R5-TMP-010','오금철':'R5-TMP-011','김영욱':'R5-TMP-012','이춘열':'R5-TMP-013',
-  '이병익':'R5-TMP-014','한청규':'R5-TMP-015','김동영':'R5-TMP-016','김현섭':'R5-TMP-017','박주신':'R5-TMP-018','박철완':'R5-TMP-019','김종근':'R5-TMP-020','김대연':'R5-TMP-021','김경이':'R5-TMP-022','정문식':'R5-TMP-023','조종진':'R5-TMP-024','김성훈':'R5-TMP-025','최관복':'R5-TMP-026','변상수':'R5-TMP-027','박구봉':'R5-TMP-028'
-};
 
 function bus70Route5OperationalMinutes_(value) {
   const match=String(value||'').match(/^(\d{2}):(\d{2})$/);if(!match)return null;
@@ -69,33 +8,50 @@ function bus70Route5OperationalMinutes_(value) {
 }
 
 function bus70Route5ReferenceData_(rawDate, requester) {
-  const date=normalizeDate_(rawDate), source=BUS70_ROUTE5_REFERENCE_[date];
-  if(!source)return {ok:false,error:'REFERENCE_NOT_FOUND',message:'선택 날짜의 5번 노선 기준 자료가 없습니다.'};
+  const date=normalizeDate_(rawDate),source=bus70PrivateRouteSource_('5',date);
+  if(!source)return {ok:false,error:'PRIVATE_REFERENCE_NOT_CONFIGURED',message:'선택 날짜의 비공개 5번 노선 기준 자료가 설정되지 않았습니다.'};
   const requesterName=String(requester&&requester.name||requester&&requester.driverName||'').replace(/\s/g,''),requesterId=String(requester&&requester.driverId||'');
-  const assignments=source.assignments.map(function(row){
-    const matched=Boolean(requesterId&&requesterName&&row[1].replace(/\s/g,'')===requesterName);
-    return {sequence:row[0],driverName:row[1],driverId:matched?requesterId:BUS70_ROUTE5_TEST_DRIVER_IDS_[row[1]],identityMode:matched?'REAL_ACCOUNT':'TEST_VIRTUAL',vehicleNo:row[2],vehicleId:'VEH-'+row[2]};
-  });
+  const assignments=(source.assignments||[]).map(function(row){
+    const sequence=Number(Array.isArray(row)?row[0]:row.sequence),driverName=String(Array.isArray(row)?row[1]:row.driverName||''),vehicleNo=String(Array.isArray(row)?row[2]:row.vehicleNo||'').replace(/\D/g,'');
+    const matched=Boolean(requesterId&&requesterName&&driverName.replace(/\s/g,'')===requesterName);
+    return {sequence:sequence,driverName:driverName,driverId:matched?requesterId:bus70PrivateVirtualDriverId_('5',sequence),identityMode:matched?'REAL_ACCOUNT':'TEST_VIRTUAL',vehicleNo:vehicleNo,vehicleId:'VEH-'+vehicleNo};
+  }).filter(function(v){return v.sequence&&v.driverName&&v.vehicleNo;});
   const trips=[];
-  source.departures.forEach(function(row,index){
-    row.forEach(function(time,tripIndex){if(time)trips.push({sequence:index+1,trip:tripIndex+1,startTime:time});});
-  });
+  if(Array.isArray(source.tripTimings)){
+    source.tripTimings.forEach(function(row,index){(row||[]).forEach(function(times,tripIndex){
+      if(!times)return;
+      let startTime=String(times[0]||''),turnTime=String(times[1]||''),endTime=String(times[2]||'');
+      let startPlace=String(source.defaultOrigin||'고강공영차고지'),turnPlace=String(source.turnPlace||'삼정동복지회관'),endPlace=String(source.defaultEndPlace||'고강공영차고지');
+      if(!startTime&&turnTime){startTime=turnTime;startPlace=turnPlace;turnTime='';turnPlace='';}
+      if(!startTime)return;
+      const item={sequence:index+1,trip:tripIndex+1,startPlace:startPlace,startTime:startTime,turnPlace:turnPlace,turnTime:turnTime,endPlace:endPlace,endTime:endTime};
+      const exception=source.serviceExceptions&&source.serviceExceptions[item.sequence]&&source.serviceExceptions[item.sequence][item.trip];
+      if(exception&&String(exception.serviceEndType||'').indexOf('UPBOUND_')===0){item.endPlace=String(exception.serviceEndPlace||item.turnPlace||'');item.endTime=String(exception.plannedEndTime||item.turnTime||item.endTime||'');item.turnPlace='';item.turnTime='';}
+      trips.push(item);
+    });});
+  }else{
+    (source.departures||[]).forEach(function(row,index){(row||[]).forEach(function(time,tripIndex){if(time)trips.push({sequence:index+1,trip:tripIndex+1,startTime:String(time)});});});
+  }
   trips.forEach(function(item){
-    const sameTrip=trips.filter(function(v){return v.trip===item.trip;}).sort(function(a,b){return bus70Route5OperationalMinutes_(a.startTime)-bus70Route5OperationalMinutes_(b.startTime);});
+    const sameTrip=trips.filter(function(v){return v.trip===item.trip&&String(v.startPlace||'')===String(item.startPlace||'');}).sort(function(a,b){return bus70Route5OperationalMinutes_(a.startTime)-bus70Route5OperationalMinutes_(b.startTime);});
     const position=sameTrip.indexOf(item),front=position>0?sameTrip[position-1]:null,rear=position<sameTrip.length-1?sameTrip[position+1]:null,own=bus70Route5OperationalMinutes_(item.startTime);
-    item.plannedFrontGapMinutes=front?own-bus70Route5OperationalMinutes_(front.startTime):null;
-    item.plannedRearGapMinutes=rear?bus70Route5OperationalMinutes_(rear.startTime)-own:null;
+    item.plannedFrontGapMinutes=front?own-bus70Route5OperationalMinutes_(front.startTime):null;item.plannedRearGapMinutes=rear?bus70Route5OperationalMinutes_(rear.startTime)-own:null;
     item.frontSequence=front?front.sequence:null;item.rearSequence=rear?rear.sequence:null;
     const exception=source.serviceExceptions&&source.serviceExceptions[item.sequence]&&source.serviceExceptions[item.sequence][item.trip];
     if(exception)Object.keys(exception).forEach(function(key){item[key]=exception[key];});
   });
-  return {ok:true,route:'5',date:date,shift:'B',serviceType:source.serviceType,scheduleVersion:source.scheduleVersion,timetableSequences:source.timetableSequences,observedAssignments:assignments.length,assignments:assignments,trips:trips,identityPolicy:'TEST_VIRTUAL_EXCEPT_MATCHED_LOGIN',sourceNote:source.sourceNote,verificationStatus:'사진 판독 1차 데이터'};
+  const sequenceOperations=[];
+  for(let sequence=1;sequence<=Number(source.timetableSequences||0);sequence++){
+    const sequenceTrips=trips.filter(function(v){return v.sequence===sequence;}).sort(function(a,b){return a.trip-b.trip;});if(!sequenceTrips.length)continue;
+    const first=sequenceTrips[0],last=sequenceTrips[sequenceTrips.length-1];
+    sequenceOperations.push({sequence:sequence,firstScheduledTrip:first.trip,firstStartPlace:first.startPlace||'',firstStartTime:first.startTime,lastScheduledTrip:last.trip,lastEndPlace:last.endPlace||'',lastEndTime:last.endTime||'',finalService:Boolean(last.finalService),serviceEndType:String(last.serviceEndType||'ROUND_TRIP')});
+  }
+  return {ok:true,route:'5',date:date,shift:String(source.shift||'B'),serviceType:String(source.serviceType||''),scheduleVersion:String(source.scheduleVersion||''),timetableSequences:Number(source.timetableSequences||0),observedAssignments:assignments.length,assignments:assignments,trips:trips,sequenceOperations:sequenceOperations,operatingRules:source.operatingRules||null,identityPolicy:'PRIVATE_DATA_WITH_VIRTUAL_UNVERIFIED_IDS',sourceNote:String(source.sourceNote||'비공개 운영자료'),verificationStatus:String(source.verificationStatus||'비공개 관리자 승인 자료')};
 }
 
 function bus70Route5ScheduleForDriver_(driver, rawDate) {
   const reference=bus70Route5ReferenceData_(rawDate,driver);if(!reference.ok)return null;
-  const name=String(driver&&driver.name||driver&&driver.driverName||'').replace(/\s/g,''), assignment=reference.assignments.find(function(v){return v.driverName.replace(/\s/g,'')===name;});
-  if(!assignment)return null;
-  const dispatchId='R5-'+reference.date.replace(/-/g,'')+'-B-'+('0'+assignment.sequence).slice(-2);
-  return {ok:true,type:'WORK',route:'5',date:reference.date,driverId:String(driver&&driver.driverId||''),dispatch:{id:dispatchId,dispatchId:dispatchId,date:reference.date,shift:'B',seq:assignment.sequence,sequence:assignment.sequence,vehicleId:assignment.vehicleId,vehicleNo:assignment.vehicleNo,scheduleVersion:reference.scheduleVersion,status:'확정',reference:true},vehicle:{vehicleId:assignment.vehicleId,id:assignment.vehicleId,vehicleNo:assignment.vehicleNo,no:assignment.vehicleNo,displayNo:'경기71아'+assignment.vehicleNo,route:'5',status:'운행',reference:true},scheduleVersion:reference.scheduleVersion,trips:reference.trips.filter(function(v){return v.sequence===assignment.sequence;}),sourceNote:reference.sourceNote,verificationStatus:reference.verificationStatus};
+  const name=String(driver&&driver.name||driver&&driver.driverName||'').replace(/\s/g,''),assignment=reference.assignments.find(function(v){return v.driverName.replace(/\s/g,'')===name;});if(!assignment)return null;
+  const dispatchId='R5-'+reference.date.replace(/-/g,'')+'-'+reference.shift+'-'+('0'+assignment.sequence).slice(-2);
+  return {ok:true,type:'WORK',route:'5',date:reference.date,driverId:String(driver&&driver.driverId||''),dispatch:{id:dispatchId,dispatchId:dispatchId,date:reference.date,shift:reference.shift,seq:assignment.sequence,sequence:assignment.sequence,vehicleId:assignment.vehicleId,vehicleNo:assignment.vehicleNo,scheduleVersion:reference.scheduleVersion,status:'확정',reference:true},vehicle:{vehicleId:assignment.vehicleId,id:assignment.vehicleId,vehicleNo:assignment.vehicleNo,no:assignment.vehicleNo,displayNo:'경기71아'+assignment.vehicleNo,route:'5',status:'운행',reference:true},scheduleVersion:reference.scheduleVersion,trips:reference.trips.filter(function(v){return v.sequence===assignment.sequence;}),operationRule:reference.sequenceOperations.find(function(v){return v.sequence===assignment.sequence;})||null,operatingRules:reference.operatingRules,sourceNote:reference.sourceNote,verificationStatus:reference.verificationStatus};
 }
