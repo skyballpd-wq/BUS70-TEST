@@ -16,18 +16,26 @@ function sheet(rows) {
 const dispatch = sheet([
   ['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고'],
   ['DSP-1','2026-09-18','B','4','DRV-1','VEH-1','WD-V1','확정','',''],
-  ['DSP-ROUTE5','2026-10-04','B','15','DRV-1','VEH-1671','HOL-18-V1','확정','','']
+  ['DSP-SYNTHETIC','2099-01-08','B','15','DRV-1','VEH-9001','SYN-R5-V1','확정','','']
 ]);
 const confirmations = sheet([
   ['confirmId','날짜','기사ID','dispatchId','시간표버전','확인시간','캘린더저장','알람설정','마지막동기화','재확인필요']
 ]);
 const adjustments = sheet([
-  ['gapId','날짜','순차','탕','기존시간','조정시간','기존간격','지시간격','사유','적용시작','적용종료','처리자','처리시간'],
-  ['G1','2026-09-24','1','2','07:20','07:35','','','차량 고장','','','','']
+  ['gapId','날짜','순차','탕','기존시간','조정시간','기존간격','지시간격','사유','적용시작','적용종료','처리자','처리시간','노선','시간구분','공지상태','공지채널','원본근거'],
+  ['G1','2026-09-24','1','2','07:20','07:35','','','차량 고장','','','','','70','발차','확정','단톡방','소장 입력'],
+  ['G2','2099-01-08','15','6','22:35','22:40','','','합성 수기 조정','','','','','5','발차','확정','시험채널','SYNTHETIC FIXTURE']
 ]);
 const alertSettings = sheet([['기사ID','출근알림분','탕알림분','정시알림','음성안내','진동','사용여부','수정시간']]);
 const runLogs = sheet([['logId','날짜','기사ID','차량ID','순차','탕','발차예정','발차실제','회차예정','회차실제','도착예정','도착실제','앞차예정간격','앞차실제간격','앞차편차','뒷차예정간격','뒷차실제간격','뒷차편차','시간표버전','노선버전','상태','비고']]);
 const schedules = sheet([['버전','순차','탕','발차시간','상태'],['WD-V1','1','2','07:20','사용'],['WD-V1','2','2','07:50','사용']]);
+const locationReferences = sheet([
+  ['기준점ID','노선','순차','탕','구분','지점명','위도','경도','반경m','사용여부','수정시간'],
+  ['GEO-START','70','1','2','발차','가상차고지','0.1001','0.2001','70','Y',''],
+  ['GEO-TURN','70','1','2','회차','가상회차지','0.1101','0.2101','80','Y',''],
+  ['GEO-END','70','1','2','도착','가상차고지','0.1001','0.2001','70','Y',''],
+  ['GEO-BLANK','70','','','공통','미검증 기준점','','','80','Y','']
+]);
 const properties = new Map();
 const context = {
   console,
@@ -48,14 +56,14 @@ const context = {
     deleteProperty: k => properties.delete(k)
   })},
   LockService: {getScriptLock: () => ({waitLock(){},releaseLock(){}})},
-  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : name === '알림설정DB' ? alertSettings : name === '운행일지' ? runLogs : name === '스케줄' ? schedules : null})},
+  SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : name === '알림설정DB' ? alertSettings : name === '운행일지' ? runLogs : name === '스케줄' ? schedules : name === '노선위치기준DB' ? locationReferences : null})},
   normalizeDate_: value => String(value).slice(0,10),
   makeHeaderMap_: headers => Object.fromEntries(headers.map((h,i) => [h,i])),
   newId_: () => 'CONF-NEW',
   formatDateTime_: () => '2026-09-21 10:00:00',
   apiLogin_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
   apiGetDriver_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
-  apiMySchedule_: e => ({ok:true,type:'WORK',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1},trips:[{trip:2,startTime:'07:20',turnTime:'08:45',endTime:'10:10'}]})
+  apiMySchedule_: e => ({ok:true,type:'WORK',route:'70',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1},trips:[{trip:2,startPlace:'가상차고지',startTime:'07:20',turnPlace:'가상회차지',turnTime:'08:45',endPlace:'가상차고지',endTime:'10:10'}]})
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'), context);
@@ -66,9 +74,14 @@ assert.equal(session.token.length, 72);
 
 const combinedLogin = context.bus70AuthAction_({action:'loginSecure',name:'테스트',empId:'1',date:'2026-09-21'});
 assert.equal(combinedLogin.schedule.type, 'WORK');
+assert.equal(combinedLogin.schedule.locationTracking.configuredPoints,3);
+assert.equal(combinedLogin.schedule.trips[0].turnLocation.place,'가상회차지');
+assert.deepEqual(Array.from(combinedLogin.schedule.runLogs),[]);
+assert.deepEqual(Array.from(combinedLogin.alertSettings.commuteMinutes),[60,15]);
 const combinedSession = context.bus70AuthAction_({action:'session',token:combinedLogin.token,date:'2026-09-21'});
 assert.equal(combinedSession.ok, true);
 assert.equal(combinedSession.schedule.date, '2026-09-21');
+assert.equal(combinedSession.alertSettings.soundMode,'SYSTEM_DEFAULT');
 const activeLogin=context.apiLogin_;
 context.apiLogin_=()=>({ok:true,driver:{driverId:'DRV-RETIRED',status:'퇴직'}});
 assert.equal(context.bus70AuthAction_({action:'loginSecure',name:'퇴직기사',empId:'1'}).error,'DRIVER_RETIRED');
@@ -77,9 +90,12 @@ const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combine
 assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1); assert.equal(adjusted.trips[0].plannedRearGapMinutes,15);
 const originalScheduleApi=context.apiMySchedule_;
 context.apiMySchedule_=()=>({ok:true,type:'REST',message:'등록된 배차가 없습니다.'});
-context.bus70Route5ScheduleForDriver_=(driver,date)=>date==='2026-10-04'?{ok:true,type:'WORK',route:'5',dispatch:{sequence:15,vehicleNo:'1671'},trips:[{trip:6,startTime:'22:35'}]}:null;
-const route5Fallback=context.bus70SecureScheduleForDriver_('DRV-1','2026-10-04',{driverId:'DRV-1',name:'박철완'});
-assert.equal(route5Fallback.route,'5');assert.equal(route5Fallback.dispatch.sequence,15);assert.equal(route5Fallback.trips[0].startTime,'22:35');
+context.bus70Route5ScheduleForDriver_=(driver,date)=>date==='2099-01-08'?{ok:true,type:'WORK',route:'5',dispatch:{sequence:15,vehicleNo:'9001'},trips:[{trip:6,startTime:'22:35'}]}:null;
+const route5Fallback=context.bus70SecureScheduleForDriver_('DRV-1','2099-01-08',{driverId:'DRV-1',name:'가상기사15'});
+assert.equal(route5Fallback.route,'5');assert.equal(route5Fallback.dispatch.sequence,15);assert.equal(route5Fallback.trips[0].startTime,'22:40');assert.equal(route5Fallback.trips[0].publishedStartTime,'22:35');assert.equal(route5Fallback.timeAdjustments[0].phase,'발차');assert.equal(route5Fallback.timeAdjustments[0].channel,'시험채널');
+context.bus70Route70ScheduleForDriver_=(driver,date)=>date==='2099-01-08'?{ok:true,type:'WORK',route:'70',dispatch:{sequence:6,vehicleNo:'9106'},trips:[{trip:1,startPlace:'가상차고지',startTime:'05:36'}]}:null;
+const route70Fallback=context.bus70SecureScheduleForDriver_('DRV-NO','2099-01-08',{driverId:'DRV-NO',name:'가상70번기사06',route:'70'});
+assert.equal(route70Fallback.route,'70');assert.equal(route70Fallback.dispatch.sequence,6);assert.equal(route70Fallback.trips[0].startTime,'05:36');
 context.apiMySchedule_=originalScheduleApi;
 
 const body = {action:'confirmSchedule',token:session.token,driverId:'DRV-1',date:'2026-09-18',dispatchId:'DSP-1',scheduleVersion:'WD-V1'};
@@ -115,6 +131,12 @@ assert.equal(readSettings.settings.vibration,false); assert.equal(alertSettings.
 assert.equal(readSettings.settings.soundMode,'SYSTEM_DEFAULT');
 const depart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'DEPART',plannedStart:'07:20',plannedEnd:'09:00'});
 assert.equal(depart.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'운행중');
+const firstDeparture=runLogs.rows[1][7];
+const duplicateDepart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'DEPART'});
+assert.equal(duplicateDepart.alreadyRecorded,true); assert.strictEqual(runLogs.rows[1][7],firstDeparture);
+const turn=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'TURN',source:'GPS_AUTO',latitude:0.11,longitude:0.21,accuracy:18});
+assert.equal(turn.ok,true); assert.equal(runLogs.rows[1][20],'회차완료'); assert.ok(runLogs.rows[1][9]);
+assert.equal(runLogs.rows[1][runLogs.rows[0].indexOf('회차기록방식')],'GPS 자동');
 const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
 assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][20],'완료');
 const breakConnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_CONNECTED'});
@@ -122,19 +144,19 @@ assert.equal(breakConnected.ok,true); assert.equal(breakConnected.status,'휴식
 const breakDisconnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_DISCONNECTED'});
 assert.equal(breakDisconnected.ok,true); assert.equal(breakDisconnected.status,'다음운행준비');
 const listed=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-09-18',to:'2026-09-18'});
-assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
+assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].actualTurn); assert.equal(listed.logs[0].turnRecordMode,'GPS 자동'); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
 
-const finishBase={action:'driverRunLogSave',token:session.token,date:'2026-10-04',sequence:15,trip:6,plannedStart:'22:35',plannedEnd:'23:36'};
-assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'SERVICE_END',serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'테크노파크4차 정류장',deadheadDestination:'고강동공영차고지'})).ok,true);
+const finishBase={action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:15,trip:6,plannedStart:'22:35',plannedEnd:'23:36'};
+assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'SERVICE_END',serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'가상종점',deadheadDestination:'가상차고지'})).ok,true);
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'DEADHEAD_RETURN'})).ok,true);
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'CLEANING_DONE'})).ok,true);
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'CHARGER_CONNECTED'})).ok,true);
 const shiftEnd=context.bus70AuthAction_(Object.assign({},finishBase,{event:'SHIFT_END'}));
 assert.equal(shiftEnd.ok,true); assert.equal(shiftEnd.status,'근무종료');
-const route5Log=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-10-04',to:'2026-10-04'}).logs[0];
-assert.equal(route5Log.sequence,15); assert.equal(route5Log.vehicleId,'VEH-1671');
-assert.equal(route5Log.serviceEndPlace,'테크노파크4차 정류장');
-assert.equal(route5Log.deadheadDestination,'고강동공영차고지');
+const route5Log=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2099-01-08',to:'2099-01-08'}).logs[0];
+assert.equal(route5Log.sequence,15); assert.equal(route5Log.vehicleId,'VEH-9001');
+assert.equal(route5Log.serviceEndPlace,'가상종점');
+assert.equal(route5Log.deadheadDestination,'가상차고지');
 assert.equal(route5Log.officeChargeStatus,'사무실 모니터 확인');
 assert.ok(route5Log.cleanedAt); assert.ok(route5Log.chargerConnectedAt); assert.ok(route5Log.shiftEndedAt);
 

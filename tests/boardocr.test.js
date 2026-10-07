@@ -12,8 +12,8 @@ function sheet(rows) {
 
 const vehicles = sheet([
   ['vehicleId','차량번호','차량구분','상태','현재노선'],
-  ['VEH-1499','1499','일반','운행가능','70'],
-  ['VEH-1503','1503','일반','운행가능','70']
+  ['VEH-9001','9001','일반','운행가능','70'],
+  ['VEH-9002','9002','일반','운행가능','70']
 ]);
 const dispatch = sheet([
   ['dispatchId','날짜','근무조','순차','기사ID','차량ID','시간표버전','상태','확정시간','비고']
@@ -46,7 +46,7 @@ const context = {
   LockService:{getScriptLock:() => ({waitLock(){},releaseLock(){}})},
   normalizeDate_:v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '',
   makeHeaderMap_:headers => Object.fromEntries(headers.map((h,i) => [h,i])),
-  apiGetDriver_:() => ({ok:true,driver:{driverId:'DRV-B-TEST-002',name:'박철완',shift:'B'}}),
+  apiGetDriver_:() => ({ok:true,driver:{driverId:'DRV-B-TEST-002',name:'가상검증기사',shift:'B'}}),
   apiMySchedule_:({parameter}) => ({ok:true,type:'WORK',date:parameter.date})
 };
 vm.createContext(context);
@@ -58,15 +58,15 @@ assert.equal(context.bus70ScheduleVersionForDate_('2026-09-24'), 'HD-TEST-V001')
 assert.equal(context.bus70ScheduleVersionForDate_('2026-09-25'), 'HD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2026-12-25'), 'HD-TEST-V001');
 assert.equal(context.bus70ScheduleVersionForDate_('2027-02-09'), 'HD-TEST-V001');
-assert.equal(context.bus70FindVehicleByLast3_('499').vehicleId, 'VEH-1499');
+assert.equal(context.bus70FindVehicleByLast3_('001').vehicleId, 'VEH-9001');
 assert.equal(context.bus70FindVehicleByLast3_('999').error, 'VEHICLE_NOT_FOUND');
 
 const analyzed = context.bus70ValidateDispatchBoard_({
-  action:'validateDispatchBoard', date:'2026-09-20', sequence:6, vehicleLast3:'499'
+  action:'validateDispatchBoard', date:'2026-09-20', sequence:6, vehicleLast3:'001'
 }, 'DRV-B-TEST-002');
 assert.equal(analyzed.ok, true);
 assert.equal(analyzed.candidate.sequence, 6);
-assert.equal(analyzed.candidate.vehicleLast3, '499');
+assert.equal(analyzed.candidate.vehicleLast3, '001');
 assert.equal(analyzed.candidate.scheduleVersion, 'HD-TEST-V001');
 
 const rejected = context.bus70RegisterDispatchBoard_({candidateId:'candidate-1',confirmed:false}, 'DRV-B-TEST-002');
@@ -78,7 +78,7 @@ const registered = context.bus70RegisterDispatchBoard_({
 assert.equal(registered.ok, true);
 assert.equal(dispatch.rows.length, 2);
 assert.equal(dispatch.rows[1][0], 'DSP-20260920-B-06');
-assert.equal(dispatch.rows[1][5], 'VEH-1499');
+assert.equal(dispatch.rows[1][5], 'VEH-9001');
 assert.equal(dispatch.rows[1][6], 'HD-TEST-V001');
 
 console.log('BoardEntry tests passed');

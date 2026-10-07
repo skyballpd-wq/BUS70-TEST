@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Route 5 B-shift schedules v52",
+  [string]$Description = "Private route data boundary v56",
   [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP",
   [switch]$SkipSelfUpdate
 )
@@ -36,7 +36,7 @@ if (-not $SkipSelfUpdate) {
   try {
     Invoke-WebRequest -Uri $scriptSource -OutFile $scriptTemporary -UseBasicParsing
     $latestScript = Get-Content -LiteralPath $scriptTemporary -Raw -Encoding UTF8
-    foreach ($marker in @("SkipSelfUpdate", "Route5Schedule.js")) {
+    foreach ($marker in @("SkipSelfUpdate", "Route5Schedule.js", "Route70Schedule.js", "RoutePrivateData.js")) {
       if (-not $latestScript.Contains($marker)) {
         throw "The latest deployment script is missing a safety marker: $marker"
       }
@@ -85,10 +85,53 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $parent = Split-Path -Parent (Get-Location)
 $backup = Join-Path $parent "BUS70_DEPLOY_backup-$stamp"
 New-Item -ItemType Directory -Path $backup -Force | Out-Null
-foreach ($file in $required) {
+$backupFiles = @($required)
+foreach ($optionalFile in @("Route5Schedule.js", "Route70Schedule.js", "PrivateRouteStore.js", "RoutePrivateData.js")) {
+  if (Test-Path -LiteralPath $optionalFile -PathType Leaf) { $backupFiles += $optionalFile }
+}
+foreach ($file in $backupFiles) {
   Copy-Item -LiteralPath $file -Destination $backup -Force
 }
 Write-Host "Backup: $backup" -ForegroundColor DarkGray
+
+Step "Preserving private route data"
+$privateDataFile = Join-Path (Get-Location) "RoutePrivateData.js"
+if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
+  foreach ($legacyFile in @("Route5Schedule.js", "Route70Schedule.js")) {
+    if (-not (Test-Path -LiteralPath $legacyFile -PathType Leaf)) {
+      throw "Private route data is not configured and the previous $legacyFile file is unavailable for automatic migration."
+    }
+  }
+  $migrationScript = Join-Path (Get-Location) "extract-private-route-data.download.tmp.js"
+  try {
+    Invoke-WebRequest `
+      -Uri "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/scripts/extract-private-route-data.js" `
+      -OutFile $migrationScript `
+      -UseBasicParsing
+    $migrationSource = Get-Content -LiteralPath $migrationScript -Raw -Encoding UTF8
+    if (-not $migrationSource.Contains("Private route migration failed")) {
+      throw "The private-data migration helper failed its integrity check."
+    }
+    & node $migrationScript --route5 "Route5Schedule.js" --route70 "Route70Schedule.js" --manager "ManagerDispatch.js" --output "RoutePrivateData.js"
+    if ($LASTEXITCODE -ne 0) { throw "Private route data migration failed." }
+    Copy-Item -LiteralPath $privateDataFile -Destination $backup -Force
+    Write-Host "Existing route data was moved into local-only RoutePrivateData.js." -ForegroundColor Green
+  }
+  finally {
+    if (Test-Path -LiteralPath $migrationScript) { Remove-Item -LiteralPath $migrationScript -Force }
+  }
+}
+else {
+  Write-Host "Local-only RoutePrivateData.js is already configured." -ForegroundColor Green
+}
+
+$privateDataSource = Get-Content -LiteralPath $privateDataFile -Raw -Encoding UTF8
+foreach ($privateMarker in @("BUS70_PRIVATE_ROUTE_DATA_", '"config"', '"shiftAnchorDate"', '"shiftAnchor"', '"bootstrapAccounts"', '"driverOnlyIds"', '"5"', '"70"')) {
+  if (-not $privateDataSource.Contains($privateMarker)) {
+    throw "Local-only RoutePrivateData.js is missing required data marker: $privateMarker"
+  }
+}
+Write-Host "Private route data markers were verified." -ForegroundColor Green
 
 Step "Downloading latest server code from GitHub"
 $modules = @(
@@ -100,12 +143,22 @@ $modules = @(
   @{
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/AuthStep9.gs"
     Destination = "AuthStep9.js"
-    Markers = @("driverAlertSettingsGet", "bus70DriverRunLogSave_", "bus70DriverAlertSettingsSave_")
+    Markers = @("driverAlertSettingsGet", "bus70DriverRunLogSave_", "bus70DriverAlertSettingsSave_", "bus70AttachLocationReferences_", "TURN")
   },
   @{
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/Route5Schedule.gs"
     Destination = "Route5Schedule.js"
-    Markers = @("bus70Route5ReferenceData_", "bus70Route5ScheduleForDriver_", "R5-HD-20251018")
+    Markers = @("bus70Route5ReferenceData_", "bus70Route5ScheduleForDriver_", "PRIVATE_REFERENCE_NOT_CONFIGURED")
+  },
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/Route70Schedule.gs"
+    Destination = "Route70Schedule.js"
+    Markers = @("bus70Route70ReferenceData_", "bus70Route70ScheduleForDriver_", "PRIVATE_REFERENCE_NOT_CONFIGURED")
+  },
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/PrivateRouteStore.gs"
+    Destination = "PrivateRouteStore.js"
+    Markers = @("bus70PrivateRouteSource_", "BUS70_PRIVATE_ROUTE_DATA_JSON", "bus70PrivateRouteStatus_")
   }
 )
 foreach ($module in $modules) {
@@ -124,7 +177,7 @@ foreach ($module in $modules) {
 }
 
 Step "Checking JavaScript syntax"
-foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js", "Route5Schedule.js")) {
+foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js", "PrivateRouteStore.js", "RoutePrivateData.js", "Route5Schedule.js", "Route70Schedule.js")) {
   & node --check $file
   if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $file" }
 }
