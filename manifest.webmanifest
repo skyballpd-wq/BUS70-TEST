@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "BUS70 TEST 기사 운행관리",
-  "short_name": "BUS70 TEST",
-  "description": "소신여객 기사 운행시간표·알람·운행기록 테스트",
+  "name": "소신여객 통합 기사 운행관리 TEST",
+  "short_name": "소신 운행 TEST",
+  "description": "노선별 기사 운행시간표·알람·운행기록 테스트",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

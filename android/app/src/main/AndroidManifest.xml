@@ -20,7 +20,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="BUS70 기사"
+        android:label="소신여객 기사"
         android:theme="@style/Theme.Bus70"
         android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">

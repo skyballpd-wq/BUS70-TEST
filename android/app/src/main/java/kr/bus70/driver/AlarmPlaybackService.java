@@ -30,7 +30,7 @@ public class AlarmPlaybackService extends Service implements TextToSpeech.OnInit
         catch(Exception e){stopSelf();}
         return START_NOT_STICKY;
     }
-    private void createChannel(){NotificationChannel c=new NotificationChannel(CHANNEL,"BUS70 운행 알람",NotificationManager.IMPORTANCE_HIGH);c.setDescription("출근 및 탕별 운행 준비 알람");c.setSound(null,null);getSystemService(NotificationManager.class).createNotificationChannel(c);}
+    private void createChannel(){NotificationChannel c=new NotificationChannel(CHANNEL,"소신여객 운행 알람",NotificationManager.IMPORTANCE_HIGH);c.setDescription("노선별 출근 및 탕별 운행 준비 알람");c.setSound(null,null);getSystemService(NotificationManager.class).createNotificationChannel(c);}
     private Notification notification(JSONObject a)throws Exception{
         Intent open=new Intent(this,MainActivity.class);PendingIntent openPi=PendingIntent.getActivity(this,1,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Intent stop=new Intent(this,AlarmPlaybackService.class).setAction("STOP");PendingIntent stopPi=PendingIntent.getService(this,2,stop,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);

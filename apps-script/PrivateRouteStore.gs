@@ -66,6 +66,17 @@ function bus70PrivateVirtualDriverId_(route, sequence) {
   return 'R'+String(route||'').replace(/\D/g,'')+'-TMP-'+('00'+Number(sequence||0)).slice(-3);
 }
 
+function bus70PrivateRouteProfile_(rawRoute, source) {
+  const route=String(rawRoute||'').replace(/\D/g,''),profile=source&&source.routeProfile||{},stops=[];
+  (Array.isArray(source&&source.stops)?source.stops:Array.isArray(profile.stops)?profile.stops:[]).forEach(function(item,index){
+    if(typeof item==='string'){if(item.trim())stops.push({id:route+'-STOP-'+('000'+(index+1)).slice(-3),name:item.trim(),order:index+1,direction:''});return;}
+    if(!item||typeof item!=='object')return;
+    const name=String(item.name||item.stopName||'').trim();if(!name)return;
+    stops.push({id:String(item.id||item.stopId||route+'-STOP-'+('000'+(index+1)).slice(-3)),name:name,order:Number(item.order||index+1),direction:String(item.direction||''),terminal:Boolean(item.terminal)});
+  });
+  return {route:route,displayName:String(profile.displayName||source&&source.displayName||route+'번'),stops:stops,stopCount:stops.length,boardAvailable:Boolean(source&&Array.isArray(source.assignments)),timetableAvailable:Boolean(source&&(Array.isArray(source.tripTimings)||Array.isArray(source.timings)||Array.isArray(source.departures))),viewModes:['SUMMARY','ROUTE']};
+}
+
 function bus70PrivateRouteStatus_() {
   const routes={};
   let source='NONE';
