@@ -26,6 +26,32 @@ function Step([string]$Message) {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
 
+function Test-SourceMarker([string]$Path, [string]$Marker) {
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+  try {
+    return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8).Contains($Marker)
+  }
+  catch {
+    return $false
+  }
+}
+
+function Find-RecoverySource([string[]]$Roots, [string[]]$Names, [string]$Marker) {
+  foreach ($root in $Roots) {
+    if (-not $root -or -not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+    foreach ($name in $Names) {
+      $direct = Join-Path $root $name
+      if (Test-SourceMarker $direct $Marker) { return $direct }
+    }
+    $nested = Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { $Names -contains $_.Name }
+    foreach ($candidate in $nested) {
+      if (Test-SourceMarker $candidate.FullName $Marker) { return $candidate.FullName }
+    }
+  }
+  return $null
+}
+
 # A locally saved deployment script can become older than the application
 # modules it downloads. Refresh the script first and relaunch it exactly once,
 # so future deployments keep picking up newly added modules automatically.
@@ -96,11 +122,67 @@ Write-Host "Backup: $backup" -ForegroundColor DarkGray
 
 Step "Preserving private route data"
 $privateDataFile = Join-Path (Get-Location) "RoutePrivateData.js"
+$recoveryRoots = @((Get-Location).Path)
+$previousBackups = Get-ChildItem -LiteralPath $parent -Directory -Filter "BUS70_DEPLOY_backup-*" -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending
+$recoveryRoots += @($previousBackups | ForEach-Object { $_.FullName })
+
 if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
-  foreach ($legacyFile in @("Route5Schedule.js", "Route70Schedule.js")) {
-    if (-not (Test-Path -LiteralPath $legacyFile -PathType Leaf)) {
-      throw "Private route data is not configured and the previous $legacyFile file is unavailable for automatic migration."
+  $savedPrivateData = Find-RecoverySource $recoveryRoots @("RoutePrivateData.js", "RoutePrivateData.gs") "BUS70_PRIVATE_ROUTE_DATA_"
+  if ($savedPrivateData) {
+    Copy-Item -LiteralPath $savedPrivateData -Destination $privateDataFile -Force
+    Write-Host "Local-only route data was restored from the newest external backup." -ForegroundColor Green
+  }
+}
+
+$legacyRoute5 = $null
+$legacyRoute70 = $null
+$legacyManager = $null
+if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
+  $legacyRoute5 = Find-RecoverySource $recoveryRoots @("Route5Schedule.js", "Route5Schedule.gs") "BUS70_ROUTE5_REFERENCE_"
+  $legacyRoute70 = Find-RecoverySource $recoveryRoots @("Route70Schedule.js", "Route70Schedule.gs") "BUS70_ROUTE70_REFERENCE_"
+  $legacyManager = Find-RecoverySource $recoveryRoots @("ManagerDispatch.js", "ManagerDispatch.gs") "upsertAccount('"
+}
+
+if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf) -and (-not $legacyRoute5 -or -not $legacyRoute70 -or -not $legacyManager)) {
+  Step "Recovering private route data from the current Apps Script project"
+  $serverRecovery = Join-Path $backup "apps-script-current"
+  New-Item -ItemType Directory -Path $serverRecovery -Force | Out-Null
+  Copy-Item -LiteralPath ".clasp.json" -Destination (Join-Path $serverRecovery ".clasp.json") -Force
+  $pullExitCode = 1
+  Push-Location $serverRecovery
+  try {
+    & npx.cmd @google/clasp pull
+    $pullExitCode = $LASTEXITCODE
+  }
+  finally {
+    Pop-Location
+  }
+  if ($pullExitCode -eq 0) {
+    $serverRoots = @($serverRecovery)
+    $serverPrivateData = Find-RecoverySource $serverRoots @("RoutePrivateData.js", "RoutePrivateData.gs") "BUS70_PRIVATE_ROUTE_DATA_"
+    if ($serverPrivateData) {
+      Copy-Item -LiteralPath $serverPrivateData -Destination $privateDataFile -Force
+      Write-Host "Local-only route data was restored from the current Apps Script project." -ForegroundColor Green
     }
+    else {
+      if (-not $legacyRoute5) { $legacyRoute5 = Find-RecoverySource $serverRoots @("Route5Schedule.js", "Route5Schedule.gs") "BUS70_ROUTE5_REFERENCE_" }
+      if (-not $legacyRoute70) { $legacyRoute70 = Find-RecoverySource $serverRoots @("Route70Schedule.js", "Route70Schedule.gs") "BUS70_ROUTE70_REFERENCE_" }
+      if (-not $legacyManager) { $legacyManager = Find-RecoverySource $serverRoots @("ManagerDispatch.js", "ManagerDispatch.gs") "upsertAccount('" }
+    }
+  }
+  else {
+    Write-Warning "The current Apps Script project could not be downloaded for private-data recovery."
+  }
+}
+
+if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
+  $missingRecoverySources = @()
+  if (-not $legacyRoute5) { $missingRecoverySources += "Route5Schedule" }
+  if (-not $legacyRoute70) { $missingRecoverySources += "Route70Schedule" }
+  if (-not $legacyManager) { $missingRecoverySources += "legacy ManagerDispatch" }
+  if ($missingRecoverySources.Count -gt 0) {
+    throw "Private route data could not be recovered from the deployment folder, external backups, or the current Apps Script project. Missing: $($missingRecoverySources -join ', '). The backup was retained at $backup."
   }
   $migrationScript = Join-Path (Get-Location) "extract-private-route-data.download.tmp.js"
   try {
@@ -112,7 +194,7 @@ if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
     if (-not $migrationSource.Contains("Private route migration failed")) {
       throw "The private-data migration helper failed its integrity check."
     }
-    & node $migrationScript --route5 "Route5Schedule.js" --route70 "Route70Schedule.js" --manager "ManagerDispatch.js" --output "RoutePrivateData.js"
+    & node $migrationScript --route5 $legacyRoute5 --route70 $legacyRoute70 --manager $legacyManager --output "RoutePrivateData.js"
     if ($LASTEXITCODE -ne 0) { throw "Private route data migration failed." }
     Copy-Item -LiteralPath $privateDataFile -Destination $backup -Force
     Write-Host "Existing route data was moved into local-only RoutePrivateData.js." -ForegroundColor Green
