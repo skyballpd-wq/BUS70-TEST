@@ -14,10 +14,12 @@ function makeContext(data){
 const context=makeContext(privateFixture),date='2099-01-08';
 const reference=context.bus70Route5ReferenceData_(date,{driverId:'DRV-SYN-25',name:'가상5번기사25'});
 assert.equal(reference.ok,true);assert.equal(reference.route,'5');assert.equal(reference.assignments.length,26);assert.equal(reference.timetableSequences,27);assert.equal(reference.trips.length,162);
+assert.equal(reference.routeProfile.route,'5');assert.equal(reference.routeProfile.stopCount,3);assert.equal(reference.routeProfile.stops[0].name,'가상차고지');assert.equal(reference.routeProfile.stops[2].name,'가상회차지');
+assert.equal(reference.routeProfile.boardAvailable,true);assert.equal(reference.routeProfile.timetableAvailable,true);
 assert.equal(reference.assignments.some(v=>v.sequence===9),false);
 const linked=reference.assignments.find(v=>v.sequence===25);assert.equal(linked.driverId,'DRV-SYN-25');assert.equal(linked.identityMode,'REAL_ACCOUNT');assert.equal(linked.vehicleNo,'9025');
 assert.equal(reference.assignments.find(v=>v.sequence===24).driverId,'R5-TMP-024');
-const schedule=context.bus70Route5ScheduleForDriver_({driverId:'DRV-SYN-25',name:'가상5번기사25'},date);assert.equal(schedule.dispatch.sequence,25);assert.equal(schedule.vehicle.displayNo,'경기71아9025');assert.equal(schedule.trips.length,6);
+const schedule=context.bus70Route5ScheduleForDriver_({driverId:'DRV-SYN-25',name:'가상5번기사25'},date);assert.equal(schedule.dispatch.sequence,25);assert.equal(schedule.vehicle.displayNo,'경기71아9025');assert.equal(schedule.trips.length,6);assert.equal(schedule.routeProfile.route,'5');assert.equal(schedule.routeProfile.stopCount,3);
 const rules=Object.fromEntries(reference.sequenceOperations.filter(v=>v.sequence<=5).map(v=>[v.sequence,v]));
 [1,3,5].forEach(sequence=>{assert.equal(rules[sequence].firstScheduledTrip,1);assert.equal(rules[sequence].firstStartPlace,'가상회차지');});
 [2,4].forEach(sequence=>{assert.equal(rules[sequence].firstScheduledTrip,2);assert.equal(rules[sequence].firstStartPlace,'가상차고지');assert.equal(reference.trips.some(v=>v.sequence===sequence&&v.trip===1),false);});

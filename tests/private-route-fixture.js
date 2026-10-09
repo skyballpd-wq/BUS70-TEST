@@ -21,6 +21,7 @@ function route5Fixture() {
     serviceType:'합성 평일',shift:'B',scheduleVersion:'SYN-R5-V1',timetableSequences:27,
     sourceNote:'SYNTHETIC TEST FIXTURE',verificationStatus:'합성 테스트 자료',
     defaultOrigin:'가상차고지',turnPlace:'가상회차지',defaultEndPlace:'가상차고지',
+    stops:['가상차고지','가상중간정류장','가상회차지'],
     assignments:Array.from({length:27},(_,index)=>index+1).filter(v=>v!==9).map(sequence=>[sequence,`가상5번기사${String(sequence).padStart(2,'0')}`,String(9000+sequence)]),
     tripTimings:timings,unassignedSequences:[9],
     operatingRules:{
@@ -44,6 +45,7 @@ function route70Fixture() {
     serviceType:'합성 평일',shift:'B',scheduleVersion:'SYN-R70-V1',timetableSequences:11,
     sourceNote:'SYNTHETIC TEST FIXTURE',verificationStatus:'합성 테스트 자료',
     defaultOrigin:'가상차고지',turnPlace:'가상회차지',defaultEndPlace:'가상차고지',
+    stops:['가상차고지','가상70중간정류장','가상회차지'],
     assignments:Array.from({length:11},(_,index)=>{const sequence=index+1;return [sequence,`가상70번기사${String(sequence).padStart(2,'0')}`,String(9100+sequence)];}),
     timings:Array.from({length:11},(_,index)=>Array.from({length:5},(_,tripIndex)=>{const start=270+(index+1)*6+tripIndex*190;return [clock(start),clock(start+70),clock(start+140)];}))
   };

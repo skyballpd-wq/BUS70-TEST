@@ -24,6 +24,13 @@ route.assignments[0][1] = '변경시도';
 assert.notEqual(local.bus70PrivateRouteSource_('5','2099-01-08').assignments[0][1],'변경시도');
 assert.deepEqual(JSON.parse(JSON.stringify(local.bus70PrivateConfig_())),{shiftAnchorDate:'2099-01-08',shiftAnchor:'B'});
 assert.deepEqual(Array.from(local.bus70PrivateDriverOnlyIds_()),['DRV-B-TEST-002']);
+const profile = local.bus70PrivateRouteProfile_('5', route);
+assert.equal(profile.route,'5');
+assert.equal(profile.stopCount,3);
+assert.equal(profile.stops[0].id,'5-STOP-001');
+assert.equal(profile.stops[1].name,'가상중간정류장');
+assert.equal(profile.boardAvailable,true);
+assert.equal(profile.timetableAvailable,true);
 assert.equal(local.bus70PrivateRouteStatus_().source,'LOCAL_PRIVATE_MODULE');
 assert.deepEqual(Array.from(local.bus70PrivateRouteStatus_().routes['5']),['2099-01-08']);
 

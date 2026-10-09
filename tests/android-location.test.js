@@ -19,6 +19,7 @@ assert.match(service, /put\("operation", "driverRunLogSave"\)/);
 assert.match(service, /put\("source", "GPS_AUTO"\)/);
 assert.doesNotMatch(service, /put\("operation", "driverLocation/);
 assert.match(fs.readFileSync('android/app/src/main/java/kr/bus70/driver/NativeStore.java', 'utf8'), /remove\("locationTimestamp"\)/);
-assert.match(build, /versionCode 54/);
+assert.match(build, /versionCode 56/);
+assert.match(build, /versionName "0\.56-driver-live-dashboard"/);
 
 console.log('Android location integration tests passed');

@@ -6,8 +6,10 @@ const context={console,BUS70_PRIVATE_ROUTE_DATA_:privateFixture,normalizeDate_:v
 vm.createContext(context);vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),context);vm.runInContext(fs.readFileSync('apps-script/Route70Schedule.gs','utf8'),context);
 const date='2099-01-08',reference=context.bus70Route70ReferenceData_(date,{driverId:'DRV-SYN-06',name:'가상70번기사06'});
 assert.equal(reference.ok,true);assert.equal(reference.route,'70');assert.equal(reference.assignments.length,11);assert.equal(reference.trips.length,55);
+assert.equal(reference.routeProfile.route,'70');assert.equal(reference.routeProfile.stopCount,3);assert.equal(reference.routeProfile.stops[1].name,'가상70중간정류장');
+assert.equal(reference.routeProfile.boardAvailable,true);assert.equal(reference.routeProfile.timetableAvailable,true);
 const driver=reference.assignments.find(v=>v.sequence===6);assert.equal(driver.driverId,'DRV-SYN-06');assert.equal(driver.identityMode,'REAL_ACCOUNT');assert.equal(driver.vehicleNo,'9106');
 assert.equal(reference.assignments.find(v=>v.sequence===5).driverId,'R70-TMP-005');
-const schedule=context.bus70Route70ScheduleForDriver_({driverId:'DRV-SYN-06',name:'가상70번기사06'},date);assert.equal(schedule.ok,true);assert.equal(schedule.dispatch.sequence,6);assert.equal(schedule.dispatch.vehicleNo,'9106');assert.equal(schedule.vehicle.route,'70');assert.equal(schedule.trips.length,5);
+const schedule=context.bus70Route70ScheduleForDriver_({driverId:'DRV-SYN-06',name:'가상70번기사06'},date);assert.equal(schedule.ok,true);assert.equal(schedule.dispatch.sequence,6);assert.equal(schedule.dispatch.vehicleNo,'9106');assert.equal(schedule.vehicle.route,'70');assert.equal(schedule.trips.length,5);assert.equal(schedule.routeProfile.route,'70');assert.equal(schedule.routeProfile.stopCount,3);
 assert.equal(context.bus70Route70ReferenceData_('2099-01-09').error,'PRIVATE_REFERENCE_NOT_CONFIGURED');
 console.log('Route70Schedule tests passed');

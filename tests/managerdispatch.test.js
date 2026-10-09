@@ -41,7 +41,7 @@ const context={console,JSON,Date,Number,String,Object,Array,BUS70_PRIVATE_ROUTE_
   SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
   normalizeDate_:v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v):'',makeHeaderMap_:h=>Object.fromEntries(h.map((v,i)=>[v,i])),
   bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{},newId_:prefix=>prefix+'-TEST-'+(++idCounter)};
-vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
+vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route70Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
 assert.equal(context.bus70OperatingShiftForDate_('2099-01-08'),'B');
 assert.equal(context.bus70OperatingShiftForDate_('2099-01-09'),'A');
 const privateConfig=privateFixture.config; delete privateFixture.config;
@@ -82,8 +82,8 @@ const rowCountAfterSeed=drivers.rows.length; context.bus70ManagerBootstrap_('202
 const holiday=context.bus70ManagerBootstrap_('2026-09-20'); assert.equal(Object.keys(holiday.departures).length,8);
 const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1),vehicleId:'V'+(i+1)}));
 const saved=context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments},'D1');
-assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal(dispatch.rows[1][0],'DSP-20260918-B-01');
-confirmations.appendRow(['C1','2026-09-18','D1','DSP-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
+assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal(dispatch.rows[1][0],'DSP-70-20260918-B-01');
+confirmations.appendRow(['C1','2026-09-18','D1','DSP-70-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
 const adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',date:'2026-09-18',sequence:1,trip:2,before:'07:20',after:'07:35',reason:'차량 고장'},'D1');
 assert.equal(adjusted.ok,true); assert.equal(adjustments.rows.length,2); assert.equal(confirmations.rows[1][9],'Y'); confirmations.rows[1][9]='N';
 const route5Adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',route:'5',date:'2099-01-08',sequence:25,trip:1,phase:'발차',before:'05:40',after:'05:45',reason:'합성 시간 조정',announcementChannel:'시험채널',sourceEvidence:'SYNTHETIC FIXTURE'},'D1');
@@ -177,4 +177,27 @@ assert.equal(context.bus70WorkChangeSave_({date:'2026-10-03',driverId:'D3',type:
 const rehired=context.bus70WorkChangeSave_({date:'2026-10-05',driverId:'D2',type:'재입사',rehireEmpId:'699905',rehireShift:'A',rehireRoute:'70',reason:'합성 재입사 사례'},'D1');
 assert.equal(rehired.ok,true); assert.equal(drivers.rows[2][1],'699905'); assert.equal(drivers.rows[2][3],'A'); assert.equal(drivers.rows[2][9],'재직'); assert.equal(drivers.rows[2][10],'2026-10-05'); assert.equal(drivers.rows[2][11],'');
 assert.equal(context.bus70ManagerBootstrap_('2026-10-05').drivers.some(v=>v.id==='D2'),true);
+const route5Boot=context.bus70ManagerBootstrap_('2099-01-08','5');
+assert.equal(route5Boot.ok,true);assert.equal(route5Boot.route,'5');assert.equal(route5Boot.scheduleVersion,'SYN-R5-V1');
+assert.equal(Object.keys(route5Boot.departures).length,27);assert.equal(route5Boot.assignments.length,26);
+assert.equal(route5Boot.routeProfile.route,'5');assert.equal(route5Boot.routeProfile.stopCount,3);assert.equal(route5Boot.routeProfile.stops[2].name,'가상회차지');
+assert.equal(route5Boot.drivers.some(v=>v.virtual&&v.route==='5'),true);assert.equal(route5Boot.vehicles.some(v=>v.virtual&&v.route==='5'),true);
+const allRoutes=context.bus70ManagerBootstrap_('2099-01-08','ALL');
+assert.equal(allRoutes.ok,true);assert.equal(allRoutes.mode,'SUMMARY');assert.equal(allRoutes.routes.find(v=>v.route==='5').sequenceCount,27);assert.equal(allRoutes.routes.find(v=>v.route==='70').sequenceCount,11);
+assert.equal(allRoutes.routes.find(v=>v.route==='5').stopCount,3);assert.equal(allRoutes.routes.find(v=>v.route==='70').stopCount,3);
+vehicles.appendRow(['V5-SPARE','9995','예비','운행가능','5','',99,'합성 5번 예비차']);
+const route5Assignments=route5Boot.assignments.concat([{sequence:9,driverId:'D1',vehicleId:'V5-SPARE'}]).sort((a,b)=>a.sequence-b.sequence);
+const route5Saved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-08',shift:'B',assignments:route5Assignments},'D1');
+assert.equal(route5Saved.ok,true);assert.equal(route5Saved.data.route,'5');
+const dispatchHeaders=Object.fromEntries(dispatch.rows[0].map((v,i)=>[v,i]));
+assert.equal(dispatch.rows.filter(r=>r[dispatchHeaders['날짜']]==='2099-01-08'&&r[dispatchHeaders['노선']]==='5').length,27);
+assert.equal(dispatch.rows.find(r=>r[0]==='DSP-5-20990108-B-09')[dispatchHeaders['차량ID']],'V5-SPARE');
+assert.equal(context.bus70ManagerAssignments_(dispatch,'2099-01-08','70').length,0);
+vehicles.appendRow(['V70-EX1','9981','예비','운행가능','70','',100,'합성 70번 예비차']);vehicles.appendRow(['V70-EX2','9982','예비','운행가능','70','',101,'합성 70번 예비차']);
+const route70SameDay=context.bus70ManagerBootstrap_('2099-01-08','70'),route70Drivers=route70SameDay.drivers.filter(v=>v.route==='70').slice(0,11),route70Conflict=route70SameDay.vehicles.slice(0,11).map((v,i)=>({sequence:i+1,driverId:route70Drivers[i].id,vehicleId:v.id}));route70Conflict[0].driverId='D1';
+assert.equal(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:route70Conflict},'D1').error,'CROSS_ROUTE_DRIVER_CONFLICT');
+const sameSequenceOtherRoute=new Array(dispatch.rows[0].length).fill('');
+sameSequenceOtherRoute[dispatchHeaders['dispatchId']]='DSP-70-20990108-B-09';sameSequenceOtherRoute[dispatchHeaders['날짜']]='2099-01-08';sameSequenceOtherRoute[dispatchHeaders['근무조']]='B';sameSequenceOtherRoute[dispatchHeaders['순차']]=9;sameSequenceOtherRoute[dispatchHeaders['기사ID']]='D3';sameSequenceOtherRoute[dispatchHeaders['차량ID']]='V70-EX1';sameSequenceOtherRoute[dispatchHeaders['시간표버전']]='SYN-R70-V1';sameSequenceOtherRoute[dispatchHeaders['상태']]='확정';sameSequenceOtherRoute[dispatchHeaders['노선']]='70';dispatch.rows.splice(1,0,sameSequenceOtherRoute);
+const route5Replacement=context.bus70WorkChangeSave_({date:'2099-01-08',driverId:'D1',type:'휴무',sequence:9,replacementId:'DRV-A-RESERVE',reason:'5번 다른 노선·조 대체 검증'},'D1');
+assert.equal(route5Replacement.ok,true);assert.equal(dispatch.rows.find(r=>r[dispatchHeaders['dispatchId']]==='DSP-5-20990108-B-09')[dispatchHeaders['기사ID']],'DRV-A-RESERVE');assert.equal(dispatch.rows[1][dispatchHeaders['기사ID']],'D3');
 console.log('ManagerDispatch tests passed');
