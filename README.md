@@ -11,7 +11,7 @@
 - 배포 폴더에서 `./deploy-bus70.ps1`을 실행하면 먼저 GitHub의 최신 배포 스크립트를 확인합니다.
 - 스크립트가 바뀌었으면 기존 파일을 `deploy-bus70.ps1.previous`로 보관하고 최신판으로 한 번만 자동 재실행합니다.
 - 공개 저장소에는 계산 로직과 합성 테스트 데이터만 둡니다. 실명·사번·차량 배치·실제 운행시간은 `RoutePrivateData.js`에 분리하며 이 파일은 Git에 올라가지 않습니다.
-- 분리 파일이 아직 없고 기존 `Route5Schedule.js`·`Route70Schedule.js`에 기준자료가 남아 있으면 첫 배포 때 자동 추출한 뒤 공개 모듈을 교체합니다. 어느 쪽에도 자료가 없으면 데이터 손실을 막기 위해 배포를 중단합니다.
+- 분리 파일이 아직 없으면 현재 배포 폴더, 최근 외부 백업, 로그인된 Apps Script 프로젝트 순서로 기존 자료를 자동 복구합니다. 복구한 뒤 실제 자료만 `RoutePrivateData.js`로 추출하고 공개 모듈을 교체합니다. 세 위치 어디에도 자료가 없을 때만 데이터 손실을 막기 위해 배포를 중단합니다.
 - 업로드 직전 공개 모듈과 비공개 데이터 파일의 기능 표식 및 JavaScript 문법을 검사합니다.
 - 정상 출력에는 `PrivateRouteStore.js`, `RoutePrivateData.js`, `Route5Schedule.js`, `Route70Schedule.js`가 모두 표시되어야 합니다.
 
