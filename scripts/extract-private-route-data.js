@@ -29,6 +29,11 @@ function exportConstant(file, constantName) {
   return JSON.parse(JSON.stringify(context.__BUS70_EXPORTED_DATA__));
 }
 
+function exportOptionalConstant(file, constantName) {
+  if (!file) return {};
+  return exportConstant(file, constantName);
+}
+
 function exportShiftConfig(file) {
   if (!file || !fs.existsSync(file)) fail(`missing source file: ${file || 'manager module'}`);
   const source = fs.readFileSync(file, 'utf8');
@@ -57,9 +62,12 @@ if (fs.existsSync(outputFile) && !process.argv.includes('--force')) fail(`output
 
 const routes = {
   config: exportShiftConfig(managerFile),
-  '5': exportConstant(route5File, 'BUS70_ROUTE5_REFERENCE_'),
-  '70': exportConstant(route70File, 'BUS70_ROUTE70_REFERENCE_')
+  '5': exportOptionalConstant(route5File, 'BUS70_ROUTE5_REFERENCE_'),
+  '70': exportOptionalConstant(route70File, 'BUS70_ROUTE70_REFERENCE_')
 };
+if (!Object.keys(routes['5']).length && !Object.keys(routes['70']).length) {
+  fail('at least one legacy route schedule is required');
+}
 const payload = `/* PRIVATE OPERATION DATA - DO NOT COMMIT */\nvar BUS70_PRIVATE_ROUTE_DATA_ = ${JSON.stringify(routes, null, 2)};\n`;
 fs.writeFileSync(outputFile, payload, {encoding:'utf8', mode:0o600});
 process.stdout.write(`Private route data migrated to ${path.basename(outputFile)}.\n`);
