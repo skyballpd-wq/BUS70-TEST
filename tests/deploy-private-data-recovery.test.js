@@ -14,7 +14,9 @@ assert.match(source, /RoutePrivateData\.gs/);
 assert.match(source, /Route5Schedule\.gs/);
 assert.match(source, /Route70Schedule\.gs/);
 assert.match(source, /apps-script-current/);
-assert.match(source, /--route5 \$legacyRoute5 --route70 \$legacyRoute70 --manager \$legacyManager/);
+assert.match(source, /if \(\$legacyRoute5\) \{ \$migrationArguments \+= @\("--route5", \$legacyRoute5\) \}/);
+assert.match(source, /if \(\$legacyRoute70\) \{ \$migrationArguments \+= @\("--route70", \$legacyRoute70\) \}/);
+assert.match(source, /-not \$legacyRoute5 -and -not \$legacyRoute70/);
 assert.doesNotMatch(source, /previous \$legacyFile file is unavailable/);
 
 console.log('Deployment private-data recovery checks passed');

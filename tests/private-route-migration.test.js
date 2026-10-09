@@ -9,6 +9,7 @@ const route5 = path.join(root,'Route5Schedule.js');
 const route70 = path.join(root,'Route70Schedule.js');
 const manager = path.join(root,'ManagerDispatch.js');
 const output = path.join(root,'RoutePrivateData.js');
+const partialOutput = path.join(root,'RoutePrivateData-partial.js');
 
 try {
   fs.writeFileSync(route5,"const BUS70_ROUTE5_REFERENCE_={'2099-01-08':{scheduleVersion:'SYN-R5'}};\n",'utf8');
@@ -29,6 +30,16 @@ try {
   });
   assert.equal(context.BUS70_PRIVATE_ROUTE_DATA_['5']['2099-01-08'].scheduleVersion,'SYN-R5');
   assert.equal(context.BUS70_PRIVATE_ROUTE_DATA_['70']['2099-01-08'].scheduleVersion,'SYN-R70');
+  const partialRun = spawnSync(process.execPath,[
+    'scripts/extract-private-route-data.js','--route5',route5,
+    '--manager',manager,'--output',partialOutput
+  ],{cwd:process.cwd(),encoding:'utf8'});
+  assert.equal(partialRun.status,0,partialRun.stderr);
+  const partialContext = {};
+  require('vm').createContext(partialContext);
+  require('vm').runInContext(fs.readFileSync(partialOutput,'utf8'),partialContext);
+  assert.equal(partialContext.BUS70_PRIVATE_ROUTE_DATA_['5']['2099-01-08'].scheduleVersion,'SYN-R5');
+  assert.deepEqual(JSON.parse(JSON.stringify(partialContext.BUS70_PRIVATE_ROUTE_DATA_['70'])),{});
   const overwrite = spawnSync(process.execPath,[
     'scripts/extract-private-route-data.js','--route5',route5,'--route70',route70,
     '--manager',manager,'--output',output
