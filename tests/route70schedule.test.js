@@ -12,4 +12,9 @@ const driver=reference.assignments.find(v=>v.sequence===6);assert.equal(driver.d
 assert.equal(reference.assignments.find(v=>v.sequence===5).driverId,'R70-TMP-005');
 const schedule=context.bus70Route70ScheduleForDriver_({driverId:'DRV-SYN-06',name:'가상70번기사06'},date);assert.equal(schedule.ok,true);assert.equal(schedule.dispatch.sequence,6);assert.equal(schedule.dispatch.vehicleNo,'9106');assert.equal(schedule.vehicle.route,'70');assert.equal(schedule.trips.length,5);assert.equal(schedule.routeProfile.route,'70');assert.equal(schedule.routeProfile.stopCount,3);
 assert.equal(context.bus70Route70ReferenceData_('2099-01-09').error,'PRIVATE_REFERENCE_NOT_CONFIGURED');
+const saturday=context.bus70Route70ReferenceData_('2099-01-10',{driverId:'DRV-SYN-SAT-08',name:'가상70번토요기사08'});
+assert.equal(saturday.ok,true);assert.equal(saturday.serviceType,'합성 토·휴일');assert.equal(saturday.timetableSequences,8);assert.equal(saturday.assignments.length,8);assert.equal(saturday.trips.length,40);
+const first=saturday.trips.find(v=>v.sequence===1&&v.trip===1);assert.equal(first.startPlace,'가상회차지');assert.equal(first.turnPlace,'');
+const finalTrip=saturday.trips.find(v=>v.sequence===8&&v.trip===5);assert.ok(context.bus70Route70OperationalMinutes_(finalTrip.endTime)>1440);
+const saturdaySchedule=context.bus70Route70ScheduleForDriver_({driverId:'DRV-SYN-SAT-08',name:'가상70번토요기사08'},'2099-01-10');assert.equal(saturdaySchedule.dispatch.sequence,8);assert.equal(saturdaySchedule.trips.length,5);assert.equal(saturdaySchedule.scheduleVersion,'SYN-R70-SAT-V1');
 console.log('Route70Schedule tests passed');
