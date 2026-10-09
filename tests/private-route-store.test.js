@@ -32,7 +32,8 @@ assert.equal(profile.stops[1].name,'가상중간정류장');
 assert.equal(profile.boardAvailable,true);
 assert.equal(profile.timetableAvailable,true);
 assert.equal(local.bus70PrivateRouteStatus_().source,'LOCAL_PRIVATE_MODULE');
-assert.deepEqual(Array.from(local.bus70PrivateRouteStatus_().routes['5']),['2099-01-08']);
+assert.deepEqual(Array.from(local.bus70PrivateRouteStatus_().routes['5']),['2099-01-08','2099-01-10']);
+assert.deepEqual(Array.from(local.bus70PrivateRouteStatus_().routes['70']),['2099-01-08','2099-01-10']);
 
 const property = loadContext({propertyData:fixture,propertyOverrides:{BUS70_SHIFT_ANCHOR_DATE:'2099-01-09',BUS70_SHIFT_ANCHOR_SHIFT:'A'}});
 assert.equal(property.bus70PrivateRouteSource_('70','2099-01-08').scheduleVersion,'SYN-R70-V1');

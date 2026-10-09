@@ -28,5 +28,14 @@ const last23=reference.trips.find(v=>v.sequence===23&&v.trip===6);assert.equal(l
 assert.equal(reference.operatingRules.finalServices.length,2);assert.equal(reference.operatingRules.handwrittenAdjustmentPolicy.applyOnlyWhenConfirmed,true);
 const short26=reference.trips.find(v=>v.sequence===26&&v.trip===6);assert.equal(short26.serviceRole,'SHORT_TURN_END');assert.equal(short26.endPlace,'가상종점');assert.equal(short26.endTime,'23:42');
 assert.equal(context.bus70Route5ReferenceData_('2099-01-09').error,'PRIVATE_REFERENCE_NOT_CONFIGURED');
+const saturday=context.bus70Route5ReferenceData_('2099-01-10',{driverId:'DRV-SYN-SAT-15',name:'가상5번토요기사15'});
+assert.equal(saturday.ok,true);assert.equal(saturday.serviceType,'합성 토요일');assert.equal(saturday.timetableSequences,19);assert.equal(saturday.assignments.length,19);assert.equal(saturday.trips.length,117);
+assert.equal(saturday.trips.some(v=>v.sequence===2&&v.trip===1),false);assert.equal(saturday.trips.some(v=>v.sequence===4&&v.trip===1),false);
+[1,3,5].forEach(sequence=>{const first=saturday.sequenceOperations.find(v=>v.sequence===sequence);assert.equal(first.firstScheduledTrip,1);assert.equal(first.firstStartPlace,'가상회차지');});
+[2,4].forEach(sequence=>assert.equal(saturday.sequenceOperations.find(v=>v.sequence===sequence).firstScheduledTrip,2));
+const saturdayUpboundLast=saturday.trips.find(v=>v.sequence===4&&v.trip===7);assert.equal(saturdayUpboundLast.finalService,true);assert.equal(saturdayUpboundLast.serviceEndType,'UPBOUND_LAST');
+const saturdayRoundTripLast=saturday.trips.find(v=>v.sequence===15&&v.trip===6);assert.equal(saturdayRoundTripLast.finalService,true);assert.equal(saturdayRoundTripLast.serviceEndType,'ROUND_TRIP_LAST');
+[2,16,17,18,19].forEach(sequence=>assert.equal(saturday.trips.find(v=>v.sequence===sequence&&v.trip===(sequence===2?7:6)).serviceRole,'SHORT_TURN_END'));
+const saturdaySchedule=context.bus70Route5ScheduleForDriver_({driverId:'DRV-SYN-SAT-15',name:'가상5번토요기사15'},'2099-01-10');assert.equal(saturdaySchedule.dispatch.sequence,15);assert.equal(saturdaySchedule.trips.length,6);assert.equal(saturdaySchedule.scheduleVersion,'SYN-R5-SAT-V1');
 const noPrivate=makeContext(undefined);assert.equal(noPrivate.bus70Route5ReferenceData_(date).error,'PRIVATE_REFERENCE_NOT_CONFIGURED');
 console.log('Route5Schedule tests passed');
