@@ -178,11 +178,16 @@ if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf) -and (-not $le
 
 if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
   $missingRecoverySources = @()
-  if (-not $legacyRoute5) { $missingRecoverySources += "Route5Schedule" }
-  if (-not $legacyRoute70) { $missingRecoverySources += "Route70Schedule" }
+  if (-not $legacyRoute5 -and -not $legacyRoute70) { $missingRecoverySources += "at least one legacy route schedule" }
   if (-not $legacyManager) { $missingRecoverySources += "legacy ManagerDispatch" }
   if ($missingRecoverySources.Count -gt 0) {
     throw "Private route data could not be recovered from the deployment folder, external backups, or the current Apps Script project. Missing: $($missingRecoverySources -join ', '). The backup was retained at $backup."
+  }
+  if (-not $legacyRoute5) {
+    Write-Warning "Legacy Route5Schedule data was not found. Route 5 reference fallback will remain empty; existing spreadsheet dispatch records are preserved."
+  }
+  if (-not $legacyRoute70) {
+    Write-Warning "Legacy Route70Schedule data was not found. Route 70 reference fallback will remain empty; existing spreadsheet dispatch records are preserved."
   }
   $migrationScript = Join-Path (Get-Location) "extract-private-route-data.download.tmp.js"
   try {
@@ -194,7 +199,11 @@ if (-not (Test-Path -LiteralPath $privateDataFile -PathType Leaf)) {
     if (-not $migrationSource.Contains("Private route migration failed")) {
       throw "The private-data migration helper failed its integrity check."
     }
-    & node $migrationScript --route5 $legacyRoute5 --route70 $legacyRoute70 --manager $legacyManager --output "RoutePrivateData.js"
+    $migrationArguments = @($migrationScript)
+    if ($legacyRoute5) { $migrationArguments += @("--route5", $legacyRoute5) }
+    if ($legacyRoute70) { $migrationArguments += @("--route70", $legacyRoute70) }
+    $migrationArguments += @("--manager", $legacyManager, "--output", "RoutePrivateData.js")
+    & node @migrationArguments
     if ($LASTEXITCODE -ne 0) { throw "Private route data migration failed." }
     Copy-Item -LiteralPath $privateDataFile -Destination $backup -Force
     Write-Host "Existing route data was moved into local-only RoutePrivateData.js." -ForegroundColor Green
