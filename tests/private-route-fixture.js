@@ -42,7 +42,7 @@ function route5Fixture() {
 
 function route5SaturdayFixture() {
   const timings=Array.from({length:19},(_,index)=>{
-    const sequence=index+1,tripCount=sequence<=5?7:6;
+    const sequence=index+1,tripCount=sequence===2||sequence===4?7:6;
     return Array.from({length:tripCount},(_,tripIndex)=>{
       if((sequence===2||sequence===4)&&tripIndex===0)return null;
       const start=247+sequence*7+tripIndex*190;

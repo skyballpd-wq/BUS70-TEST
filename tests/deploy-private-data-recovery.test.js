@@ -13,6 +13,11 @@ assert.ok(finalFailure > serverRecovery, 'deployment must fail only after both r
 assert.match(source, /RoutePrivateData\.gs/);
 assert.match(source, /Route5Schedule\.gs/);
 assert.match(source, /Route70Schedule\.gs/);
+assert.match(source, /PublicTransitApi\.gs/);
+assert.match(source, /PublicTransitApi\.js/);
+assert.match(source, /bus70PublicTransitImportPreview_/);
+assert.match(source, /bus70RoutePartitionNames_/);
+assert.match(source, /ROUTE_REFERENCE_NOT_CONFIGURED/);
 assert.match(source, /apps-script-current/);
 assert.match(source, /if \(\$legacyRoute5\) \{ \$migrationArguments \+= @\("--route5", \$legacyRoute5\) \}/);
 assert.match(source, /if \(\$legacyRoute70\) \{ \$migrationArguments \+= @\("--route70", \$legacyRoute70\) \}/);

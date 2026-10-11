@@ -4,3 +4,4 @@ apps-script/Code.gs
 apps-script/PrivateRouteData.gs
 private-data/
 RoutePrivateData.js
+tmp/
