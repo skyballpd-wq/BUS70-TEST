@@ -926,7 +926,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v60
+    소신여객 통합 운행관리 TEST · v60.1
   </footer>
 
 </div>
@@ -1126,16 +1126,17 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
   // 02:30~03:29 준비 시간에도 새 운행이 시작되지 않았으므로 전날을 유지합니다.
-  const todayLocal = () => {
-    const d = new Date();
-    if (d.getHours() < 3 || (d.getHours() === 3 && d.getMinutes() < 30)) d.setDate(d.getDate() - 1);
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  };
+  function serviceDateInSeoul(now = Date.now()) {
+    // 단말·브라우저 시간대가 달라도 한국 03:30을 운행일 경계로 사용합니다.
+    return new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"})
+      .format(new Date(now - 210 * 60000));
+  }
+  const todayLocal = () => serviceDateInSeoul();
 
   function openDriverScreen(driver, automatic = false, isManager = false, role = "") {
     currentDriverId = String(driver.driverId || "");
@@ -2823,6 +2824,12 @@
     document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;
   }
 
+  function invalidateManagerRequest() {
+    managerRequestId++;
+    const button=document.getElementById("managerLoad");
+    button.disabled=false;button.textContent="기사·차량 불러오기";
+  }
+
   async function loadManagerData() {
     const date = document.getElementById("managerDate").value;
     const route = document.getElementById("managerRoute").value;
@@ -3082,8 +3089,8 @@
   document.getElementById("managerGenerate").addEventListener("click",generateManagerImage);
   document.getElementById("managerShare").addEventListener("click",shareManagerImage);
   document.getElementById("managerDownload").addEventListener("click",downloadManagerImage);
-  document.getElementById("managerRoute").addEventListener("change",()=>{managerRequestId++;managerData=null;managerImageBlob=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");applyRouteBrand(document.getElementById("managerRoute").value,currentRole);document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;managerNotice("선택한 노선의 기사·차량을 불러오세요.");});
-  document.getElementById("managerDate").addEventListener("change",()=>{managerRequestId++;syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
+  document.getElementById("managerRoute").addEventListener("change",()=>{invalidateManagerRequest();managerData=null;managerImageBlob=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");applyRouteBrand(document.getElementById("managerRoute").value,currentRole);document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;managerNotice("선택한 노선의 기사·차량을 불러오세요.");});
+  document.getElementById("managerDate").addEventListener("change",()=>{invalidateManagerRequest();syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
   let managerPage = "HOME";
   const DEPOT_CONTACT_ROLES = ["고강차고지 사무실","주간소장","야간소장","안전관리자","정비소"];
