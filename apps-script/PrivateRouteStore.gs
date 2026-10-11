@@ -161,12 +161,24 @@ function bus70NormalizeServiceClass_(value) {
   return '';
 }
 
+// GAS globals live for one execution. Reuse the year's resolved holidays while
+// scanning dispatch rows, but read updated overrides on the next request.
+var bus70ServiceHolidayDatesByYear_ = {};
+
 function bus70ServiceClassForDate_(rawDate, explicitLabel) {
   const date=normalizeDate_(rawDate),explicit=bus70NormalizeServiceClass_(explicitLabel);
   if(explicit&&explicit!=='WEEKEND_HOLIDAY')return explicit;
   if(!date)return explicit;
   let holiday=false;
-  try{if(typeof bus70HolidayDates_==='function')holiday=bus70HolidayDates_(date.slice(0,4)).indexOf(date)!==-1;}catch(error){holiday=false;}
+  try{
+    if(typeof bus70HolidayDates_==='function'){
+      const year=date.slice(0,4);
+      if(!Object.prototype.hasOwnProperty.call(bus70ServiceHolidayDatesByYear_,year)){
+        bus70ServiceHolidayDatesByYear_[year]=bus70HolidayDates_(year);
+      }
+      holiday=bus70ServiceHolidayDatesByYear_[year].indexOf(date)!==-1;
+    }
+  }catch(error){holiday=false;}
   const parts=date.split('-').map(Number),day=new Date(Date.UTC(parts[0],parts[1]-1,parts[2])).getUTCDay();
   if(holiday||day===0)return 'SUNDAY_HOLIDAY';
   if(day===6)return 'SATURDAY';
