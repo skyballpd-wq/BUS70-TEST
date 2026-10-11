@@ -748,7 +748,9 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   const assignments=savedAssignments.length?savedAssignments:referenceAssignments;
   const expectedSequences=Object.keys(departures).map(Number).filter(Number.isInteger).sort(function(a,b){return a-b;});
   const serviceClass=String(reference&&reference.serviceClass||bus70ServiceClassForDate_(date,reference&&reference.serviceType||''));
-  const predictions=bus70PredictManagerAssignments_(dispatchSheet,date,expectedSequences,drivers,vehicles,route,serviceClass);
+  const predictions=bus70ManagerHasCompleteAssignments_(savedAssignments,expectedSequences,operatingShift)?
+    {A:{assignments:[]},B:{assignments:[]},skippedReason:'CONFIRMED_DAY_COMPLETE'}:
+    bus70PredictManagerAssignments_(dispatchSheet,date,expectedSequences,drivers,vehicles,route,serviceClass);
   const confirmed = confirmSheet ? bus70ManagerConfirmations_(confirmSheet, date) : {};
   assignments.forEach(function (item) {
     item.confirmed = Boolean(confirmed[item.dispatchId]);
@@ -759,6 +761,18 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   effectivePlannedLeaves.forEach(function(plan){const name=String(plan.driverName||'').replace(/\s/g,'');if(name)routeUnavailableNames[name]=String(plan.type||'휴무');});
   return {ok:true, route:route, date:date, operatingShift:operatingShift, scheduleVersion:scheduleVersion, source:reference&&reference.ok?(reference.predicted?'ROUTE_PATTERN_PREDICTION':'ROUTE_REFERENCE'):'LEGACY_SCHEDULE', serviceType:reference&&reference.serviceType||'',serviceClass:serviceClass, drivers:drivers, unavailableDrivers:routeUnavailable, unavailableNames:Object.keys(routeUnavailableNames),
     vehicles:vehicles, unavailableVehicles:unavailableVehicles, departures:departures,tripNumbersBySequence:tripNumbersBySequence, assignments:assignments,predictions:predictions,plannedLeaves:effectivePlannedLeaves.map(function(plan){return {driverName:plan.driverName,type:plan.type,source:plan.source};}),plannedLeaveOverrides:plannedLeaveOverrides,routeRules:reference&&reference.operatingRules||null,patternSummary:reference&&reference.patternSummary||bus70RoutePatternSummary_(reference&&reference.trips||[]),phaseReview:reference&&reference.phaseInference&&reference.phaseInference.managerReviewRequired?reference.phaseInference:null,schedulePrediction:reference&&reference.predicted?{predicted:true,sourceDate:String(reference.predictionSourceDate||''),confidence:String(reference.predictionConfidence||''),evidenceCount:Number(reference.predictionEvidenceCount||0),requiresManagerConfirmation:true}:null,routeStorage:{partitioned:true,stopSheet:routeStorage.stopSheet,scheduleSheet:routeStorage.scheduleSheet,stopReady:routeStorage.stopReady,scheduleReady:routeStorage.scheduleReady,synced:routeStorageSync&&routeStorageSync.ok||false,stopAdded:routeStorageSync&&routeStorageSync.stopAdded||0,scheduleAdded:routeStorageSync&&routeStorageSync.scheduleAdded||0},routeProfile:reference&&reference.routeProfile||{route:route,displayName:route+'번',stops:[],stopCount:0,boardAvailable:false,timetableAvailable:Boolean(Object.keys(departures).length),viewModes:['SUMMARY','ROUTE']}};
+}
+
+function bus70ManagerHasCompleteAssignments_(assignments,sequences,shift){
+  if(!sequences.length)return false;
+  const scoped=(assignments||[]).filter(function(row){return row.shift===shift;});
+  if(scoped.length!==sequences.length)return false;
+  const seen={},drivers={},vehicles={};
+  return scoped.every(function(row){
+    const sequence=Number(row.sequence);
+    if(sequences.indexOf(sequence)===-1||seen[sequence]||!row.driverId||!row.vehicleId||drivers[row.driverId]||vehicles[row.vehicleId])return false;
+    seen[sequence]=true;drivers[row.driverId]=true;vehicles[row.vehicleId]=true;return true;
+  });
 }
 
 function bus70PredictManagerAssignments_(dispatchSheet,targetDate,targetSequenceInput,drivers,vehicles,rawRoute,targetServiceClass){

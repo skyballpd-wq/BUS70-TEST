@@ -1,0 +1,27 @@
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const {koreanNameFromKeys}=require('../login-korean');
+for(const [input,expected] of [['ghdrlfehd','홍길동'],['gksrmf','한글'],['dkssudgktpdy','안녕하세요'],['qkfrdk','밝아'],['rhk','과'],['Rn','꾸'],['홍길동','홍길동'],['',''],['홍길동 / 운영','홍길동 / 운영']])assert.equal(koreanNameFromKeys(input),expected);
+const html=fs.readFileSync('index.html','utf8');
+function extract(name){const a=html.indexOf('function '+name+'('),b=html.indexOf('{',a);let n=0;for(let i=b;i<html.length;i++){if(html[i]==='{')n++;if(html[i]==='}'&&!--n)return html.slice(a,i+1);}throw Error(name);}
+const c=vm.createContext({Date});vm.runInContext(extract('managerShiftFromAnchor'),c);
+assert.equal(c.managerShiftFromAnchor('2099-02-01',{date:'2099-01-30',shift:'B'}),'B');
+assert.equal(c.managerShiftFromAnchor('2099-01-31',{date:'2099-01-30',shift:'B'}),'A');
+assert.equal(c.managerShiftFromAnchor('2099-01-29',{date:'2099-01-30',shift:'B'}),'A');
+assert.equal(c.managerShiftFromAnchor('2099-01-31',null),'');
+assert.match(html,/event\.isComposing/);assert.match(html,/normalize\("NFC"\)/);
+vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),c);
+const a=[{shift:'B',sequence:1,driverId:'SYN-D1',vehicleId:'SYN-V1'},{shift:'B',sequence:2,driverId:'SYN-D2',vehicleId:'SYN-V2'}];
+assert.equal(c.bus70ManagerHasCompleteAssignments_(a,[1,2],'B'),true);
+assert.equal(c.bus70ManagerHasCompleteAssignments_(a,[1,2,3],'B'),false);
+assert.equal(c.bus70ManagerHasCompleteAssignments_(a,[1,2],'A'),false);
+assert.equal(c.bus70ManagerHasCompleteAssignments_([a[0],{...a[1],driverId:'SYN-D1'}],[1,2],'B'),false);
+assert.equal(c.bus70ManagerHasCompleteAssignments_([a[0],{...a[1],sequence:1}],[1,2],'B'),false);
+vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),c);
+vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),c);
+c.normalizeDate_=x=>String(x||'');
+const trip={sequence:7,trip:6,startPlace:'가상차고지',startTime:'22:00',turnPlace:'가상회차지',turnTime:'00:05',endPlace:'가상차고지',endTime:'00:30'};
+const result=c.bus70Route5ApplyTripException_(trip,{controlPoint:'가상 기준점',controlTime:'00:05',controlPurpose:'기준시각 준수'});
+assert.equal(result.turnTime,'');assert.equal(result.turnPlace,'');assert.equal(result.controlTime,'00:05');
+const missing=c.bus70Route5PhaseMissingFields_(result,{firstScheduledTrips:{},firstTripOrigins:{},turnPlace:'가상회차지',defaultOrigin:'가상차고지'});assert.equal(missing.length,0);
+const headers=c.bus70RoutePartitionHeaders_('schedule'),row=headers.map(()=>''),map=Object.fromEntries(headers.map((h,i)=>[h,i]));row[map['시간기준지']]='가상 기준점';row[map['시간기준시각']]='00:05';assert.equal(c.bus70RouteScheduleTripFromRow_(row,map).controlPoint,'가상 기준점');
+console.log('Pilot readiness tests passed');

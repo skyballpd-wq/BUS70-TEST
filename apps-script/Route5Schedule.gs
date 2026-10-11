@@ -59,6 +59,9 @@ function bus70Route5ApplyTripException_(item, exception) {
     item.turnPlace='';item.turnTime='';
   }else if(exception.serviceEndPlace)item.endPlace=String(exception.serviceEndPlace);
   Object.keys(exception).forEach(function(key){item[key]=exception[key];});
+  if(item.controlPoint&&item.controlTime&&item.turnTime===item.controlTime){
+    item.turnPlace='';item.turnTime='';item.phaseStatus='OBSERVED_CHECKPOINT';
+  }
   return item;
 }
 
@@ -91,7 +94,8 @@ function bus70Route5TripsFromSource_(source) {
 function bus70Route5PhaseMissingFields_(trip, rules) {
   const missing=[],sequence=Number(trip.sequence),number=Number(trip.trip),upboundOnly=String(trip.serviceEndType||'').indexOf('UPBOUND_')===0;
   const firstTrip=Number(rules.firstScheduledTrips[String(sequence)]||1),startPlace=String(trip.startPlace||''),startsAtTurn=number===firstTrip&&startPlace&&(startPlace===String(rules.turnPlace||'')||startPlace!==String(rules.defaultOrigin||''));
-  if(!upboundOnly&&!startsAtTurn){if(!String(trip.turnPlace||''))missing.push('turnPlace');if(!String(trip.turnTime||''))missing.push('turnTime');}
+  const checkpoint=Boolean(trip.controlPoint&&trip.controlTime);
+  if(!upboundOnly&&!startsAtTurn&&!checkpoint){if(!String(trip.turnPlace||''))missing.push('turnPlace');if(!String(trip.turnTime||''))missing.push('turnTime');}
   if(!String(trip.endPlace||trip.serviceEndPlace||''))missing.push('endPlace');
   if(!String(trip.endTime||''))missing.push('endTime');
   return missing;
