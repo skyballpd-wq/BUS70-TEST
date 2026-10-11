@@ -3,9 +3,9 @@ const fs = require('fs');
 const vm = require('vm');
 const privateFixture = require('./private-route-fixture');
 
-function sheet(rows) {
-  return {rows, getLastRow(){return this.rows.length;}, getDataRange(){return {getDisplayValues:()=>this.rows.map(r=>r.slice())};},
-    appendRow(row){this.rows.push(row);}, getRange(row,col,count){return {setValues:values=>{if(col===1)this.rows[row-1]=values[0].slice();else values[0].forEach((v,i)=>this.rows[row-1][col-1+i]=v);},setValue:value=>{this.rows[row-1][col-1]=value;}};}};
+function sheet(rows,name='') {
+  return {rows,name,getName(){return this.name;},getLastRow(){return this.rows.length;}, getDataRange(){return {getDisplayValues:()=>this.rows.map(r=>r.slice())};},
+    appendRow(row){this.rows.push(row.slice());}, setFrozenRows(){}, getRange(row,col,count){const target=this;return {setValues:values=>{values.forEach((source,rowOffset)=>{while(target.rows.length<row+rowOffset)target.rows.push([]);source.forEach((value,colOffset)=>target.rows[row-1+rowOffset][col-1+colOffset]=value);});},setValue:value=>{while(target.rows.length<row)target.rows.push([]);target.rows[row-1][col-1]=value;}};}};
 }
 const drivers=sheet([['driverId','사원번호','성명','근무조','기사구분','사번구분','기수','현재노선','표시순서','상태','투입일','종료일','TEST','비고'],
   ...Array.from({length:11},(_,i)=>['D'+(i+1),String(690001+i),'가상기사'+(i+1),'B','노선','','','70',i+1,'재직','','','Y','']),
@@ -36,12 +36,14 @@ const accounts=sheet([['accountId','권한','driverId','로그인이름','로그
   ['A3','정비소','CTR-CENTER-001','가상정비계정','','Y','','','',''],['A4','마스터','DRV-B-TEST-002','','','Y','','','','']]);
 const sheets={'기사DB':drivers,'차량DB':vehicles,'배차DB':dispatch,'배차확인DB':confirmations,'스케줄':schedule,'계정DB':accounts,'근무변경DB':workChanges,
   '사건DB':incidents,'정비DB':maintenance,'정비이력DB':maintenanceHistory,'배차간격조정DB':adjustments};
+Object.keys(sheets).forEach(name=>sheets[name].name=name);
+const spreadsheet={getSheetByName:n=>sheets[n]||null,insertSheet:n=>{const created=sheet([],n);sheets[n]=created;return created;}};
 let idCounter=0;
 const context={console,JSON,Date,Number,String,Object,Array,BUS70_PRIVATE_ROUTE_DATA_:privateFixture,Utilities:{formatDate:d=>d.toISOString().slice(0,10)},PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})},
-  SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]||null})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
+  SpreadsheetApp:{getActiveSpreadsheet:()=>spreadsheet},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
   normalizeDate_:v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))?String(v):'',makeHeaderMap_:h=>Object.fromEntries(h.map((v,i)=>[v,i])),
   bus70ScheduleVersionForDate_:date=>date==='2026-09-20'?'HD-TEST-V001':'WD-TEST-V001',writeAudit_:()=>{},newId_:prefix=>prefix+'-TEST-'+(++idCounter)};
-vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route70Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
+vm.createContext(context); vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/Route70Schedule.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/PublicTransitApi.gs','utf8'),context); vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),context);
 assert.equal(context.bus70OperatingShiftForDate_('2099-01-08'),'B');
 assert.equal(context.bus70OperatingShiftForDate_('2099-01-09'),'A');
 const privateConfig=privateFixture.config; delete privateFixture.config;
@@ -51,6 +53,8 @@ assert.equal(context.bus70IsManager_('D1'),true); assert.equal(context.bus70IsMa
 assert.equal(context.bus70RoleFor_('ADM-MASTER-001'),'MASTER');
 assert.equal(context.bus70RoleFor_('CTR-CENTER-001'),'CENTER');
 assert.equal(context.bus70RoleFor_('DRV-B-TEST-002'),'');
+assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeStopImportStatus',route:'5'},'D1').ok,true);
+assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeStopImportStatus',route:'5'},'D2').error,'MANAGER_REQUIRED');
 const adminBoot=context.bus70MasterAdminBootstrap_('ADM-MASTER-001');
 assert.equal(adminBoot.ok,true); assert.equal(adminBoot.drivers.length,23); assert.equal(adminBoot.accounts.length,2); assert.equal(adminBoot.canManageAccounts,true);
 const managerAdminBoot=context.bus70MasterAdminBootstrap_('D1');
@@ -66,6 +70,7 @@ assert.equal(newDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1
 assert.equal(context.bus70MasterDriverUpsert_({empId:'699902',name:'가상중복신규',shift:'A',route:'70',driverType:'노선',status:'재직'},'D1').error,'EMP_ID_DUPLICATE');
 const beforeSickLeave=context.bus70ManagerBootstrap_('2026-06-30'); assert.equal(beforeSickLeave.drivers.some(v=>v.name==='가상휴직기사'),true);
 const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,23); assert.equal(boot.departures[1].time,'05:00');
+assert.equal(boot.routeStorage.stopSheet,'노선_70_정류장DB');assert.equal(boot.routeStorage.scheduleSheet,'노선_70_배차스케줄DB');
 assert.equal(boot.drivers.some(v=>v.name==='가상휴직기사'),false);
 assert.equal(boot.unavailableNames.includes('가상휴직기사'),true);
 assert.equal(context.bus70ManagerBootstrap_('2026-10-01').drivers.some(v=>v.name==='가상휴직기사'),false);
@@ -84,8 +89,10 @@ const assignments=Array.from({length:11},(_,i)=>({sequence:i+1,driverId:'D'+(i+1
 const saved=context.bus70SaveManagerDispatchDay_({date:'2026-09-18',shift:'B',assignments},'D1');
 assert.equal(saved.ok,true); assert.equal(dispatch.rows.length,12); assert.equal(dispatch.rows[1][0],'DSP-70-20260918-B-01');
 confirmations.appendRow(['C1','2026-09-18','D1','DSP-70-20260918-B-01','WD-TEST-V001','2026-09-17 20:00','','','','']);
-const adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',date:'2026-09-18',sequence:1,trip:2,before:'07:20',after:'07:35',reason:'차량 고장'},'D1');
+const adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',date:'2026-09-18',sequence:1,trip:1,before:'07:20',after:'07:35',reason:'차량 고장'},'D1');
 assert.equal(adjusted.ok,true); assert.equal(adjustments.rows.length,2); assert.equal(confirmations.rows[1][9],'Y'); confirmations.rows[1][9]='N';
+const missingFirstTrip=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',route:'5',date:'2099-01-08',sequence:2,trip:1,phase:'발차',before:'05:00',after:'05:05',reason:'존재하지 않는 탕 시험'},'D1');
+assert.equal(missingFirstTrip.error,'TRIP_NOT_SCHEDULED');assert.match(missingFirstTrip.message,/2탕부터 운행/);assert.equal(adjustments.rows.length,2);
 const route5Adjusted=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'scheduleAdjustmentSave',route:'5',date:'2099-01-08',sequence:25,trip:1,phase:'발차',before:'05:40',after:'05:45',reason:'합성 시간 조정',announcementChannel:'시험채널',sourceEvidence:'SYNTHETIC FIXTURE'},'D1');
 assert.equal(route5Adjusted.ok,true);assert.equal(adjustments.rows.length,3);
 const adjustmentHeaders=Object.fromEntries(adjustments.rows[0].map((v,i)=>[v,i])),route5Adjustment=adjustments.rows[2];
@@ -179,25 +186,73 @@ assert.equal(rehired.ok,true); assert.equal(drivers.rows[2][1],'699905'); assert
 assert.equal(context.bus70ManagerBootstrap_('2026-10-05').drivers.some(v=>v.id==='D2'),true);
 const route5Boot=context.bus70ManagerBootstrap_('2099-01-08','5');
 assert.equal(route5Boot.ok,true);assert.equal(route5Boot.route,'5');assert.equal(route5Boot.scheduleVersion,'SYN-R5-V1');
+assert.deepEqual(JSON.parse(JSON.stringify(route5Boot.tripNumbersBySequence['2'])),[2,3,4,5,6,7]);
 assert.equal(Object.keys(route5Boot.departures).length,27);assert.equal(route5Boot.assignments.length,26);
 assert.equal(route5Boot.routeProfile.route,'5');assert.equal(route5Boot.routeProfile.stopCount,3);assert.equal(route5Boot.routeProfile.stops[2].name,'가상회차지');
 assert.equal(route5Boot.drivers.some(v=>v.virtual&&v.route==='5'),true);assert.equal(route5Boot.vehicles.some(v=>v.virtual&&v.route==='5'),true);
+const departureOnly=JSON.parse(JSON.stringify(privateFixture['5']['2099-01-08']));departureOnly.sourceNote='SYNTHETIC DEPARTURE-ONLY MANAGER TEST';departureOnly.departures=departureOnly.tripTimings.map(row=>(row||[]).map(times=>times?String(times[0]||times[1]||''):''));delete departureOnly.tripTimings;departureOnly.assignments.push([9,'가상5번기사09','9009']);privateFixture['5']['2099-01-06']=departureOnly;
+const phaseReviewBoot=context.bus70ManagerBootstrap_('2099-01-06','5');
+assert.equal(phaseReviewBoot.ok,true);assert.equal(phaseReviewBoot.routeStorage.synced,false);assert.equal(phaseReviewBoot.phaseReview.status,'INFERRED_COMPLETE');assert.equal(phaseReviewBoot.phaseReview.sourceDate,'2099-01-08');assert.equal(phaseReviewBoot.phaseReview.confirmable,true);assert.equal(phaseReviewBoot.assignments.length,27);
+const phaseAssignments=phaseReviewBoot.assignments.map(item=>({sequence:item.sequence,driverId:item.driverId,vehicleId:item.vehicleId})).sort((a,b)=>a.sequence-b.sequence),phaseSaved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-06',shift:'B',assignments:phaseAssignments},'D1');
+assert.equal(phaseSaved.ok,true,JSON.stringify(phaseSaved));assert.equal(phaseSaved.scheduleReviewPending,false);assert.equal(phaseSaved.data.phaseReview,null);const confirmedPhaseSchedule=context.bus70RouteScheduleFromDb_('5','2099-01-06');assert.equal(confirmedPhaseSchedule.available,true);assert.equal(confirmedPhaseSchedule.dataStatus,'CONFIRMED');assert.equal(confirmedPhaseSchedule.trips.find(v=>v.sequence===2&&v.trip===2).phaseStatus,'CONFIRMED_INFERRED');assert.equal(confirmedPhaseSchedule.trips.find(v=>v.sequence===2&&v.trip===2).phaseSourceDate,'2099-01-08');const confirmedDriverSchedule=context.bus70Route5ScheduleForDriver_({driverId:'DRV-SYN-25',name:'가상5번기사25'},'2099-01-06');assert.equal(confirmedDriverSchedule.phaseReviewRequired,false);assert.ok(confirmedDriverSchedule.trips[0].turnTime);assert.ok(confirmedDriverSchedule.trips[0].endTime);
+const realReferenceLoader=context.bus70ManagerReferenceData_;
+context.bus70ManagerReferenceData_=()=>({ok:true,route:'70',date:'2099-01-08',trips:[],assignments:[]});
+assert.equal(context.bus70ManagerBootstrap_('2099-01-08','5').error,'ROUTE_DATA_MISMATCH');
+context.bus70ManagerReferenceData_=realReferenceLoader;
+const route5Editor=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableEditorLoad',route:'5',date:'2099-01-08'},'D1');
+assert.equal(route5Editor.ok,true);assert.equal(route5Editor.route,'5');assert.equal(route5Editor.date,'2099-01-08');assert.equal(route5Editor.routeStorage.scheduleSheet,'노선_5_배차스케줄DB');
+assert.equal(route5Editor.trips.find(v=>v.sequence===25&&v.trip===1).startTime,'05:45');
+assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableEditorLoad',route:'5',date:'2099-01-08'},'D2').error,'MANAGER_REQUIRED');
+const route70ScheduleRowsBefore=(sheets['노선_70_배차스케줄DB']&&sheets['노선_70_배차스케줄DB'].rows.length)||0,adjustmentCountBeforeBulk=adjustments.rows.length;
+const bulkSaved=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableBulkSave',route:'5',date:'2099-01-08',reason:'합성 전체 시간표 편집',changes:[{sequence:25,trip:1,phase:'발차',before:'05:45',after:'05:47'}]},'D1');
+assert.equal(bulkSaved.ok,true);assert.equal(bulkSaved.changeCount,1);assert.equal(bulkSaved.data.route,'5');assert.equal(bulkSaved.data.trips.find(v=>v.sequence===25&&v.trip===1).startTime,'05:47');
+assert.equal(adjustments.rows.length,adjustmentCountBeforeBulk+1);assert.equal((sheets['노선_70_배차스케줄DB']&&sheets['노선_70_배차스케줄DB'].rows.length)||0,route70ScheduleRowsBefore);
+const route5ScheduleHeaders=Object.fromEntries(sheets['노선_5_배차스케줄DB'].rows[0].map((v,i)=>[v,i])),route5Revision=sheets['노선_5_배차스케줄DB'].rows[sheets['노선_5_배차스케줄DB'].rows.length-1];
+assert.equal(route5Revision[route5ScheduleHeaders['노선']],'5');assert.equal(route5Revision[route5ScheduleHeaders['개정번호']],1);assert.equal(route5Revision[route5ScheduleHeaders['변경사유']],'합성 전체 시간표 편집');
+assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableBulkSave',route:'5',date:'2099-01-08',reason:'오래된 화면 저장 차단',changes:[{sequence:25,trip:1,phase:'발차',before:'05:45',after:'05:49'}]},'D1').error,'TIMETABLE_STALE');
 const allRoutes=context.bus70ManagerBootstrap_('2099-01-08','ALL');
 assert.equal(allRoutes.ok,true);assert.equal(allRoutes.mode,'SUMMARY');assert.equal(allRoutes.routes.find(v=>v.route==='5').sequenceCount,27);assert.equal(allRoutes.routes.find(v=>v.route==='70').sequenceCount,11);
 assert.equal(allRoutes.routes.find(v=>v.route==='5').stopCount,3);assert.equal(allRoutes.routes.find(v=>v.route==='70').stopCount,3);
 vehicles.appendRow(['V5-SPARE','9995','예비','운행가능','5','',99,'합성 5번 예비차']);
 const route5Assignments=route5Boot.assignments.concat([{sequence:9,driverId:'D1',vehicleId:'V5-SPARE'}]).sort((a,b)=>a.sequence-b.sequence);
-const route5Saved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-08',shift:'B',assignments:route5Assignments},'D1');
+assert.equal(context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-08',shift:'B',assignments:route5Assignments},'D1').error,'CROSS_ROUTE_ASSIGNMENT_BLOCKED');
+const route5Saved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-08',shift:'B',assignments:route5Assignments,crossRouteAssignment:true,reason:'합성 타노선 지원 승인'},'D1');
 assert.equal(route5Saved.ok,true);assert.equal(route5Saved.data.route,'5');
 const dispatchHeaders=Object.fromEntries(dispatch.rows[0].map((v,i)=>[v,i]));
 assert.equal(dispatch.rows.filter(r=>r[dispatchHeaders['날짜']]==='2099-01-08'&&r[dispatchHeaders['노선']]==='5').length,27);
 assert.equal(dispatch.rows.find(r=>r[0]==='DSP-5-20990108-B-09')[dispatchHeaders['차량ID']],'V5-SPARE');
 assert.equal(context.bus70ManagerAssignments_(dispatch,'2099-01-08','70').length,0);
+const registeredDriverIds=new Set(drivers.rows.slice(1).map(row=>row[0])),registeredVehicleIds=new Set(vehicles.rows.slice(1).map(row=>row[0]));
+route5Boot.drivers.filter(item=>item.virtual&&!registeredDriverIds.has(item.id)).forEach((item,index)=>{drivers.appendRow([item.id,'',item.name,'B','노선','','','5',1200+index,'재직','','','Y','합성 5번 등록기사']);registeredDriverIds.add(item.id);});
+route5Boot.vehicles.filter(item=>item.virtual&&!registeredVehicleIds.has(item.id)).forEach((item,index)=>{vehicles.appendRow([item.id,item.no,'일반','운행가능','5','',1200+index,'합성 5번 등록차량']);registeredVehicleIds.add(item.id);});
+drivers.appendRow(['R5-LEAVE-TEST','','가상5번휴무대기','B','예비','','','5',1300,'재직','','','Y','합성 휴무계획 검증']);
+privateFixture.config.plannedLeaves=[{route:'5',shift:'B',driverName:'가상5번기사01',type:'휴무',date:'2099-01-08',source:'SYNTHETIC LEAVE OVERRIDE'},{route:'5',shift:'B',driverName:'가상5번휴무대기',type:'휴무',date:'2099-01-12',source:'SYNTHETIC LEAVE PLAN'}];
+const route5ObservedOverride=context.bus70ManagerBootstrap_('2099-01-08','5');assert.equal(route5ObservedOverride.plannedLeaves.length,0);assert.equal(route5ObservedOverride.plannedLeaveOverrides.length,1);assert.equal(route5ObservedOverride.plannedLeaveOverrides[0].driverName,'가상5번기사01');assert.equal(route5ObservedOverride.assignments.some(v=>v.driverId==='R5-TMP-001'),true);
+const route5Predicted=context.bus70ManagerBootstrap_('2099-01-12','5');
+assert.equal(route5Predicted.ok,true);assert.equal(route5Predicted.source,'ROUTE_PATTERN_PREDICTION');assert.equal(route5Predicted.serviceClass,'WEEKDAY');assert.equal(route5Predicted.schedulePrediction.predicted,true);assert.equal(route5Predicted.schedulePrediction.sourceDate,'2099-01-08');
+assert.equal(route5Predicted.plannedLeaves.length,1);assert.equal(route5Predicted.plannedLeaves[0].driverName,'가상5번휴무대기');assert.equal(route5Predicted.drivers.some(v=>v.id==='R5-LEAVE-TEST'),false);assert.equal(route5Predicted.unavailableNames.includes('가상5번휴무대기'),true);
+assert.equal(route5Predicted.routeStorage.synced,false);assert.equal(route5Predicted.predictions.B.sourceDate,'2099-01-08');assert.equal(route5Predicted.predictions.B.serviceClass,'WEEKDAY');
+const route5PredictedSaved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-12',shift:'B',assignments:route5Assignments,crossRouteAssignment:true,reason:'합성 타노선 지원 승인'},'D1');
+assert.equal(route5PredictedSaved.ok,true,JSON.stringify(route5PredictedSaved));assert.equal(context.bus70RouteScheduleFromDb_('5','2099-01-12').available,true);assert.equal(context.bus70ManagerBootstrap_('2099-01-12','5').schedulePrediction,null);
+privateFixture['5']['2099-01-11']={serviceType:'합성 휴일',shift:'B',scheduleVersion:'SYN-R5-HD-V1',timetableSequences:3,sourceNote:'SYNTHETIC HOLIDAY DEPARTURE-ONLY',assignments:[],departures:[['05:00'],['05:10'],['05:20']]};
+const incompleteHoliday=context.bus70ManagerBootstrap_('2099-01-18','5');assert.equal(incompleteHoliday.ok,true);assert.equal(incompleteHoliday.schedulePrediction.predicted,true);assert.equal(incompleteHoliday.phaseReview.confirmable,false);assert.equal(incompleteHoliday.phaseReview.unresolvedTripCount,3);const holidayDrivers=incompleteHoliday.drivers.filter(v=>v.route==='5').slice(0,3),holidayVehicles=incompleteHoliday.vehicles.slice(0,3),holidayInput=[1,2,3].map((sequence,index)=>({sequence,driverId:holidayDrivers[index].id,vehicleId:holidayVehicles[index].id})),incompleteHolidaySaved=context.bus70SaveManagerDispatchDay_({route:'5',date:'2099-01-18',shift:'B',assignments:holidayInput},'D1');assert.equal(incompleteHolidaySaved.ok,true,JSON.stringify(incompleteHolidaySaved));assert.equal(incompleteHolidaySaved.scheduleReviewPending,true);assert.equal(context.bus70RouteScheduleFromDb_('5','2099-01-18').available,false);
 vehicles.appendRow(['V70-EX1','9981','예비','운행가능','70','',100,'합성 70번 예비차']);vehicles.appendRow(['V70-EX2','9982','예비','운행가능','70','',101,'합성 70번 예비차']);
 const route70SameDay=context.bus70ManagerBootstrap_('2099-01-08','70'),route70Drivers=route70SameDay.drivers.filter(v=>v.route==='70').slice(0,11),route70Conflict=route70SameDay.vehicles.slice(0,11).map((v,i)=>({sequence:i+1,driverId:route70Drivers[i].id,vehicleId:v.id}));route70Conflict[0].driverId='D1';
 assert.equal(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:route70Conflict},'D1').error,'CROSS_ROUTE_DRIVER_CONFLICT');
 const sameSequenceOtherRoute=new Array(dispatch.rows[0].length).fill('');
 sameSequenceOtherRoute[dispatchHeaders['dispatchId']]='DSP-70-20990108-B-09';sameSequenceOtherRoute[dispatchHeaders['날짜']]='2099-01-08';sameSequenceOtherRoute[dispatchHeaders['근무조']]='B';sameSequenceOtherRoute[dispatchHeaders['순차']]=9;sameSequenceOtherRoute[dispatchHeaders['기사ID']]='D3';sameSequenceOtherRoute[dispatchHeaders['차량ID']]='V70-EX1';sameSequenceOtherRoute[dispatchHeaders['시간표버전']]='SYN-R70-V1';sameSequenceOtherRoute[dispatchHeaders['상태']]='확정';sameSequenceOtherRoute[dispatchHeaders['노선']]='70';dispatch.rows.splice(1,0,sameSequenceOtherRoute);
-const route5Replacement=context.bus70WorkChangeSave_({date:'2099-01-08',driverId:'D1',type:'휴무',sequence:9,replacementId:'DRV-A-RESERVE',reason:'5번 다른 노선·조 대체 검증'},'D1');
+const route5Replacement=context.bus70WorkChangeSave_({date:'2099-01-08',driverId:'D1',type:'휴무',sequence:9,replacementId:'DRV-A-RESERVE',crossRouteReplacement:true,reason:'5번 다른 노선·조 대체 검증'},'D1');
 assert.equal(route5Replacement.ok,true);assert.equal(dispatch.rows.find(r=>r[dispatchHeaders['dispatchId']]==='DSP-5-20990108-B-09')[dispatchHeaders['기사ID']],'DRV-A-RESERVE');assert.equal(dispatch.rows[1][dispatchHeaders['기사ID']],'D3');
 console.log('ManagerDispatch tests passed');
+
+const contactProperties={};const originalProperties=context.PropertiesService;
+context.PropertiesService={getScriptProperties:()=>({getProperty:k=>contactProperties[k]||'',setProperty:(k,v)=>contactProperties[k]=v})};
+const contacts=context.bus70DepotContactRoles_().map(role=>({role,phone:''}));
+assert.equal(context.bus70DepotContactsGet_('UNKNOWN').error,'LOGIN_REQUIRED');
+assert.equal(context.bus70DepotContactsSave_({contacts},'D3').error,'MANAGER_REQUIRED');
+assert.equal(context.bus70DepotContactsSave_({contacts:[...contacts.slice(1),contacts[1]]},'D1').error,'CONTACTS_INVALID');
+assert.equal(context.bus70DepotContactsSave_({contacts:contacts.map((c,i)=>({...c,phone:i===0?'javascript:alert(1)':''}))},'D1').error,'PHONE_INVALID');
+assert.equal(Object.keys(contactProperties).length,0);
+assert.equal(context.bus70DepotContactsSave_({contacts},'D1').ok,true);
+assert.equal(context.bus70DepotContactsGet_('D3').contacts.length,5);
+context.PropertiesService=originalProperties;

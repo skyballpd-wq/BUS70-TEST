@@ -3,7 +3,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Description = "Private route data boundary v56",
+  [string]$Description = "Depot workspace and route isolation v60",
   [string]$DeploymentId = "AKfycbyFE-F4JEI8ITYO6RouVJh6KS5kvCFfs8y1u3_VO541SCpaSviwexPAOV6zPNculXfP",
   [switch]$SkipSelfUpdate
 )
@@ -62,7 +62,7 @@ if (-not $SkipSelfUpdate) {
   try {
     Invoke-WebRequest -Uri $scriptSource -OutFile $scriptTemporary -UseBasicParsing
     $latestScript = Get-Content -LiteralPath $scriptTemporary -Raw -Encoding UTF8
-    foreach ($marker in @("SkipSelfUpdate", "Route5Schedule.js", "Route70Schedule.js", "RoutePrivateData.js")) {
+    foreach ($marker in @("SkipSelfUpdate", "Route5Schedule.js", "Route70Schedule.js", "RoutePrivateData.js", "PublicTransitApi.js")) {
       if (-not $latestScript.Contains($marker)) {
         throw "The latest deployment script is missing a safety marker: $marker"
       }
@@ -112,7 +112,7 @@ $parent = Split-Path -Parent (Get-Location)
 $backup = Join-Path $parent "BUS70_DEPLOY_backup-$stamp"
 New-Item -ItemType Directory -Path $backup -Force | Out-Null
 $backupFiles = @($required)
-foreach ($optionalFile in @("Route5Schedule.js", "Route70Schedule.js", "PrivateRouteStore.js", "RoutePrivateData.js")) {
+foreach ($optionalFile in @("Route5Schedule.js", "Route70Schedule.js", "PrivateRouteStore.js", "PublicTransitApi.js", "RoutePrivateData.js")) {
   if (Test-Path -LiteralPath $optionalFile -PathType Leaf) { $backupFiles += $optionalFile }
 }
 foreach ($file in $backupFiles) {
@@ -239,17 +239,22 @@ $modules = @(
   @{
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/Route5Schedule.gs"
     Destination = "Route5Schedule.js"
-    Markers = @("bus70Route5ReferenceData_", "bus70Route5ScheduleForDriver_", "PRIVATE_REFERENCE_NOT_CONFIGURED")
+    Markers = @("bus70Route5ReferenceData_", "bus70Route5ScheduleForDriver_", "ROUTE_REFERENCE_NOT_CONFIGURED")
   },
   @{
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/Route70Schedule.gs"
     Destination = "Route70Schedule.js"
-    Markers = @("bus70Route70ReferenceData_", "bus70Route70ScheduleForDriver_", "PRIVATE_REFERENCE_NOT_CONFIGURED")
+    Markers = @("bus70Route70ReferenceData_", "bus70Route70ScheduleForDriver_", "ROUTE_REFERENCE_NOT_CONFIGURED")
   },
   @{
     Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/PrivateRouteStore.gs"
     Destination = "PrivateRouteStore.js"
-    Markers = @("bus70PrivateRouteSource_", "BUS70_PRIVATE_ROUTE_DATA_JSON", "bus70PrivateRouteStatus_")
+    Markers = @("bus70PrivateRouteSource_", "BUS70_PRIVATE_ROUTE_DATA_JSON", "bus70PrivateRouteStatus_", "bus70RoutePartitionNames_")
+  },
+  @{
+    Source = "https://raw.githubusercontent.com/skyballpd-wq/BUS70-TEST/main/apps-script/PublicTransitApi.gs"
+    Destination = "PublicTransitApi.js"
+    Markers = @("bus70PublicTransitImportPreview_", "BUS70_DATA_GO_KR_SERVICE_KEY", "PUBLIC_IMPORT_STALE", "MOLIT_ROUTE_SPECIFIC_STOP", "GYEONGGI_BUS_STATION_V2")
   }
 )
 foreach ($module in $modules) {
@@ -268,7 +273,7 @@ foreach ($module in $modules) {
 }
 
 Step "Checking JavaScript syntax"
-foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js", "PrivateRouteStore.js", "RoutePrivateData.js", "Route5Schedule.js", "Route70Schedule.js")) {
+foreach ($file in @("Code.js", "AuthStep9.js", "BoardEntry.js", "ManagerDispatch.js", "PrivateRouteStore.js", "PublicTransitApi.js", "RoutePrivateData.js", "Route5Schedule.js", "Route70Schedule.js")) {
   & node --check $file
   if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $file" }
 }

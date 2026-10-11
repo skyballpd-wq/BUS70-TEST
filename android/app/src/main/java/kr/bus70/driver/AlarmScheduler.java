@@ -56,7 +56,7 @@ final class AlarmScheduler {
     }
 
     private static JSONArray build(JSONObject payload,String soundUri) throws Exception {
-        JSONArray result=new JSONArray(), trips=payload.optJSONArray("trips");
+        JSONArray result=new JSONArray(), trips=TripOrder.actual(payload.optJSONArray("trips"));
         if(trips==null||trips.length()==0||!payload.optBoolean("enabled",true))return result;
         String date=payload.getString("date"), sequence=String.valueOf(payload.optInt("sequence")), route=payload.optString("route","70");
         JSONArray commute=payload.optJSONArray("commuteMinutes"), tripMinutes=payload.optJSONArray("tripMinutes");

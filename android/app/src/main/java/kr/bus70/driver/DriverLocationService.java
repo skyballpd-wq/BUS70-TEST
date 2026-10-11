@@ -34,8 +34,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Foreground GPS recorder for screen-off operation. Continuous positions stay
- * on the phone; only confirmed departure/turn/arrival events are sent.
+ * Foreground GPS recorder for screen-off operation. Confirmed
+ * departure/turn/arrival events are stored in the run log. A throttled latest
+ * position snapshot is also sent for route navigation and front/rear vehicle
+ * spacing; the server cache expires it instead of building a location history.
  */
 public class DriverLocationService extends Service implements LocationListener {
     static final String ACTION_START = "kr.bus70.driver.LOCATION_START";
@@ -51,6 +53,9 @@ public class DriverLocationService extends Service implements LocationListener {
     private JSONObject states;
     private String scheduleRaw = "";
     private String scheduleKey = "";
+    private volatile boolean liveLocationInFlight;
+    private long lastLiveLocationAt;
+    private Location lastLiveLocation;
 
     static void start(Context context) {
         Intent intent = new Intent(context, DriverLocationService.class).setAction(ACTION_START);
@@ -80,8 +85,12 @@ public class DriverLocationService extends Service implements LocationListener {
             failAndStop("위치 권한이 없습니다. 앱에서 위치 권한을 허용하세요.");
             return START_NOT_STICKY;
         }
-        if (!loadSchedule() || configuredPoints() == 0) {
-            failAndStop("검증된 노선 위치 기준점이 없어 자동 기록을 시작할 수 없습니다.");
+        if (!loadSchedule()) {
+            failAndStop("로그인 기사·확정 배차·배정 차량 정보를 확인할 수 없습니다.");
+            return START_NOT_STICKY;
+        }
+        if (configuredPoints() == 0 && configuredRouteStops() < 2) {
+            failAndStop("검증된 노선 정류장 좌표 또는 위치 기준점이 없어 자동 기록을 시작할 수 없습니다.");
             return START_NOT_STICKY;
         }
         try {
@@ -118,6 +127,7 @@ public class DriverLocationService extends Service implements LocationListener {
             if (raw.isEmpty()) return false;
             if (raw.equals(scheduleRaw) && schedule != null) return true;
             schedule = new JSONObject(raw);
+            schedule.put("trips", TripOrder.actual(schedule.optJSONArray("trips")));
             scheduleRaw = raw;
             String nextKey = schedule.optString("dispatchId") + "|" + schedule.optString("date");
             JSONObject saved = new JSONObject(store.locationState());
@@ -127,7 +137,10 @@ public class DriverLocationService extends Service implements LocationListener {
             states = saved;
             scheduleKey = nextKey;
             store.locationState(states.toString());
-            return !schedule.optString("apiUrl").isEmpty() && !schedule.optString("token").isEmpty() && schedule.optJSONArray("trips") != null;
+            return !schedule.optString("apiUrl").isEmpty() && !schedule.optString("token").isEmpty()
+                    && !schedule.optString("driverId").isEmpty() && !schedule.optString("dispatchId").isEmpty()
+                    && schedule.optInt("sequence") > 0 && !schedule.optString("vehicleId").isEmpty()
+                    && schedule.optJSONArray("trips") != null;
         } catch (Exception error) {
             setStatus("위치 추적 스케줄을 읽지 못했습니다.");
             return false;
@@ -144,6 +157,17 @@ public class DriverLocationService extends Service implements LocationListener {
             if (point(trip, "startLocation") != null) count++;
             if (point(trip, "turnLocation") != null) count++;
             if (point(trip, "endLocation") != null) count++;
+        }
+        return count;
+    }
+
+    private int configuredRouteStops() {
+        JSONArray stops = schedule == null ? null : schedule.optJSONArray("routeStops");
+        if (stops == null) return 0;
+        int count = 0;
+        for (int i = 0; i < stops.length(); i++) {
+            JSONObject stop = stops.optJSONObject(i);
+            if (stop != null && Double.isFinite(stop.optDouble("lat", Double.NaN)) && Double.isFinite(stop.optDouble("lng", Double.NaN))) count++;
         }
         return count;
     }
@@ -173,6 +197,7 @@ public class DriverLocationService extends Service implements LocationListener {
         if (state == null) state = new JSONObject();
         JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation");
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
+        postLiveLocation(trip, location, actualTurn.isEmpty() ? "OUTBOUND" : "RETURN");
         String nearestText = nearestText(location, tripNo, start, turn, end);
         setStatus(nearestText);
         try {
@@ -248,6 +273,7 @@ public class DriverLocationService extends Service implements LocationListener {
         try {
             body.put("action", "managerAccountUpsert").put("operation", "driverRunLogSave")
                     .put("token", schedule.optString("token")).put("date", schedule.optString("date"))
+                    .put("dispatchId", schedule.optString("dispatchId")).put("vehicleId", schedule.optString("vehicleId"))
                     .put("sequence", schedule.optInt("sequence")).put("trip", tripNo).put("event", event)
                     .put("plannedStart", trip.optString("startTime")).put("plannedTurn", trip.optString("turnTime"))
                     .put("plannedEnd", trip.optString("endTime")).put("plannedFrontGap", trip.opt("plannedFrontGap"))
@@ -271,7 +297,7 @@ public class DriverLocationService extends Service implements LocationListener {
                             setStatus(result.optString("message", tripNo + "탕 " + eventLabel(event) + " 자동 기록 완료"));
                         } else {
                             setStatus(result.optString("message", "위치 이벤트를 서버에 기록하지 못했습니다."));
-                            if ("AUTH_REQUIRED".equals(result.optString("error"))) stopSelf();
+                            if (bindingError(result.optString("error"))) failAndStop(result.optString("message", "확정 배차 또는 배정 차량이 변경되어 위치 추적을 중지했습니다."));
                         }
                     } catch (Exception ignored) {}
                     inFlight.remove(key);
@@ -281,6 +307,44 @@ public class DriverLocationService extends Service implements LocationListener {
                     setStatus("서버 연결 후 " + tripNo + "탕 " + eventLabel(event) + " 기록을 다시 시도합니다.");
                     inFlight.remove(key);
                 });
+            }
+        });
+    }
+
+    private void postLiveLocation(JSONObject trip, Location location, String direction) {
+        JSONObject live = schedule.optJSONObject("liveLocation");
+        if (live != null && !live.optBoolean("enabled", true)) return;
+        long now = System.currentTimeMillis(), minimum = Math.max(15, live == null ? 20 : live.optInt("minimumIntervalSeconds", 20)) * 1000L;
+        if (liveLocationInFlight || now - lastLiveLocationAt < minimum) return;
+        if (lastLiveLocation != null && now - lastLiveLocationAt < 60000L && location.distanceTo(lastLiveLocation) < 20f) return;
+        liveLocationInFlight = true;
+        lastLiveLocationAt = now;
+        lastLiveLocation = new Location(location);
+        JSONObject body = new JSONObject();
+        try {
+            body.put("action", "managerAccountUpsert").put("operation", "driverLiveLocationSave")
+                    .put("token", schedule.optString("token")).put("date", schedule.optString("date"))
+                    .put("dispatchId", schedule.optString("dispatchId")).put("vehicleId", schedule.optString("vehicleId"))
+                    .put("sequence", schedule.optInt("sequence"))
+                    .put("trip", trip.optInt("trip")).put("latitude", location.getLatitude())
+                    .put("longitude", location.getLongitude()).put("accuracy", location.hasAccuracy() ? location.getAccuracy() : JSONObject.NULL)
+                    .put("speedKmh", location.hasSpeed() ? Math.max(0, location.getSpeed() * 3.6) : JSONObject.NULL)
+                    .put("heading", location.hasBearing() ? location.getBearing() : JSONObject.NULL)
+                    .put("direction", direction);
+        } catch (Exception error) {
+            liveLocationInFlight = false;
+            return;
+        }
+        network.execute(() -> {
+            try {
+                JSONObject result = postJson(schedule.optString("apiUrl"), body);
+                if (!result.optBoolean("ok") && bindingError(result.optString("error"))) {
+                    main.post(() -> failAndStop(result.optString("message", "확정 배차 또는 배정 차량이 변경되어 위치 추적을 중지했습니다.")));
+                }
+            } catch (Exception error) {
+                lastLiveLocationAt = Math.max(0, System.currentTimeMillis() - minimum);
+            } finally {
+                liveLocationInFlight = false;
             }
         });
     }
@@ -311,6 +375,11 @@ public class DriverLocationService extends Service implements LocationListener {
         if ("DEPART".equals(event)) return "발차";
         if ("TURN".equals(event)) return "회차";
         return "도착";
+    }
+
+    private boolean bindingError(String error) {
+        return "AUTH_REQUIRED".equals(error) || "DISPATCH_NOT_FOUND".equals(error) || "DISPATCH_MISMATCH".equals(error)
+                || "VEHICLE_NOT_ASSIGNED".equals(error) || "VEHICLE_MISMATCH".equals(error);
     }
 
     private void setStatus(String message) {

@@ -28,7 +28,12 @@ const adjustments = sheet([
 ]);
 const alertSettings = sheet([['기사ID','출근알림분','탕알림분','정시알림','음성안내','진동','사용여부','수정시간']]);
 const runLogs = sheet([['logId','날짜','기사ID','차량ID','순차','탕','발차예정','발차실제','회차예정','회차실제','도착예정','도착실제','앞차예정간격','앞차실제간격','앞차편차','뒷차예정간격','뒷차실제간격','뒷차편차','시간표버전','노선버전','상태','비고']]);
-const schedules = sheet([['버전','순차','탕','발차시간','상태'],['WD-V1','1','2','07:20','사용'],['WD-V1','2','2','07:50','사용']]);
+const schedules = sheet([
+  ['버전','순차','탕','발차시간','상태','발차지','회차지','회차시간','도착지','도착시간'],
+  ['WD-V1','1','2','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','08:50'],
+  ['WD-V1','2','2','07:50','사용','가상차고지','가상회차지','08:35','가상차고지','09:20'],
+  ['WD-V1','4','1','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','09:00']
+]);
 const locationReferences = sheet([
   ['기준점ID','노선','순차','탕','구분','지점명','위도','경도','반경m','사용여부','수정시간'],
   ['GEO-START','70','1','2','발차','가상차고지','0.1001','0.2001','70','Y',''],
@@ -41,6 +46,7 @@ const workChanges = sheet([
   ['STORY-1','2099-01-09','DRV-STORY','노선이동','70','5','B','B','699999','499999','양성','예비']
 ]);
 const properties = new Map();
+const cacheValues = new Map();
 const context = {
   console,
   Date,
@@ -59,6 +65,11 @@ const context = {
     getProperty: k => properties.get(k) || null,
     deleteProperty: k => properties.delete(k)
   })},
+  CacheService: {getScriptCache: () => ({
+    get:key => cacheValues.get(key) || null,
+    put:(key,value) => cacheValues.set(key,value),
+    remove:key => cacheValues.delete(key)
+  })},
   LockService: {getScriptLock: () => ({waitLock(){},releaseLock(){}})},
   SpreadsheetApp: {getActiveSpreadsheet: () => ({getSheetByName: name => name === '배차DB' ? dispatch : name === '배차확인DB' ? confirmations : name === '배차간격조정DB' ? adjustments : name === '알림설정DB' ? alertSettings : name === '운행일지' ? runLogs : name === '스케줄' ? schedules : name === '노선위치기준DB' ? locationReferences : name === '근무변경DB' ? workChanges : null})},
   normalizeDate_: value => String(value).slice(0,10),
@@ -70,7 +81,10 @@ const context = {
   apiMySchedule_: e => ({ok:true,type:'WORK',route:'70',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1},trips:[{trip:2,startPlace:'가상차고지',startTime:'07:20',turnPlace:'가상회차지',turnTime:'08:45',endPlace:'가상차고지',endTime:'10:10'}]})
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'), context);
 vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'), context);
+assert.equal(context.bus70RunLogDeviationMinutes_('2026-10-09','23:55',new Date('2026-10-10T00:05:00+09:00')),10);
+assert.equal(context.bus70RunLogDeviationMinutes_('2026-10-09','00:10',new Date('2026-10-10T00:05:00+09:00')),-5);
 
 const session = context.bus70AuthAction_({action:'loginSecure',name:'테스트',empId:'1'});
 assert.equal(session.ok, true);
@@ -81,6 +95,7 @@ assert.equal(combinedLogin.schedule.type, 'WORK');
 assert.equal(combinedLogin.schedule.temporalState,'FUTURE');
 assert.equal(combinedLogin.schedule.locationTracking.configuredPoints,3);
 assert.equal(combinedLogin.schedule.trips[0].turnLocation.place,'가상회차지');
+assert.equal(combinedLogin.schedule.firstScheduledTrip,2);assert.equal(combinedLogin.schedule.lastScheduledTrip,2);
 assert.deepEqual(Array.from(combinedLogin.schedule.runLogs),[]);
 assert.deepEqual(Array.from(combinedLogin.alertSettings.commuteMinutes),[60,15]);
 const combinedSession = context.bus70AuthAction_({action:'session',token:combinedLogin.token,date:'2026-09-21'});
@@ -95,7 +110,7 @@ const adjusted=context.bus70AuthAction_({action:'myScheduleSecure',token:combine
 assert.equal(adjusted.trips[0].startTime,'07:35'); assert.equal(adjusted.timeAdjustments.length,1); assert.equal(adjusted.trips[0].plannedRearGapMinutes,15);
 const originalScheduleApi=context.apiMySchedule_;
 context.apiMySchedule_=()=>({ok:true,type:'REST',message:'등록된 배차가 없습니다.'});
-context.bus70Route5ReferenceData_=(date)=>date==='2099-01-08'?{ok:true,route:'5',date,shift:'B',scheduleVersion:'SYN-R5-V1',assignments:[{sequence:15,vehicleNo:'9001',vehicleId:'VEH-9001'}],trips:[{sequence:15,trip:6,startTime:'22:35'}],sequenceOperations:[]}:null;
+context.bus70Route5ReferenceData_=(date)=>date==='2099-01-08'?{ok:true,route:'5',date,shift:'B',scheduleVersion:'SYN-R5-V1',assignments:[{sequence:15,vehicleNo:'9001',vehicleId:'VEH-9001'}],trips:[{sequence:2,trip:2,startTime:'05:20'},{sequence:15,trip:6,startTime:'22:35'}],sequenceOperations:[]}:null;
 context.bus70Route5ScheduleForDriver_=(driver,date)=>date==='2099-01-08'&&driver.name==='가상기사15'?{ok:true,type:'WORK',route:'5',dispatch:{sequence:15,vehicleNo:'9001'},trips:[{trip:6,startTime:'22:35'}]}:null;
 const route5Fallback=context.bus70SecureScheduleForDriver_('DRV-1','2099-01-08',{driverId:'DRV-1',name:'가상기사15',route:'5'});
 assert.equal(route5Fallback.route,'5');assert.equal(route5Fallback.dispatch.sequence,15);assert.equal(route5Fallback.dispatchSource,'CONFIRMED_ROUTE_DB');assert.equal(route5Fallback.trips[0].startTime,'22:40');assert.equal(route5Fallback.trips[0].publishedStartTime,'22:35');assert.equal(route5Fallback.timeAdjustments[0].phase,'발차');assert.equal(route5Fallback.timeAdjustments[0].channel,'시험채널');
@@ -144,10 +159,16 @@ assert.equal(savedSettings.ok,true); assert.deepEqual(Array.from(savedSettings.s
 const readSettings=context.bus70AuthAction_({action:'driverAlertSettingsGet',token:session.token});
 assert.equal(readSettings.settings.vibration,false); assert.equal(alertSettings.rows.length,2);
 assert.equal(readSettings.settings.soundMode,'SYSTEM_DEFAULT');
+const wrongRunVehicle=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-1',vehicleId:'VEH-WRONG',sequence:4,trip:1,event:'DEPART'});
+assert.equal(wrongRunVehicle.ok,false);assert.equal(wrongRunVehicle.error,'VEHICLE_MISMATCH');
+const wrongRunDispatch=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-WRONG',vehicleId:'VEH-4',sequence:4,trip:1,event:'DEPART'});
+assert.equal(wrongRunDispatch.ok,false);assert.equal(wrongRunDispatch.error,'DISPATCH_MISMATCH');
 const depart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'DEPART',plannedStart:'07:20',plannedEnd:'09:00'});
 const runLogColumns=Object.fromEntries(runLogs.rows[0].map((value,index)=>[value,index]));
 assert.equal(depart.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][runLogColumns['상태']],'운행중');
 assert.equal(runLogs.rows[1][runLogColumns['노선']],'70');assert.equal(runLogs.rows[1][runLogColumns['사원번호']],'699001');assert.equal(runLogs.rows[1][runLogColumns['배차ID']],'DSP-1');
+assert.equal(runLogs.rows[1][runLogColumns['발차지']],'가상차고지');assert.equal(runLogs.rows[1][runLogColumns['회차지']],'가상회차지');assert.equal(runLogs.rows[1][runLogColumns['도착지']],'가상차고지');
+assert.equal(runLogs.rows[1][runLogColumns['발차역할']],'순차 첫 운행 시작지');assert.equal(runLogs.rows[1][runLogColumns['회차역할']],'회차지·복귀 구간 시작지');assert.equal(runLogs.rows[1][runLogColumns['도착역할']],'막탕 운행 종료지');
 const firstDeparture=runLogs.rows[1][7];
 const duplicateDepart=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'DEPART'});
 assert.equal(duplicateDepart.alreadyRecorded,true); assert.strictEqual(runLogs.rows[1][7],firstDeparture);
@@ -162,6 +183,12 @@ const breakDisconnected=context.bus70AuthAction_({action:'driverRunLogSave',toke
 assert.equal(breakDisconnected.ok,true); assert.equal(breakDisconnected.status,'다음운행준비');
 const listed=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-09-18',to:'2026-09-18'});
 assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].actualTurn); assert.equal(listed.logs[0].turnRecordMode,'GPS 자동'); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
+assert.equal(listed.logs[0].startPlace,'가상차고지');assert.equal(listed.logs[0].turnRole,'회차지·복귀 구간 시작지');assert.equal(listed.logs[0].endRole,'막탕 운행 종료지');
+assert.notEqual(listed.logs[0].startDeviationMinutes,'');assert.notEqual(listed.logs[0].turnDeviationMinutes,'');assert.notEqual(listed.logs[0].endDeviationMinutes,'');
+
+dispatch.rows.push(['DSP-SYNTHETIC-SEQ2','2099-01-08','B','2','DRV-1','VEH-9002','SYN-R5-V1','확정','','','5']);
+const nonexistentTripLog=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:2,trip:1,event:'DEPART'});
+assert.equal(nonexistentTripLog.error,'TRIP_NOT_SCHEDULED');assert.match(nonexistentTripLog.message,/2탕부터 운행/);
 
 const finishBase={action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:15,trip:6,plannedStart:'22:35',plannedEnd:'23:36'};
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'SERVICE_END',serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'가상종점',deadheadDestination:'가상차고지'})).ok,true);
@@ -175,7 +202,26 @@ assert.equal(route5Log.sequence,15); assert.equal(route5Log.vehicleId,'VEH-9001'
 assert.equal(route5Log.route,'5');assert.equal(route5Log.empId,'699001');assert.equal(route5Log.dispatchId,'DSP-SYNTHETIC');
 assert.equal(route5Log.serviceEndPlace,'가상종점');
 assert.equal(route5Log.deadheadDestination,'가상차고지');
+assert.equal(route5Log.endPlace,'가상종점');assert.equal(route5Log.endRole,'막탕 상행 영업종료지');
 assert.equal(route5Log.officeChargeStatus,'사무실 모니터 확인');
 assert.ok(route5Log.cleanedAt); assert.ok(route5Log.chargerConnectedAt); assert.ok(route5Log.shiftEndedAt);
+
+dispatch.rows.push(['DSP-FRONT','2026-09-18','B','3','DRV-FRONT','VEH-3','WD-V1','확정','','','70']);
+dispatch.rows.push(['DSP-REAR','2026-09-18','B','5','DRV-REAR','VEH-5','WD-V1','확정','','','70']);
+const frontLive=context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:3,trip:1,latitude:37.501,longitude:126.701,accuracy:8,speedKmh:24,direction:'OUTBOUND',routeProgressPercent:60,tripProgressPercent:30,segmentDurationMinutes:60,nextStop:'가상앞정류장'},'DRV-FRONT');
+assert.equal(frontLive.ok,true);
+const ownLive=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,latitude:37.5,longitude:126.7,accuracy:7,speedKmh:20,direction:'OUTBOUND',routeProgressPercent:50,tripProgressPercent:25,segmentDurationMinutes:60,nextStop:'가상다음정류장'});
+assert.equal(ownLive.ok,true);assert.equal(ownLive.front.sequence,3);assert.equal(ownLive.front.gapEstimateBasis,'ROUTE_PROGRESS');assert.equal(ownLive.front.estimatedGapMinutes,6);assert.equal(ownLive.historyStored,false);
+const wrongLiveVehicle=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-1',vehicleId:'VEH-WRONG',sequence:4,trip:1,latitude:37.5,longitude:126.7});
+assert.equal(wrongLiveVehicle.ok,false);assert.equal(wrongLiveVehicle.error,'VEHICLE_MISMATCH');
+const wrongLiveDispatch=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-WRONG',vehicleId:'VEH-4',sequence:4,trip:1,latitude:37.5,longitude:126.7});
+assert.equal(wrongLiveDispatch.ok,false);assert.equal(wrongLiveDispatch.error,'DISPATCH_MISMATCH');
+context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:5,trip:1,latitude:37.499,longitude:126.699,accuracy:9,speedKmh:18,direction:'OUTBOUND',routeProgressPercent:40,tripProgressPercent:20,segmentDurationMinutes:60,nextStop:'가상뒤정류장'},'DRV-REAR');
+const liveView=context.bus70AuthAction_({action:'driverLiveLocations',token:session.token,date:'2026-09-18'});
+assert.equal(liveView.positions.length,3);assert.equal(liveView.rear.sequence,5);assert.equal(liveView.rear.estimatedGapMinutes,6);assert.equal(liveView.own.own,true);
+assert.equal(JSON.stringify(liveView).includes('DRV-FRONT'),false);
+dispatch.rows.push(['DSP-NOCAR','2026-09-18','B','6','DRV-NOCAR','','WD-V1','확정','','','70']);
+const noVehicleLive=context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:6,trip:1,latitude:37.5,longitude:126.7},'DRV-NOCAR');
+assert.equal(noVehicleLive.ok,false);assert.equal(noVehicleLive.error,'VEHICLE_NOT_ASSIGNED');
 
 console.log('AuthStep9 tests passed');

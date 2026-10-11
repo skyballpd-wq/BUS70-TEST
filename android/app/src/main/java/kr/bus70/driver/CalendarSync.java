@@ -21,7 +21,7 @@ final class CalendarSync {
         JSONArray old=new JSONArray(store.calendarEvents());
         for(int i=0;i<old.length();i++)resolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI,old.getLong(i)),null,null);
         long calendarId=findWritableCalendar(resolver);if(calendarId<0)throw new IllegalStateException("기록 가능한 캘린더가 없습니다.");
-        JSONArray ids=new JSONArray(),trips=payload.optJSONArray("trips");if(trips==null)return 0;String route=payload.optString("route","70"),brand=route+"번";
+        JSONArray ids=new JSONArray(),trips=TripOrder.actual(payload.optJSONArray("trips"));if(trips.length()==0)return 0;String route=payload.optString("route","70"),brand=route+"번";
         for(int i=0;i<trips.length();i++){
             JSONObject trip=trips.getJSONObject(i);long start=moment(payload.getString("date"),trip.getString("startTime"));long end=moment(payload.getString("date"),trip.optString("endTime",trip.getString("startTime")));
             if(end<=start)end=start+60*60000L;
