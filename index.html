@@ -902,7 +902,7 @@
       <button id="masterDriverSave" type="button">기사 정보 저장</button>
       <hr>
       </div><div id="managerAttendanceTools"><h3>사전 휴무·근태 발생·예비기사 대체</h3>
-      <p class="muted">정상 휴무는 배차 확정 전에 날짜와 기사만 먼저 저장합니다. 확정 후 병가·지각 등 돌발상황은 순차와 대체기사를 함께 선택합니다.</p>
+      <p id="workChangeHint" class="muted">정상 휴무는 날짜와 기사만 먼저 저장합니다. 확정 배차의 기사를 대체할 때만 순차와 대체기사를 함께 선택합니다.</p>
       <div id="returnCandidateList" class="manager-status" aria-live="polite"></div>
       <div class="manager-tools">
         <div><label for="workChangeDate">적용 날짜</label><input id="workChangeDate" type="date"></div>
@@ -941,7 +941,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v60.3
+    소신여객 통합 운행관리 TEST · v60.4
   </footer>
 
 </div>
@@ -1144,7 +1144,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.3";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.4";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1549,7 +1549,29 @@
     return states;
   }
 
+  function isReturnWorkChange(type) {
+    return type === "복귀" || type === "재입사";
+  }
+
+  function normalizeWorkChangeDispatch(body) {
+    return isReturnWorkChange(body.type)
+      ? {...body,sequence:"",replacementId:"",crossRouteReplacement:false}
+      : body;
+  }
+
+  function refreshWorkChangeMode() {
+    const type=document.getElementById("workChangeType").value,returning=isReturnWorkChange(type);
+    ["workChangeSequence","workChangeReplacement","replacementScope"].forEach(id=>{
+      const field=document.getElementById(id);field.disabled=returning;
+      if(returning)field.value=id==="replacementScope"?"SAME":"";
+    });
+    document.getElementById("workChangeHint").textContent=returning
+      ? type+"는 적용 날짜와 대상 기사를 기준으로 저장합니다. 순차·대체기사 선택은 필요하지 않습니다."
+      : "정상 휴무는 날짜와 기사만 먼저 저장합니다. 확정 배차의 기사를 대체할 때만 순차와 대체기사를 함께 선택합니다.";
+  }
+
   function refreshWorkChangeDrivers() {
+    refreshWorkChangeMode();
     if (!masterAdminData) return;
     const date=document.getElementById("workChangeDate").value||todayLocal();
     const type=document.getElementById("workChangeType").value;
@@ -1601,6 +1623,9 @@
   function refreshWorkChangeReplacements() {
     const affectedId=document.getElementById("workChangeDriver").value;
     const replacement=document.getElementById("workChangeReplacement");
+    if(isReturnWorkChange(document.getElementById("workChangeType").value)){
+      replacement.replaceChildren(new Option("대체기사 선택 필요 없음",""));return;
+    }
     const affected=managerPeopleAtDate(masterAdminData.drivers,document.getElementById("workChangeDate").value||todayLocal()).find(d=>d.driverId===affectedId);
     replacement.replaceChildren(new Option(affected?"미정·대체 없음 (기준 "+affected.route+"번·"+affected.shift+"조)":"대상 기사를 먼저 선택하세요",""));
     if(!affected)return;
@@ -1675,6 +1700,7 @@
   async function saveWorkChange(){
     const button=document.getElementById("workChangeSave"), body={action:"managerAccountUpsert",operation:"workChangeSave",token:authToken,date:document.getElementById("workChangeDate").value,type:document.getElementById("workChangeType").value,driverId:document.getElementById("workChangeDriver").value,sequence:document.getElementById("workChangeSequence").value,replacementId:document.getElementById("workChangeReplacement").value,startTime:document.getElementById("workChangeStart").value,endTime:document.getElementById("workChangeEnd").value,reason:document.getElementById("workChangeReason").value.trim(),rehireEmpId:document.getElementById("rehireEmpId").value,rehireShift:document.getElementById("rehireShift").value,rehireRoute:document.getElementById("rehireRoute").value.trim(),newRoute:document.getElementById("transferRoute").value.trim(),newShift:document.getElementById("transferShift").value,newEmpId:document.getElementById("transferEmpId").value.trim(),newDriverType:document.getElementById("transferDriverType").value};
     body.crossRouteReplacement=document.getElementById("replacementScope").value!=="SAME";
+    Object.assign(body,normalizeWorkChangeDispatch(body));
     if(!body.driverId)return masterStatus("근태 대상 기사를 선택하세요.");
     if(body.type==="재입사"&&(!/^\d{6}$/.test(body.rehireEmpId)||!["A","B","예비"].includes(body.rehireShift)||!body.rehireRoute))return masterStatus("재입사 사원번호·근무조·노선을 확인하세요.");
     if(body.type==="노선이동"&&(!body.newRoute||!["A","B","예비"].includes(body.newShift)))return masterStatus("이동할 노선과 근무조를 확인하세요.");
