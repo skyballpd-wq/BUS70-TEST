@@ -871,7 +871,7 @@
       </div>
       <div id="managerPeopleFilters" class="manager-tools">
         <div><label for="peopleSearch">기사 검색</label><input id="peopleSearch" type="search" placeholder="이름 또는 사원번호"></div>
-        <div><label for="peopleShift">근무조</label><select id="peopleShift"><option value="">모든 조</option><option>A</option><option>B</option><option>예비</option></select></div>
+        <div><label for="peopleShift">근무조</label><select id="peopleShift"><option value="">모든 조</option><option>A</option><option>B</option><option value="예비">근무조 미확인</option></select></div>
       </div>
       <div id="managerRosterTools"><h3>기사 등록·수정</h3>
       <label for="masterDriverSelect">등록 기사 선택</label>
@@ -879,12 +879,14 @@
       <div class="manager-tools">
         <div><label for="masterDriverEmpId">사원번호</label><input id="masterDriverEmpId" type="text" inputmode="numeric" maxlength="6"></div>
         <div><label for="masterDriverName">성명</label><input id="masterDriverName" type="text" maxlength="20"></div>
-        <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
+        <div><label for="masterDriverShift">근무조</label><select id="masterDriverShift"><option value="A">A조</option><option value="B">B조</option><option value="예비" hidden>근무조 미확인</option></select></div>
         <div><label for="masterDriverRoute">현재 노선</label><input id="masterDriverRoute" type="text" maxlength="10" value="70" placeholder="예: 70"></div>
-        <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="예비">예비</option><option value="노선">노선</option></select></div>
+        <div><label for="masterDriverType">기사구분</label><select id="masterDriverType"><option value="양성">양성</option><option value="노선">정규 노선</option><option value="미확인">미확인</option></select></div>
+        <div><label for="masterDriverAssignmentType">배치구분</label><select id="masterDriverAssignmentType"><option value="">미확인</option><option value="고정">고정 차량</option><option value="예비">예비 · 고정 차량 없음</option></select></div>
         <div><label for="masterDriverStatus">상태</label><select id="masterDriverStatus"><option value="재직">재직</option><option value="휴무">휴무</option><option value="병가">병가</option><option value="퇴직">퇴직</option></select></div>
       </div>
       <button id="masterDriverSave" type="button">기사 정보 저장</button>
+      <p class="hint">예비는 고정 차량 없이 재직하는 기사입니다. 양성·정규 노선 및 A·B 근무조와 별도로 관리합니다.</p>
       <hr>
       </div><div id="managerAttendanceTools"><h3>사전 휴무·근태 발생·예비기사 대체</h3>
       <p class="muted">정상 휴무는 배차 확정 전에 날짜와 기사만 먼저 저장합니다. 확정 후 병가·지각 등 돌발상황은 순차와 대체기사를 함께 선택합니다.</p>
@@ -901,14 +903,14 @@
       </div>
       <div id="rehireFields" class="manager-tools" hidden>
         <div><label for="rehireEmpId">재입사 사원번호</label><input id="rehireEmpId" type="text" inputmode="numeric" maxlength="6" placeholder="기존 또는 새 6자리 사원번호"></div>
-        <div><label for="rehireShift">재입사 근무조</label><select id="rehireShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
+        <div><label for="rehireShift">재입사 근무조</label><select id="rehireShift"><option value="A">A조</option><option value="B">B조</option><option value="예비" hidden>근무조 미확인</option></select></div>
         <div><label for="rehireRoute">재입사 노선</label><input id="rehireRoute" type="text" maxlength="10" placeholder="예: 70"></div>
       </div>
       <div id="transferFields" class="manager-tools" hidden>
         <div><label for="transferRoute">이동 노선</label><input id="transferRoute" type="text" maxlength="10" placeholder="예: 5"></div>
-        <div><label for="transferShift">이동 후 근무조</label><select id="transferShift"><option value="A">A조</option><option value="B">B조</option><option value="예비">예비</option></select></div>
+        <div><label for="transferShift">이동 후 근무조</label><select id="transferShift"><option value="A">A조</option><option value="B">B조</option><option value="예비" hidden>근무조 미확인</option></select></div>
         <div><label for="transferEmpId">정규 전환 사원번호</label><input id="transferEmpId" type="text" inputmode="numeric" maxlength="6" placeholder="선택 입력 · 예: 400001"></div>
-        <div><label for="transferDriverType">전환 후 기사구분</label><select id="transferDriverType"><option value="">기존 구분 유지</option><option value="노선">정규 노선기사</option><option value="예비">예비기사</option></select></div>
+        <div><label for="transferDriverType">전환 후 기사구분</label><select id="transferDriverType"><option value="">기존 구분 유지</option><option value="노선">정규 노선기사</option><option value="양성">양성기사</option></select></div>
       </div>
       <label for="workChangeReason">사유·현장 메모</label><input id="workChangeReason" type="text" maxlength="100">
       <button id="workChangeSave" type="button">근태·대체 처리 저장</button>
@@ -926,7 +928,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v60.1
+    소신여객 통합 운행관리 TEST · v60.2
   </footer>
 
 </div>
@@ -1126,7 +1128,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.2";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1572,18 +1574,18 @@
     const affectedId=document.getElementById("workChangeDriver").value;
     const replacement=document.getElementById("workChangeReplacement");
     const affected=managerPeopleAtDate(masterAdminData.drivers,document.getElementById("workChangeDate").value||todayLocal()).find(d=>d.driverId===affectedId);
-    replacement.replaceChildren(new Option(affected?"미정·대체 없음 (기준 "+affected.route+"번·"+affected.shift+"조)":"대상 기사를 먼저 선택하세요",""));
+    replacement.replaceChildren(new Option(affected?"미정·대체 없음 (기준 "+affected.route+"번·"+driverShiftLabel(affected)+")":"대상 기사를 먼저 선택하세요",""));
     if(!affected)return;
     const unavailable=persistentWorkStates(document.getElementById("workChangeDate").value||todayLocal());
     const scope=document.getElementById("replacementScope").value,date=document.getElementById("workChangeDate").value||todayLocal();
     const absent=new Set((masterAdminData.workChanges||[]).filter(v=>v.date===date&&["휴무","결근"].includes(v.type)).map(v=>v.driverId));
     managerPeopleAtDate(masterAdminData.drivers,date)
       .filter(d=>d.driverId!==affectedId&&d.status==="재직"&&!unavailable[d.driverId]&&!absent.has(d.driverId))
-      .filter(d=>scope==="ALL"||scope==="RESERVE"?(scope==="ALL"||d.driverType==="예비"||d.shift==="예비"):String(d.route)===String(affected.route))
+      .filter(d=>scope==="ALL"||scope==="RESERVE"?(scope==="ALL"||driverAssignmentType(d)==="예비"):String(d.route)===String(affected.route))
       .sort((a,b)=>Number(b.route===affected.route&&b.shift===affected.shift)-Number(a.route===affected.route&&a.shift===affected.shift)||Number(b.route===affected.route)-Number(a.route===affected.route)||a.name.localeCompare(b.name,"ko"))
       .forEach(d=>{
         const scope=d.route===affected.route&&d.shift===affected.shift?"추천":d.route===affected.route?"다른 조":"다른 노선";
-        replacement.add(new Option("["+scope+"] "+d.name+" · "+d.empId+" · "+(d.route||"-")+"번 · "+(d.shift||"-")+"조 · "+d.driverType,d.driverId));
+        replacement.add(new Option("["+scope+"] "+d.name+" · "+d.empId+" · "+(d.route||"-")+"번 · "+driverShiftLabel(d)+" · "+driverCategoryLabel(d),d.driverId));
       });
   }
 
@@ -1613,7 +1615,8 @@
     document.getElementById("masterDriverName").value = d ? d.name : "";
     document.getElementById("masterDriverShift").value = d && ["A","B","예비"].includes(d.shift) ? d.shift : "A";
     document.getElementById("masterDriverRoute").value = d && d.route ? d.route : "70";
-    document.getElementById("masterDriverType").value = d && ["양성","예비","노선"].includes(d.driverType) ? d.driverType : "양성";
+    document.getElementById("masterDriverType").value = d && ["양성","노선"].includes(d.driverType) ? d.driverType : "미확인";
+    document.getElementById("masterDriverAssignmentType").value = driverAssignmentType(d);
     document.getElementById("masterDriverStatus").value = d && ["재직","휴무","병가","퇴직"].includes(d.status) ? d.status : "재직";
   });
   document.getElementById("workChangeDriver").addEventListener("change",()=>{refreshRehireFields();refreshWorkChangeReplacements();});
@@ -1634,7 +1637,7 @@
     const button = document.getElementById("masterDriverSave");
     const body={action:"managerAccountUpsert",operation:"masterDriverUpsert",token:authToken,driverId:document.getElementById("masterDriverSelect").value,
       empId:document.getElementById("masterDriverEmpId").value,name:document.getElementById("masterDriverName").value.trim(),
-      shift:document.getElementById("masterDriverShift").value,route:document.getElementById("masterDriverRoute").value.trim(),driverType:document.getElementById("masterDriverType").value,status:document.getElementById("masterDriverStatus").value};
+      shift:document.getElementById("masterDriverShift").value,route:document.getElementById("masterDriverRoute").value.trim(),driverType:document.getElementById("masterDriverType").value,assignmentType:document.getElementById("masterDriverAssignmentType").value,status:document.getElementById("masterDriverStatus").value};
     if(!/^\d{6}$/.test(body.empId)||!body.name||!body.route) return masterStatus("실제 성명·6자리 사원번호·현재 노선을 확인하세요.");
     button.disabled=true;
     try { const result=await apiPost(body); masterStatus(result.message || "저장하지 못했습니다.",result.ok); if(result.ok) await loadMasterAdmin(); }
@@ -2799,7 +2802,7 @@
         .sort((a,b)=>Number(b.route===selectedRoute&&b.shift===selectedShift)-Number(a.route===selectedRoute&&a.shift===selectedShift)||Number(b.route===selectedRoute)-Number(a.route===selectedRoute)||a.name.localeCompare(b.name,"ko"))
         .forEach(v=>{
           const scope=v.route===selectedRoute&&v.shift===selectedShift?"추천":v.route===selectedRoute?"다른 조":"다른 노선";
-          driver.append(new Option("["+scope+"] "+v.name+" · "+(v.route||"-")+"번 · "+(v.shift||"-")+"조",v.id));
+          driver.append(new Option("["+scope+"] "+v.name+" · "+(v.route||"-")+"번 · "+driverShiftLabel(v),v.id));
         });
       const vehicle = el("select", undefined, "manager-vehicle"); vehicle.append(new Option("차량 선택", ""));
       data.vehicles.forEach(v => vehicle.append(new Option(v.last3 + " · " + v.displayNo, v.id)));
@@ -3118,6 +3121,19 @@
     if(managerPage==="FLEET")renderVehicleStatusList();
     if(focus){document.getElementById("managerPageTitle").focus();document.getElementById("managerWorkspace").scrollIntoView({block:"start"});}
   }
+  function driverAssignmentType(driver){
+    if(!driver)return "";
+    if(["고정","예비"].includes(driver.assignmentType))return driver.assignmentType;
+    return driver.driverType==="예비"||driver.shift==="예비"?"예비":"";
+  }
+  function driverShiftLabel(driver){
+    return ["A","B"].includes(driver?.shift)?driver.shift+"조":"근무조 미확인";
+  }
+  function driverCategoryLabel(driver){
+    const type=driver?.driverType==="노선"?"정규 노선":driver?.driverType==="양성"?"양성":"기사구분 미확인";
+    const assignment=driverAssignmentType(driver);
+    return type+(assignment?" · "+(assignment==="예비"?"예비":"고정 차량"):"");
+  }
   function managerPeopleAtDate(drivers,date){
     return (drivers||[]).map(driver=>{
       const d={...driver},events=(masterAdminData?.workChanges||[]).filter(v=>v.driverId===d.driverId&&["노선이동","재입사"].includes(v.type)).slice().sort((a,b)=>a.date.localeCompare(b.date));
@@ -3138,7 +3154,7 @@
     if(!masterAdminData)return;
     const select=document.getElementById("masterDriverSelect"),value=select.value;
     select.replaceChildren(new Option("새 기사 등록",""));
-    filteredManagerPeople(masterAdminData.drivers).forEach(d=>select.add(new Option(d.route+"번 · "+d.shift+"조 · "+d.name+" · "+d.empId+(d.status!=="재직"?" · "+d.status:""),d.driverId)));
+    filteredManagerPeople(masterAdminData.drivers).forEach(d=>select.add(new Option(d.route+"번 · "+driverShiftLabel(d)+" · "+d.name+" · "+d.empId+" · "+driverCategoryLabel(d)+(d.status!=="재직"?" · "+d.status:""),d.driverId)));
     if([...select.options].some(o=>o.value===value))select.value=value;
   }
   function scopedOperationVehicles(){

@@ -318,13 +318,21 @@ function bus70EnsureSheetColumns_(sheet, required) {
   required.forEach(function(header){if(!existing[header]){headers.push(header);sheet.getRange(1,headers.length).setValue(header);existing[header]=true;}});
 }
 
+// Reserve is a vehicle-assignment category, independent of route and training.
+// Legacy records used 기사구분/근무조 for it; keep those readable during migration.
+function bus70DriverAssignmentType_(row, columns) {
+  const explicit=String(row[columns['배치구분']]||'').trim();
+  if(explicit==='고정'||explicit==='예비')return explicit;
+  return String(row[columns['기사구분']]||'')==='예비'||String(row[columns['근무조']]||'')==='예비'?'예비':'';
+}
+
 function bus70MasterAdminBootstrap_(requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
   const ss=SpreadsheetApp.getActiveSpreadsheet(), ds=ss.getSheetByName('기사DB'), as=ss.getSheetByName('계정DB');
   if(!ds||!as) return {ok:false,error:'DB_MISSING',message:'기사DB 또는 계정DB를 찾을 수 없습니다.'};
   bus70ApplyDueDriverTransitions_(ds, ss.getSheetByName('근무변경DB'));
   const dr=ds.getDataRange().getDisplayValues(), dc=makeHeaderMap_(dr[0]);
-  const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),route:String(r[dc['현재노선']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
+  const drivers=dr.slice(1).map(function(r){return {driverId:String(r[dc['driverId']]||''),empId:String(r[dc['사원번호']]||''),name:String(r[dc['성명']]||''),shift:String(r[dc['근무조']]||''),driverType:String(r[dc['기사구분']]||''),assignmentType:bus70DriverAssignmentType_(r,dc),route:String(r[dc['현재노선']]||''),status:String(r[dc['상태']]||''),test:String(r[dc['TEST']]||'')};})
     .filter(function(v){return v.driverId&&['마스터','소장','관리','정비','정비소'].indexOf(v.driverType)===-1;});
   let accounts=[];
   if(bus70IsMaster_(requesterId)) {
@@ -365,6 +373,7 @@ function bus70WorkChangeSave_(body, requesterId) {
   const driverShift=String(dr[driverRow-1][dc['근무조']]||'').trim(), driverRoute=String(dr[driverRow-1][dc['현재노선']]||'').trim();
   const newRoute=String(body.newRoute||'').trim(), newShift=String(body.newShift||driverShift).trim(), newEmpId=String(body.newEmpId||'').replace(/\D/g,''), newDriverType=String(body.newDriverType||'').trim();
   if(type==='노선이동'&&(!newRoute||newRoute.length>10||['A','B','예비'].indexOf(newShift)===-1)) return {ok:false,error:'TRANSFER_INFO_REQUIRED',message:'이동할 노선과 근무조를 확인하세요.'};
+  if(type==='노선이동'&&['','양성','노선'].indexOf(newDriverType)===-1)return {ok:false,error:'DRIVER_TYPE_INVALID',message:'예비 여부는 기사 관리의 배치구분에서 지정하세요. 기사구분은 양성 또는 정규 노선입니다.'};
   if(type==='노선이동'&&newEmpId&&!/^4\d{5}$/.test(newEmpId)) return {ok:false,error:'REGULAR_EMP_ID_REQUIRED',message:'정규 전환 사원번호는 4로 시작하는 6자리 번호를 입력하세요.'};
   if(type==='노선이동'&&newEmpId){for(let r=1;r<dr.length;r++)if(r+1!==driverRow&&String(dr[r][dc['사원번호']]||'')===newEmpId)return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};}
   const replacementShift=replacementId?String(dr[replacementRow-1][dc['근무조']]||'').trim():'', replacementRoute=replacementId?String(dr[replacementRow-1][dc['현재노선']]||'').trim():'';
@@ -441,17 +450,24 @@ function bus70MasterStaffUpsert_(body, requesterId) {
 
 function bus70MasterDriverUpsert_(body, requesterId) {
   if (!bus70IsManager_(requesterId)) return {ok:false,error:'MANAGER_REQUIRED',message:'소장 이상 권한이 필요합니다.'};
-  let driverId=String(body.driverId||'').trim(); const empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), driverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
-  if(!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B','예비'].indexOf(shift)===-1||['양성','예비','노선'].indexOf(driverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  let driverId=String(body.driverId||'').trim(); const empId=String(body.empId||'').replace(/\D/g,''), name=String(body.name||'').trim(), shift=String(body.shift||'').toUpperCase(), route=String(body.route||'70').trim(), requestedDriverType=String(body.driverType||'').trim(), status=String(body.status||'').trim();
+  if(!/^\d{6}$/.test(empId)||!name||!route||route.length>10||['A','B','예비'].indexOf(shift)===-1||['양성','예비','노선','미확인'].indexOf(requestedDriverType)===-1||['재직','휴무','병가','퇴직'].indexOf(status)===-1) return {ok:false,error:'PARAM_REQUIRED',message:'기사 정보를 모두 확인하세요.'};
+  if(body.assignmentType!==undefined&&['','고정','예비'].indexOf(String(body.assignmentType))===-1)return {ok:false,error:'ASSIGNMENT_TYPE_INVALID',message:'배치구분은 고정 또는 예비를 선택하세요.'};
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('기사DB');
   if(!sheet) return {ok:false,error:'DB_MISSING',message:'기사DB를 찾을 수 없습니다.'};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
   for(let i=1;i<rows.length;i++) if(String(rows[i][c['driverId']]||'')===driverId){rowNo=i+1;break;}
   if(driverId&&!rowNo) return {ok:false,error:'DRIVER_NOT_FOUND',message:'수정할 기사를 찾을 수 없습니다.'};
   for(let j=1;j<rows.length;j++) if(j+1!==rowNo&&String(rows[j][c['사원번호']]||'')===empId) return {ok:false,error:'EMP_ID_DUPLICATE',message:'이미 사용 중인 사원번호입니다.'};
+  const previousType=rowNo?String(rows[rowNo-1][c['기사구분']]||''):'';
+  const driverType=requestedDriverType==='예비'?(['양성','노선'].indexOf(previousType)!==-1?previousType:'미확인'):requestedDriverType;
+  const assignmentType=body.assignmentType!==undefined?String(body.assignmentType):requestedDriverType==='예비'?'예비':rowNo?bus70DriverAssignmentType_(rows[rowNo-1],c):'';
+  if(c['배치구분']===undefined){bus70EnsureSheetColumns_(sheet,['배치구분']);c['배치구분']=rows[0].length;rows[0].push('배치구분');}
   const before=rowNo?rows[rowNo-1].slice():[], row=rowNo?before.slice():new Array(rows[0].length).fill('');
+  while(row.length<rows[0].length)row.push('');
   if(!driverId)driverId=newId_('DRV');
   row[c['driverId']]=driverId; row[c['사원번호']]=empId; row[c['성명']]=name; row[c['근무조']]=shift; row[c['기사구분']]=driverType; row[c['사번구분']]='정규'; row[c['현재노선']]=route; row[c['표시순서']]=row[c['표시순서']]||999; row[c['상태']]=status; row[c['TEST']]='N'; row[c['비고']]=rowNo?'기사정보 수정':'신규 기사 등록';
+  row[c['배치구분']]=assignmentType;
   if(rowNo)sheet.getRange(rowNo,1,1,row.length).setValues([row]);else sheet.appendRow(row);
   writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','기사DB',driverId,rowNo?'수정':'추가',before,row,'기사 등록·수정');
   return {ok:true,driverId:driverId,message:name+' 기사 정보를 '+(rowNo?'수정':'등록')+'했습니다.'};
@@ -855,7 +871,7 @@ function bus70ManagerMasterRows_(sheet, type, selectedRoute) {
       result.push({id:driverId, name:String(rows[i][c['성명']] || '').trim(),
         empId:String(rows[i][c['사원번호']] || '').trim(),
         shift:String(rows[i][c['근무조']] || '').trim(), route:route,
-        driverType:driverType});
+        driverType:driverType,assignmentType:bus70DriverAssignmentType_(rows[i],c)});
     } else {
       if (selectedRoute && route && route !== selectedRoute) continue;
       if (status !== '운행가능' && status !== '운행') continue;
