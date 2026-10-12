@@ -941,7 +941,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v60.4
+    소신여객 통합 운행관리 TEST · v60.5
   </footer>
 
 </div>
@@ -1144,7 +1144,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.4";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v60.5";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2658,6 +2658,9 @@
     const root = document.getElementById("scheduleResult");
     if (!date) { root.replaceChildren(el("div", "날짜를 선택하세요.", "notice error")); return; }
     const requestId = ++scheduleRequestId;
+    const token = authToken, driverId = currentDriverId;
+    const isCurrentRequest = () => requestId === scheduleRequestId && authToken === token &&
+      currentDriverId === driverId && document.getElementById("workDate").value === date;
     if(!silent){
       lastSchedule = null;
       resetConfirmation();
@@ -2665,15 +2668,27 @@
     }
     button.disabled = true;
     try {
-      let data = await apiPost({ action: "myScheduleSecure", token:authToken, driverId: currentDriverId, date });
-      // 일부 기존 Apps Script 배포본은 myScheduleSecure를 doPost 허용 목록에
-      // 포함하지 않습니다. 같은 인증 검사를 거치는 session 날짜 조회로 호환합니다.
-      if (!data?.ok && (data?.error === "UNKNOWN_ACTION" || /지원하지 않는\s*(action|요청)/i.test(data?.message || ""))) {
-        const session = await apiPost({ action: "session", token:authToken, date });
-        data = session?.schedule || session;
+      // session은 현재 기사 상태를 확인하고 같은 요청에서 일정도 반환합니다.
+      // 중복 통합·퇴직 등으로 종료된 기사 ID가 기기에 남아 있어도 배차 없음으로
+      // 오인하지 않고 새 로그인으로 복구합니다. 사번으로 인증을 우회하지 않습니다.
+      const session = await apiPost({ action: "session", token, date });
+      if (!isCurrentRequest()) return;
+      if (!session?.ok && ["AUTH_REQUIRED","DRIVER_UNAVAILABLE","DRIVER_RETIRED","DRIVER_INACTIVE","DRIVER_MISMATCH"].includes(session?.error)) {
+        showLoginScreen("기사 등록 정보가 변경되었거나 로그인이 만료되었습니다. 성명과 사원번호로 다시 로그인하면 최신 배차를 조회합니다.");
+        return;
+      }
+      if (session?.ok && (!session.driver || String(session.driver.driverId || "") !== driverId || session.role ||
+          (session.driver.status && !["재직","1"].includes(String(session.driver.status).trim())))) {
+        showLoginScreen("현재 계정 정보가 변경되었습니다. 다시 로그인해 주세요.");
+        return;
+      }
+      let data = session?.schedule || session;
+      // 날짜별 일정을 함께 반환하지 않는 구형 session 응답만 별도 조회합니다.
+      if (session?.ok && session.driver && !session.schedule) {
+        data = await apiPost({ action: "myScheduleSecure", token, driverId, date });
       }
       // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
-      if (requestId !== scheduleRequestId || document.getElementById("workDate").value !== date) return;
+      if (!isCurrentRequest()) return;
       lastSchedule = data;
       renderSchedule();
     } catch (error) {
@@ -2684,7 +2699,7 @@
     }
   }
 
-  document.getElementById("loadSchedule").addEventListener("click", loadMySchedule);
+  document.getElementById("loadSchedule").addEventListener("click", () => loadMySchedule());
   document.getElementById("requestNotification").addEventListener("click",requestNotificationPermission);
   document.getElementById("saveAlertSettings").addEventListener("click",saveAlertSettings);
   document.getElementById("testScreenOffAlarm").addEventListener("click",testScreenOffAlarm);
