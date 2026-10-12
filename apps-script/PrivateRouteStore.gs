@@ -77,7 +77,7 @@ function bus70PrivateLeaveDates_(item) {
 function bus70EnsurePlannedLeaveSheet_(ss) {
   const name='기사휴무계획DB',headers=['계획ID','노선','근무조','기사ID','기사명','별칭','유형','적용일','상태','원본근거','처리자','확정시간','수정시간'];if(!ss)return null;
   let sheet=ss.getSheetByName(name);if(!sheet&&typeof ss.insertSheet==='function'){sheet=ss.insertSheet(name);sheet.getRange(1,1,1,headers.length).setValues([headers]);if(typeof sheet.setFrozenRows==='function')sheet.setFrozenRows(1);}
-  if(sheet){const current=(sheet.getDataRange().getDisplayValues()[0]||[]).map(function(value){return String(value||'').trim();});if(!current.some(Boolean))sheet.getRange(1,1,1,headers.length).setValues([headers]);else headers.forEach(function(header){if(current.indexOf(header)===-1){current.push(header);sheet.getRange(1,current.length).setValue(header);}});}
+  if(sheet){const current=(sheet.getDataRange().getDisplayValues()[0]||[]).map(function(value){return String(value||'').trim();});if(!current.some(Boolean))sheet.getRange(1,1,1,headers.length).setValues([headers]);else headers.forEach(function(header){if(current.indexOf(header)===-1){current.push(header);sheet.getRange(1,current.length).setValue(header);bus70InvalidatePartition_(sheet);}});}
   return sheet;
 }
 
@@ -216,10 +216,48 @@ function bus70RoutePatternSummary_(items) {
 
 function bus70RouteStorePublicSchemaVersion_() { return 2; }
 
-function bus70RoutePartitionNames_(rawRoute) {
+
+// Per-execution reads, never shared across users or persisted in a public cache.
+var BUS70_PARTITION_READS_ = null;
+function bus70PartitionRows_(sheet){
+  const key=sheet.getName?sheet.getName():'';
+  if(key&&BUS70_PARTITION_READS_&&BUS70_PARTITION_READS_[key])return BUS70_PARTITION_READS_[key];
+  const rows=sheet.getDataRange().getDisplayValues();
+  if(key&&BUS70_PARTITION_READS_)BUS70_PARTITION_READS_[key]=rows;
+  return rows;
+}
+function bus70InvalidatePartition_(sheet){if(BUS70_PARTITION_READS_&&sheet&&sheet.getName)delete BUS70_PARTITION_READS_[sheet.getName()];}
+function bus70AppendPartitionRows_(sheet,rows,width){
+  if(!rows.length)return;const first=sheet.getLastRow()+1,end=first+rows.length-1;
+  if(typeof sheet.getMaxRows==='function'&&end>sheet.getMaxRows())sheet.insertRowsAfter(sheet.getMaxRows(),Math.max(500,end-sheet.getMaxRows()));
+  sheet.getRange(first,1,rows.length,width).setValues(rows);bus70InvalidatePartition_(sheet);
+}
+function bus70SeedScheduleMonth_(ss,route,date,target,headers){
+  const legacy=ss.getSheetByName(bus70RoutePartitionNames_(route).schedule);if(!legacy||legacy.getLastRow()<2)return;
+  const rows=bus70PartitionRows_(legacy),c=bus70RoutePartitionHeaderMap_(rows[0]),month=normalizeDate_(date).slice(0,7),first=month+'-01',last=month+'-31';
+  const selected=rows.slice(1).filter(function(r){
+    const day=normalizeDate_(r[c['운행일']]),from=normalizeDate_(r[c['적용시작']]),to=normalizeDate_(r[c['적용종료']]);
+    return day?day.slice(0,7)===month:(!from||from<=last)&&(!to||to>=first);
+  }).map(function(r){return headers.map(function(h){return c[h]===undefined?'':r[c[h]];});});
+  if(selected.length)bus70AppendPartitionRows_(target,selected,headers.length);
+  bus70InvalidatePartition_(target);
+}
+function bus70SchedulePatternRows_(ss,route,date){
+  const headers=bus70RoutePartitionHeaders_('schedule'),result=[headers],parts=date.split('-').map(Number);let found=false;
+  for(let i=0;i<3;i++){
+    const d=new Date(Date.UTC(parts[0],parts[1]-1-i,1)),key=d.toISOString().slice(0,10),sheet=ss.getSheetByName(bus70RoutePartitionNames_(route,key).schedule);
+    if(!sheet)continue;found=true;const rows=bus70PartitionRows_(sheet),c=bus70RoutePartitionHeaderMap_(rows[0]);
+    rows.slice(1).forEach(function(r){result.push(headers.map(function(h){return c[h]===undefined?'':r[c[h]];}));});
+  }
+  if(!found){const legacy=ss.getSheetByName(bus70RoutePartitionNames_(route).schedule);return legacy?bus70PartitionRows_(legacy):[];}
+  return result;
+}
+
+function bus70RoutePartitionNames_(rawRoute, rawDate) {
   const route=String(rawRoute||'').replace(/\D/g,'');
   if(!route)return null;
-  return {route:route,stops:'노선_'+route+'_정류장DB',schedule:'노선_'+route+'_배차스케줄DB'};
+  const date=normalizeDate_(rawDate),month=/^\d{4}-\d{2}-\d{2}$/.test(date)?date.slice(0,7).replace('-','_'):'';
+  return {route:route,stops:'노선_'+route+'_정류장DB',schedule:'노선_'+route+'_배차스케줄DB'+(month?'_'+month:'')};
 }
 
 function bus70RoutePartitionHeaders_(kind) {
@@ -232,25 +270,28 @@ function bus70RoutePartitionHeaderMap_(headers) {
   const result={};(headers||[]).forEach(function(header,index){result[String(header)]=index;});return result;
 }
 
-function bus70RoutePartitionSheet_(ss, rawRoute, kind, createIfMissing) {
-  const names=bus70RoutePartitionNames_(rawRoute);if(!ss||!names||['stops','schedule'].indexOf(kind)===-1)return null;
+function bus70RoutePartitionSheet_(ss, rawRoute, kind, createIfMissing, rawDate) {
+  const names=bus70RoutePartitionNames_(rawRoute,kind==='schedule'?rawDate:null);if(!ss||!names||['stops','schedule'].indexOf(kind)===-1)return null;
   const name=names[kind];let sheet=null;
   try{sheet=ss.getSheetByName(name);}catch(error){sheet=null;}
+  if(!sheet&&!createIfMissing&&kind==='schedule'&&rawDate)return bus70RoutePartitionSheet_(ss,rawRoute,kind,false);
   if(!sheet&&createIfMissing&&typeof ss.insertSheet==='function'){
     sheet=ss.insertSheet(name);const headers=bus70RoutePartitionHeaders_(kind);
+    if(typeof sheet.getMaxColumns==='function'&&sheet.getMaxColumns()<headers.length)sheet.insertColumnsAfter(sheet.getMaxColumns(),headers.length-sheet.getMaxColumns());
     sheet.getRange(1,1,1,headers.length).setValues([headers]);if(typeof sheet.setFrozenRows==='function')sheet.setFrozenRows(1);
+    if(kind==='schedule'&&rawDate)bus70SeedScheduleMonth_(ss,rawRoute,rawDate,sheet,headers);
   }
   if(sheet&&createIfMissing){
-    const required=bus70RoutePartitionHeaders_(kind),current=(sheet.getDataRange().getDisplayValues()[0]||[]).map(function(value){return String(value||'').trim();});
+    const required=bus70RoutePartitionHeaders_(kind),current=(bus70PartitionRows_(sheet)[0]||[]).map(function(value){return String(value||'').trim();});
     if(!current.some(Boolean))sheet.getRange(1,1,1,required.length).setValues([required]);
-    else required.forEach(function(header){if(current.indexOf(header)===-1){current.push(header);sheet.getRange(1,current.length).setValue(header);}});
+    else required.forEach(function(header){if(current.indexOf(header)===-1){current.push(header);sheet.getRange(1,current.length).setValue(header);bus70InvalidatePartition_(sheet);}});
   }
   return sheet;
 }
 
-function bus70EnsureRoutePartitions_(ss, rawRoute) {
-  const names=bus70RoutePartitionNames_(rawRoute);if(!names)return {ok:false,error:'ROUTE_REQUIRED'};
-  const stops=bus70RoutePartitionSheet_(ss,names.route,'stops',true),schedule=bus70RoutePartitionSheet_(ss,names.route,'schedule',true);
+function bus70EnsureRoutePartitions_(ss, rawRoute, rawDate) {
+  const names=bus70RoutePartitionNames_(rawRoute,rawDate);if(!names)return {ok:false,error:'ROUTE_REQUIRED'};
+  const stops=bus70RoutePartitionSheet_(ss,names.route,'stops',true),schedule=bus70RoutePartitionSheet_(ss,names.route,'schedule',true,rawDate);
   return {ok:Boolean(stops&&schedule),route:names.route,stopSheet:names.stops,scheduleSheet:names.schedule,stopReady:Boolean(stops),scheduleReady:Boolean(schedule)};
 }
 
@@ -280,7 +321,7 @@ function bus70RouteStopsFromDb_(rawRoute, rawDate) {
   const names=bus70RoutePartitionNames_(rawRoute),date=normalizeDate_(rawDate);if(!names)return {configured:false,stops:[]};
   let ss,sheet;try{ss=SpreadsheetApp.getActiveSpreadsheet();sheet=bus70RoutePartitionSheet_(ss,names.route,'stops',false);}catch(error){return {configured:false,route:names.route,sheetName:names.stops,stops:[]};}
   if(!sheet)return {configured:false,route:names.route,sheetName:names.stops,stops:[]};
-  const rows=sheet.getDataRange().getDisplayValues();if(rows.length<2)return {configured:true,route:names.route,sheetName:names.stops,stops:[]};
+  const rows=bus70PartitionRows_(sheet);if(rows.length<2)return {configured:true,route:names.route,sheetName:names.stops,stops:[]};
   const c=bus70RoutePartitionHeaderMap_(rows[0]),active=rows.slice(1).map(function(row,index){return {row:row,index:index};}).filter(function(item){
     const row=item.row;
     const rowRoute=String(row[c['노선']]||names.route).replace(/\D/g,''),status=String(row[c['상태']]||'사용').toUpperCase();
@@ -305,10 +346,10 @@ function bus70RouteStopsFromDb_(rawRoute, rawDate) {
 }
 
 function bus70RouteScheduleFromDb_(rawRoute, rawDate, preferredVersion) {
-  const names=bus70RoutePartitionNames_(rawRoute),date=normalizeDate_(rawDate);if(!names||!date)return {configured:false,available:false,trips:[]};
-  let ss,sheet;try{ss=SpreadsheetApp.getActiveSpreadsheet();sheet=bus70RoutePartitionSheet_(ss,names.route,'schedule',false);}catch(error){return {configured:false,available:false,route:names&&names.route||'',sheetName:names&&names.schedule||'',trips:[]};}
-  if(!sheet)return {configured:false,available:false,route:names.route,sheetName:names.schedule,trips:[]};
-  const rows=sheet.getDataRange().getDisplayValues();if(rows.length<2)return {configured:true,available:false,route:names.route,sheetName:names.schedule,trips:[]};
+  const names=bus70RoutePartitionNames_(rawRoute,rawDate),date=normalizeDate_(rawDate);if(!names||!date)return {configured:false,available:false,trips:[]};
+  let ss,sheet;try{ss=SpreadsheetApp.getActiveSpreadsheet();sheet=bus70RoutePartitionSheet_(ss,names.route,'schedule',false,rawDate);}catch(error){return {configured:false,available:false,route:names&&names.route||'',sheetName:names&&names.schedule||'',trips:[]};}
+  if(!sheet)return {configured:false,available:false,route:names.route,sheetName:sheet&&sheet.getName?sheet.getName():names.schedule,trips:[]};
+  const rows=bus70PartitionRows_(sheet);if(rows.length<2)return {configured:true,available:false,route:names.route,sheetName:sheet&&sheet.getName?sheet.getName():names.schedule,trips:[]};
   const c=bus70RoutePartitionHeaderMap_(rows[0]),targetClass=bus70ServiceClassForDate_(date);let candidates=rows.slice(1).filter(function(row){
     const rowRoute=String(row[c['노선']]||names.route).replace(/\D/g,''),serviceDate=normalizeDate_(row[c['운행일']]),status=String(row[c['상태']]||'사용').toUpperCase();
     return rowRoute===names.route&&['N','중지','폐지','삭제'].indexOf(status)===-1&&(!serviceDate||serviceDate===date)&&bus70RoutePartitionDateActive_(date,row[c['적용시작']],row[c['적용종료']]);
@@ -326,16 +367,16 @@ function bus70RouteScheduleFromDb_(rawRoute, rawDate, preferredVersion) {
   candidates=bus70RouteScheduleLatestRows_(candidates,c);
   const version=candidates.length?String(candidates[0][c['시간표버전']]||''):'',serviceType=candidates.length?String(candidates[0][c['운행구분']]||''):'',shift=candidates.length?String(candidates[0][c['근무조']]||''):'',serviceClass=candidates.length?bus70ServiceClassForDate_(date,candidates[0][c['운행유형코드']]||serviceType):targetClass,sourceDate=candidates.length?normalizeDate_(candidates[0][c['기준일']]||candidates[0][c['운행일']])||date:'';
   const trips=bus70PrivateNormalizeTrips_(candidates.map(function(row){return bus70RouteScheduleTripFromRow_(row,c);}));
-  return {configured:true,available:trips.length>0,route:names.route,sheetName:names.schedule,scheduleVersion:version,serviceType:serviceType||bus70ServiceClassLabel_(serviceClass),serviceClass:serviceClass,shift:shift,sourceDate:sourceDate,dataStatus:candidates.length?String(candidates[0][c['자료상태']]||'CONFIRMED'):'',trips:trips,patternSummary:bus70RoutePatternSummary_(trips)};
+  return {configured:true,available:trips.length>0,route:names.route,sheetName:sheet&&sheet.getName?sheet.getName():names.schedule,scheduleVersion:version,serviceType:serviceType||bus70ServiceClassLabel_(serviceClass),serviceClass:serviceClass,shift:shift,sourceDate:sourceDate,dataStatus:candidates.length?String(candidates[0][c['자료상태']]||'CONFIRMED'):'',trips:trips,patternSummary:bus70RoutePatternSummary_(trips)};
 }
 
 // 확정 자료가 없는 날짜에는 같은 운행유형의 가장 가까운 과거 시간표만
 // 예측 초안으로 사용합니다. 이 결과는 소장이 저장하기 전까지 확정 자료가 아닙니다.
 function bus70RouteSchedulePatternFromDb_(rawRoute, rawDate) {
   const names=bus70RoutePartitionNames_(rawRoute),date=normalizeDate_(rawDate);if(!names||!date)return {configured:false,available:false,predicted:false,trips:[]};
-  let ss,sheet;try{ss=SpreadsheetApp.getActiveSpreadsheet();sheet=bus70RoutePartitionSheet_(ss,names.route,'schedule',false);}catch(error){return {configured:false,available:false,predicted:false,route:names&&names.route||'',trips:[]};}
-  if(!sheet)return {configured:false,available:false,predicted:false,route:names.route,sheetName:names.schedule,trips:[]};
-  const rows=sheet.getDataRange().getDisplayValues();if(rows.length<2)return {configured:true,available:false,predicted:false,route:names.route,sheetName:names.schedule,trips:[]};
+  let ss,rows;try{ss=SpreadsheetApp.getActiveSpreadsheet();rows=bus70SchedulePatternRows_(ss,names.route,date);}catch(error){return {configured:false,available:false,predicted:false,route:names&&names.route||'',trips:[]};}
+  if(!rows.length)return {configured:false,available:false,predicted:false,route:names.route,sheetName:names.schedule,trips:[]};
+  if(rows.length<2)return {configured:true,available:false,predicted:false,route:names.route,sheetName:names.schedule,trips:[]};
   const c=bus70RoutePartitionHeaderMap_(rows[0]),targetClass=bus70ServiceClassForDate_(date),groups={};
   rows.slice(1).forEach(function(row,index){
     const rowRoute=String(row[c['노선']]||names.route).replace(/\D/g,''),sourceDate=normalizeDate_(row[c['운행일']]||row[c['기준일']]),status=String(row[c['상태']]||'사용').toUpperCase(),dataStatus=String(row[c['자료상태']]||'CONFIRMED').toUpperCase();
@@ -356,14 +397,14 @@ function bus70RouteSchedulePatternFromDb_(rawRoute, rawDate) {
 
 function bus70SyncRouteReferenceToDb_(ss, rawRoute, reference) {
   const names=bus70RoutePartitionNames_(rawRoute);if(!names||!reference||!reference.ok)return {ok:false,error:'REFERENCE_REQUIRED'};
-  const storage=bus70EnsureRoutePartitions_(ss,names.route);if(!storage.ok)return storage;
-  const date=normalizeDate_(reference.date),now=new Date(),stopSheet=bus70RoutePartitionSheet_(ss,names.route,'stops',false),scheduleSheet=bus70RoutePartitionSheet_(ss,names.route,'schedule',false);let stopAdded=0,scheduleAdded=0;
+  const storage=bus70EnsureRoutePartitions_(ss,names.route,reference.date);if(!storage.ok)return storage;
+  const date=normalizeDate_(reference.date),now=new Date(),stopSheet=bus70RoutePartitionSheet_(ss,names.route,'stops',false),scheduleSheet=bus70RoutePartitionSheet_(ss,names.route,'schedule',false,reference.date);let stopAdded=0,scheduleAdded=0;const schedulePending=[];
   const stopRows=stopSheet.getDataRange().getDisplayValues(),stopHeaders=stopRows[0],stopColumns=bus70RoutePartitionHeaderMap_(stopHeaders),stopIds={};stopRows.slice(1).forEach(function(row){stopIds[String(row[stopColumns['stopId']]||'')]=true;});
   ((reference.routeProfile&&reference.routeProfile.stops)||[]).forEach(function(stop,index){
     const id=String(stop.id||names.route+'-STOP-'+('000'+(index+1)).slice(-3));if(stopIds[id])return;
-    const row=new Array(stopHeaders.length).fill('');row[stopColumns['stopId']]=id;row[stopColumns['노선']]=names.route;row[stopColumns['방향']]=String(stop.direction||'');row[stopColumns['정류장순서']]=Number(stop.order||index+1);row[stopColumns['정류장명']]=String(stop.name||'');row[stopColumns['정류장번호']]=String(stop.number||'');row[stopColumns['위도']]=stop.lat||'';row[stopColumns['경도']]=stop.lng||'';row[stopColumns['기점']]=stop.origin?'Y':'';row[stopColumns['종점']]=stop.terminal?'Y':'';row[stopColumns['적용시작']]=date;row[stopColumns['상태']]='사용';row[stopColumns['원본근거']]=String(reference.sourceNote||'승인 노선 기준자료');row[stopColumns['수정시간']]=now;stopSheet.appendRow(row);stopIds[id]=true;stopAdded++;
+    const row=new Array(stopHeaders.length).fill('');row[stopColumns['stopId']]=id;row[stopColumns['노선']]=names.route;row[stopColumns['방향']]=String(stop.direction||'');row[stopColumns['정류장순서']]=Number(stop.order||index+1);row[stopColumns['정류장명']]=String(stop.name||'');row[stopColumns['정류장번호']]=String(stop.number||'');row[stopColumns['위도']]=stop.lat||'';row[stopColumns['경도']]=stop.lng||'';row[stopColumns['기점']]=stop.origin?'Y':'';row[stopColumns['종점']]=stop.terminal?'Y':'';row[stopColumns['적용시작']]=date;row[stopColumns['상태']]='사용';row[stopColumns['원본근거']]=String(reference.sourceNote||'승인 노선 기준자료');row[stopColumns['수정시간']]=now;stopSheet.appendRow(row);bus70InvalidatePartition_(stopSheet);stopIds[id]=true;stopAdded++;
   });
-  const scheduleRows=scheduleSheet.getDataRange().getDisplayValues(),scheduleHeaders=scheduleRows[0],scheduleColumns=bus70RoutePartitionHeaderMap_(scheduleHeaders);
+  const scheduleRows=bus70PartitionRows_(scheduleSheet),scheduleHeaders=scheduleRows[0],scheduleColumns=bus70RoutePartitionHeaderMap_(scheduleHeaders);
   const existing={};scheduleRows.slice(1).forEach(function(row,index){
     const key=[normalizeDate_(row[scheduleColumns['운행일']]),String(row[scheduleColumns['시간표버전']]||''),Number(row[scheduleColumns['순차']]||0),Number(row[scheduleColumns['탕']]||0)].join('|'),revision=Number(row[scheduleColumns['개정번호']]||0);
     if(!existing[key]||revision>existing[key].revision||(revision===existing[key].revision&&index>existing[key].index))existing[key]={row:row,revision:revision,index:index};
@@ -372,9 +413,10 @@ function bus70SyncRouteReferenceToDb_(ss, rawRoute, reference) {
     const key=[date,String(reference.scheduleVersion||''),Number(trip.sequence||0),Number(trip.trip||0)].join('|'),current=existing[key],requestedRevision=Number(reference.revision||0),dataStatus=String(reference.dataStatus||'CONFIRMED'),currentStatus=current?String(current.row[scheduleColumns['자료상태']]||'CONFIRMED'):'',phaseUpgrade=current&&['회차지','회차시간','도착지','도착시간'].some(function(header){return !String(current.row[scheduleColumns[header]]||'')&&String(trip[header==='회차지'?'turnPlace':header==='회차시간'?'turnTime':header==='도착지'?'endPlace':'endTime']||'');});
     if(current&&requestedRevision<=current.revision&&!(dataStatus==='CONFIRMED'&&currentStatus!=='CONFIRMED')&&!phaseUpgrade)return;
     const revision=current?Math.max(requestedRevision,current.revision+1):requestedRevision,row=new Array(scheduleHeaders.length).fill(''),serviceClass=String(reference.serviceClass||bus70ServiceClassForDate_(date,reference.serviceType));
-    row[scheduleColumns['시간표ID']]='R'+names.route+'-'+date.replace(/-/g,'')+'-'+('00'+Number(trip.sequence||0)).slice(-3)+'-'+('00'+Number(trip.trip||0)).slice(-2)+(revision?'-R'+revision:'');row[scheduleColumns['노선']]=names.route;row[scheduleColumns['운행일']]=date;row[scheduleColumns['시간표버전']]=String(reference.scheduleVersion||'');row[scheduleColumns['운행구분']]=String(reference.serviceType||bus70ServiceClassLabel_(serviceClass));row[scheduleColumns['운행유형코드']]=serviceClass;row[scheduleColumns['기준일']]=String(reference.predictionSourceDate||reference.sourceDate||date);row[scheduleColumns['자료상태']]=dataStatus;row[scheduleColumns['적용시작']]=date;row[scheduleColumns['적용종료']]=date;row[scheduleColumns['근무조']]=String(reference.shift||'');row[scheduleColumns['순차']]=Number(trip.sequence||0);row[scheduleColumns['탕']]=Number(trip.trip||0);row[scheduleColumns['발차지']]=String(trip.startPlace||'');row[scheduleColumns['발차시간']]=String(trip.startTime||'');row[scheduleColumns['회차지']]=String(trip.turnPlace||'');row[scheduleColumns['회차시간']]=String(trip.turnTime||'');row[scheduleColumns['도착지']]=String(trip.endPlace||'');row[scheduleColumns['도착시간']]=String(trip.endTime||'');row[scheduleColumns['시각상태']]=String(trip.phaseStatus||'');row[scheduleColumns['시각근거일']]=String(trip.phaseSourceDate||'');row[scheduleColumns['시각신뢰도']]=String(trip.phaseConfidence||'');row[scheduleColumns['영업종료형태']]=String(trip.serviceEndType||'');row[scheduleColumns['영업종료지']]=String(trip.serviceEndPlace||'');row[scheduleColumns['회송목적지']]=String(trip.deadheadDestination||'');row[scheduleColumns['서비스역할']]=String(trip.serviceRole||'');row[scheduleColumns['최종운행']]=trip.finalService?'Y':'';row[scheduleColumns['상태']]='사용';row[scheduleColumns['개정번호']]=revision;row[scheduleColumns['변경사유']]=String(reference.revisionReason||'');row[scheduleColumns['처리자']]=String(reference.confirmedBy||'');row[scheduleColumns['확정시간']]=reference.confirmedAt||'';row[scheduleColumns['원본근거']]=String(reference.sourceNote||'승인 노선 기준자료');row[scheduleColumns['수정시간']]=now;row[scheduleColumns['시간기준지']]=String(trip.controlPoint||'');row[scheduleColumns['시간기준시각']]=String(trip.controlTime||'');row[scheduleColumns['시간기준설명']]=String(trip.controlPurpose||'');scheduleSheet.appendRow(row);existing[key]={row:row,revision:revision,index:scheduleRows.length+scheduleAdded};scheduleAdded++;
+    row[scheduleColumns['시간표ID']]='R'+names.route+'-'+date.replace(/-/g,'')+'-'+('00'+Number(trip.sequence||0)).slice(-3)+'-'+('00'+Number(trip.trip||0)).slice(-2)+(revision?'-R'+revision:'');row[scheduleColumns['노선']]=names.route;row[scheduleColumns['운행일']]=date;row[scheduleColumns['시간표버전']]=String(reference.scheduleVersion||'');row[scheduleColumns['운행구분']]=String(reference.serviceType||bus70ServiceClassLabel_(serviceClass));row[scheduleColumns['운행유형코드']]=serviceClass;row[scheduleColumns['기준일']]=String(reference.predictionSourceDate||reference.sourceDate||date);row[scheduleColumns['자료상태']]=dataStatus;row[scheduleColumns['적용시작']]=date;row[scheduleColumns['적용종료']]=date;row[scheduleColumns['근무조']]=String(reference.shift||'');row[scheduleColumns['순차']]=Number(trip.sequence||0);row[scheduleColumns['탕']]=Number(trip.trip||0);row[scheduleColumns['발차지']]=String(trip.startPlace||'');row[scheduleColumns['발차시간']]=String(trip.startTime||'');row[scheduleColumns['회차지']]=String(trip.turnPlace||'');row[scheduleColumns['회차시간']]=String(trip.turnTime||'');row[scheduleColumns['도착지']]=String(trip.endPlace||'');row[scheduleColumns['도착시간']]=String(trip.endTime||'');row[scheduleColumns['시각상태']]=String(trip.phaseStatus||'');row[scheduleColumns['시각근거일']]=String(trip.phaseSourceDate||'');row[scheduleColumns['시각신뢰도']]=String(trip.phaseConfidence||'');row[scheduleColumns['영업종료형태']]=String(trip.serviceEndType||'');row[scheduleColumns['영업종료지']]=String(trip.serviceEndPlace||'');row[scheduleColumns['회송목적지']]=String(trip.deadheadDestination||'');row[scheduleColumns['서비스역할']]=String(trip.serviceRole||'');row[scheduleColumns['최종운행']]=trip.finalService?'Y':'';row[scheduleColumns['상태']]='사용';row[scheduleColumns['개정번호']]=revision;row[scheduleColumns['변경사유']]=String(reference.revisionReason||'');row[scheduleColumns['처리자']]=String(reference.confirmedBy||'');row[scheduleColumns['확정시간']]=reference.confirmedAt||'';row[scheduleColumns['원본근거']]=String(reference.sourceNote||'승인 노선 기준자료');row[scheduleColumns['수정시간']]=now;row[scheduleColumns['시간기준지']]=String(trip.controlPoint||'');row[scheduleColumns['시간기준시각']]=String(trip.controlTime||'');row[scheduleColumns['시간기준설명']]=String(trip.controlPurpose||'');schedulePending.push(row);existing[key]={row:row,revision:revision,index:scheduleRows.length+scheduleAdded};scheduleAdded++;
   });
-  return {ok:true,route:names.route,stopSheet:names.stops,scheduleSheet:names.schedule,stopAdded:stopAdded,scheduleAdded:scheduleAdded};
+  if(schedulePending.length){bus70AppendPartitionRows_(scheduleSheet,schedulePending,scheduleHeaders.length);}
+  return {ok:true,route:names.route,stopSheet:names.stops,scheduleSheet:storage.scheduleSheet,stopAdded:stopAdded,scheduleAdded:scheduleAdded};
 }
 
 function bus70PrivateRouteProfile_(rawRoute, source, rawDate, dbSchedule) {
@@ -386,7 +428,7 @@ function bus70PrivateRouteProfile_(rawRoute, source, rawDate, dbSchedule) {
     const name=String(item.name||item.stopName||'').trim();if(!name)return;
     stops.push({id:String(item.id||item.stopId||route+'-STOP-'+('000'+(index+1)).slice(-3)),name:name,number:String(item.number||''),order:Number(item.order||index+1),direction:String(item.direction||''),lat:bus70RoutePartitionNumber_(item.lat),lng:bus70RoutePartitionNumber_(item.lng),origin:Boolean(item.origin),terminal:Boolean(item.terminal),turnaround:Boolean(item.turnaround),provider:String(item.provider||''),externalStopId:String(item.externalStopId||''),effectiveStart:String(item.effectiveStart||''),effectiveEnd:String(item.effectiveEnd||'')});
   });
-  return {route:route,displayName:String(profile.displayName||source&&source.displayName||route+'번'),stops:stops,stopCount:stops.length,boardAvailable:Boolean(source&&Array.isArray(source.assignments)),timetableAvailable:Boolean(dbSchedule&&dbSchedule.available||source&&(Array.isArray(source.tripTimings)||Array.isArray(source.timings)||Array.isArray(source.departures))),storage:{partitioned:true,stopSheet:names&&names.stops||'',scheduleSheet:names&&names.schedule||'',stopSource:stored.stops.length?'ROUTE_DB':'PRIVATE_REFERENCE',scheduleSource:dbSchedule&&dbSchedule.available?'ROUTE_DB':'PRIVATE_REFERENCE'},viewModes:['SUMMARY','ROUTE']};
+  return {route:route,displayName:String(profile.displayName||source&&source.displayName||route+'번'),stops:stops,stopCount:stops.length,boardAvailable:Boolean(source&&Array.isArray(source.assignments)),timetableAvailable:Boolean(dbSchedule&&dbSchedule.available||source&&(Array.isArray(source.tripTimings)||Array.isArray(source.timings)||Array.isArray(source.departures))),storage:{partitioned:true,stopSheet:names&&names.stops||'',scheduleSheet:dbSchedule&&dbSchedule.sheetName||names&&names.schedule||'',stopSource:stored.stops.length?'ROUTE_DB':'PRIVATE_REFERENCE',scheduleSource:dbSchedule&&dbSchedule.available?'ROUTE_DB':'PRIVATE_REFERENCE'},viewModes:['SUMMARY','ROUTE']};
 }
 
 function bus70PrivateRouteStatus_() {

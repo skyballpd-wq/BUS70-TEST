@@ -164,7 +164,7 @@ function bus70TimetableApplyAdjustments_(ss, route, date, rawTrips) {
 function bus70RouteTimetableEditorData_(body) {
   const date=normalizeDate_(body&&body.date),route=bus70ManagerNormalizeRoute_(body&&body.route);
   if(!date||!route||route==='ALL')return {ok:false,error:'PARAM_REQUIRED',message:'시간표를 편집할 노선과 운행 날짜를 확인하세요.'};
-  const ss=SpreadsheetApp.getActiveSpreadsheet(),storage=bus70EnsureRoutePartitions_(ss,route);
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),storage=bus70EnsureRoutePartitions_(ss,route,date);
   if(!storage.ok)return {ok:false,error:'ROUTE_DB_MISSING',message:route+'번 노선별 배차스케줄DB를 준비하지 못했습니다.'};
   let reference=bus70ManagerReferenceData_(route,date,{allowPrediction:true});
   if(!reference||!reference.ok)return reference||{ok:false,error:'ROUTE_REFERENCE_NOT_CONFIGURED',message:date+' '+route+'번 시간표 기준자료가 없습니다.'};
@@ -206,7 +206,7 @@ function bus70RouteTimetableBulkSave_(body, requesterId) {
       if(actual!==before)return {ok:false,error:'TIMETABLE_STALE',message:route+'번 '+sequence+'순차 '+trip+'탕 '+phase+' 시간이 이미 '+(actual||'미등록')+'로 바뀌었습니다. 전체 시간표를 다시 불러오세요.'};
       seen[unique]=true;normalized.push({sequence:sequence,trip:trip,phase:phase,field:field,before:before,after:after});
     }
-    const ss=SpreadsheetApp.getActiveSpreadsheet(),scheduleSheet=bus70RoutePartitionSheet_(ss,route,'schedule',true),adjustmentSheet=ss.getSheetByName('배차간격조정DB');
+    const ss=SpreadsheetApp.getActiveSpreadsheet(),scheduleSheet=bus70RoutePartitionSheet_(ss,route,'schedule',true,date),adjustmentSheet=ss.getSheetByName('배차간격조정DB');
     if(!scheduleSheet||!adjustmentSheet)return {ok:false,error:'DB_MISSING',message:'노선별 시간표 또는 시간 변경 이력 DB를 찾을 수 없습니다.'};
     bus70EnsureSheetColumns_(adjustmentSheet,['노선','시간구분','공지상태','공지채널','원본근거']);
     const scheduleRows=scheduleSheet.getDataRange().getDisplayValues(),scheduleHeaders=scheduleRows[0],sc=makeHeaderMap_(scheduleHeaders),revised={},revisionBase=scheduleRows.slice(1).reduce(function(max,row){return normalizeDate_(row[sc['운행일']])===date&&String(row[sc['시간표버전']]||'')===current.scheduleVersion?Math.max(max,Number(row[sc['개정번호']]||0)):max;},0),revision=revisionBase+1,now=new Date();
@@ -229,7 +229,7 @@ function bus70RouteTimetableBulkSave_(body, requesterId) {
         const trip=revised[key],row=new Array(scheduleHeaders.length).fill('');
         row[sc['시간표ID']]=newId_('TT');row[sc['노선']]=route;row[sc['운행일']]=date;row[sc['시간표버전']]=current.scheduleVersion;row[sc['운행구분']]=current.serviceType;row[sc['운행유형코드']]=current.serviceClass;row[sc['기준일']]=date;row[sc['자료상태']]='CONFIRMED';row[sc['적용시작']]=date;row[sc['적용종료']]=date;row[sc['근무조']]=current.shift;row[sc['순차']]=Number(trip.sequence);row[sc['탕']]=Number(trip.trip);row[sc['발차지']]=String(trip.startPlace||'');row[sc['발차시간']]=String(trip.startTime||'');row[sc['회차지']]=String(trip.turnPlace||'');row[sc['회차시간']]=String(trip.turnTime||'');row[sc['도착지']]=String(trip.endPlace||'');row[sc['도착시간']]=String(trip.endTime||'');row[sc['시각상태']]=String(trip.phaseStatus||'');row[sc['시각근거일']]=String(trip.phaseSourceDate||'');row[sc['시각신뢰도']]=String(trip.phaseConfidence||'');row[sc['영업종료형태']]=String(trip.serviceEndType||'');row[sc['영업종료지']]=String(trip.serviceEndPlace||'');row[sc['회송목적지']]=String(trip.deadheadDestination||'');row[sc['서비스역할']]=String(trip.serviceRole||'');row[sc['최종운행']]=trip.finalService?'Y':'';row[sc['상태']]='사용';row[sc['개정번호']]=revision;row[sc['변경사유']]=reason;row[sc['처리자']]=requesterId;row[sc['확정시간']]=now;row[sc['원본근거']]=String(body.sourceEvidence||'소장 시간표 일괄편집');row[sc['수정시간']]=now;return row;
       });
-      scheduleSheet.getRange(scheduleSheet.getLastRow()+1,1,revisionRows.length,scheduleHeaders.length).setValues(revisionRows);
+      bus70AppendPartitionRows_(scheduleSheet,revisionRows,scheduleHeaders.length);
     }
     const adjustmentRows=adjustmentSheet.getDataRange().getDisplayValues(),adjustmentHeaders=adjustmentRows[0],ac=makeHeaderMap_(adjustmentHeaders),historyRows=normalized.map(function(change){const row=new Array(adjustmentHeaders.length).fill('');row[ac['gapId']]=newId_('GAP');row[ac['노선']]=route;row[ac['날짜']]=date;row[ac['순차']]=change.sequence;row[ac['탕']]=change.trip;row[ac['시간구분']]=change.phase;row[ac['기존시간']]=change.before;row[ac['조정시간']]=change.after;row[ac['사유']]=reason;row[ac['적용시작']]=date;row[ac['적용종료']]=date;row[ac['처리자']]=requesterId;row[ac['처리시간']]=now;row[ac['공지상태']]='확정';row[ac['공지채널']]=String(body.announcementChannel||'단톡방');row[ac['원본근거']]=String(body.sourceEvidence||'소장 시간표 일괄편집');return row;});
     adjustmentSheet.getRange(adjustmentSheet.getLastRow()+1,1,historyRows.length,adjustmentHeaders.length).setValues(historyRows);
@@ -688,7 +688,7 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   if (!driverSheet || !vehicleSheet || !dispatchSheet) {
     return {ok:false, error:'DB_MISSING', message:'배차 편집에 필요한 DB를 찾을 수 없습니다.'};
   }
-  const routeStorage=bus70EnsureRoutePartitions_(ss,route);
+  const routeStorage=bus70EnsureRoutePartitions_(ss,route,date);
   bus70EnsureSheetColumns_(dispatchSheet,['노선']);
   bus70ApplyDueDriverTransitions_(driverSheet, ss.getSheetByName('근무변경DB'));
   const allDrivers = bus70ManagerMasterRows_(driverSheet, 'driver');
@@ -842,6 +842,7 @@ function bus70ApplyDueDriverTransitions_(driverSheet,workSheet){
   bus70EnsureSheetColumns_(workSheet,['변경전노선','변경노선','변경근무조','이전사원번호','새사원번호','변경전기사구분','변경기사구분']);
   const today=bus70ServiceDateKey_(new Date()),dr=driverSheet.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),rowsById={};
   for(let i=1;i<dr.length;i++)rowsById[String(dr[i][dc['driverId']]||'')]=i+1;
+  const originalRows=dr.map(function(row){return row.slice();});
   const wr=workSheet.getDataRange().getDisplayValues(),wc=makeHeaderMap_(wr[0]);
   wr.slice(1).map(function(r,index){return {r:r,index:index,date:bus70ManagerDateKey_(r[wc['날짜']])};})
     .filter(function(v){return v.date&&v.date<=today&&String(v.r[wc['유형']]||'')==='노선이동';})
@@ -850,8 +851,9 @@ function bus70ApplyDueDriverTransitions_(driverSheet,workSheet){
       const id=String(v.r[wc['기사ID']]||''),rowNo=rowsById[id];if(!rowNo)return;
       const row=dr[rowNo-1].slice(),newRoute=String(v.r[wc['변경노선']]||''),newShift=String(v.r[wc['변경근무조']]||''),newEmpId=String(v.r[wc['새사원번호']]||''),newType=String(v.r[wc['변경기사구분']]||'');
       if(newRoute)row[dc['현재노선']]=newRoute;if(newShift)row[dc['근무조']]=newShift;if(newEmpId)row[dc['사원번호']]=newEmpId;if(newType)row[dc['기사구분']]=newType;
-      driverSheet.getRange(rowNo,1,1,row.length).setValues([row]);
+      dr[rowNo-1]=row;
     });
+  Object.keys(rowsById).forEach(function(id){const rowNo=rowsById[id],original=originalRows[rowNo-1],row=dr[rowNo-1];if(JSON.stringify(original)!==JSON.stringify(row))driverSheet.getRange(rowNo,1,1,row.length).setValues([row]);});
 }
 
 function bus70ManagerMasterRows_(sheet, type, selectedRoute) {

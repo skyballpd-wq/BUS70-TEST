@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict');
+const gps=require('../driver-automation');
+const stops=[{id:'S1',name:'합성차고지',lat:37,lng:127,order:1,origin:true},{id:'S2',name:'합성역.앞',lat:37.01,lng:127,order:2},{id:'S3',name:'합성역A',lat:37.02,lng:127,order:3,turnaround:true},{id:'S4',name:'합성차고지',lat:37.0001,lng:127,order:4}];
+const trip={startPlace:'합성차고지',turnPlace:'합성역',endPlace:'합성차고지',startTime:'06:00',endTime:'08:00'};
+const points=gps.resolvePoints(trip,stops);
+assert.equal(points.start.referenceId,'S1');assert.equal(points.turn.referenceId,'S3');assert.equal(points.end.referenceId,'S4');
+assert.equal(gps.resolvePoints({...trip,turnPlace:'알수없는별칭'},stops).turn,undefined);
+assert.equal(gps.resolvePoints({...trip,startLocation:{...points.end}},stops).start.referenceId,'S1','replace the wrong occurrence returned by older server');
+assert.equal(gps.resolvePoints({...trip,turnLocation:{lat:37.03,lng:127,referenceId:'MANAGER-POINT'}},stops).turn.referenceId,'MANAGER-POINT');
+const date='2099-01-10',base=gps.moment(date,'06:00');let state={},clock=base;
+function sample(lat,lng=127,log={},extra={}){clock+=4000;const result=gps.step(state,{points,log,date,startTime:'06:00',hasTurn:true,now:clock,position:{timestamp:clock,coords:{latitude:lat,longitude:lng,accuracy:8},...extra}});state=result.state;return result.event;}
+assert.equal(sample(37),null);assert.equal(sample(37),null);
+assert.equal(sample(37.0005),null,'GPS drift inside exit buffer');
+assert.equal(sample(37.002),null);assert.equal(sample(37.002),'DEPART');
+assert.equal(sample(37.02,127,{actualStart:'recorded'}),null);assert.equal(sample(37.02,127,{actualStart:'recorded'}),'TURN');
+assert.equal(sample(37.0001,127,{actualStart:'recorded'}),null,'cannot arrive before a required turn');
+assert.equal(sample(37.0001,127,{actualStart:'recorded',actualTurn:'recorded'}),null);assert.equal(sample(37.0001,127,{actualStart:'recorded',actualTurn:'recorded'}),'ARRIVE');
+assert.equal(sample(37.0001,127,{actualStart:'recorded',actualTurn:'recorded',actualEnd:'recorded'}),null);
+state={};clock=base;sample(37);const timestamp=clock;assert.equal(sample(37,127,{}, {timestamp}),null);assert.equal(state.seenStart,undefined,'same cached fix does not count twice');
+state={};clock=base;sample(37);sample(37);assert.equal(sample(37.002,127,{}, {coords:{latitude:37.002,longitude:127,accuracy:200}}),null);assert.equal(state.startOutside,0);
+state={};clock=base-3600000;sample(37);sample(37);sample(37.002);assert.equal(sample(37.002),null,'no automatic departure an hour before schedule');
+const trips=[{trip:1,startTime:'06:00',endTime:'08:00'},{trip:2,startTime:'09:00',endTime:'11:00'},{trip:3,startTime:'12:00',endTime:'14:00'}];
+assert.equal(gps.activeIndex(trips,[{},{},{}],date,gps.moment(date,'10:00')),1,'mid-shift starts at current planned trip without fabricating old logs');
+assert.equal(gps.activeIndex(trips,[{actualStart:'06:05'},{},{}],date,gps.moment(date,'10:00')),0,'recorded unfinished trip takes precedence');
+assert.equal(gps.moment(date,'00:30')-gps.moment(date,'23:30'),3600000);
+console.log('GPS occurrence matching, departure/turn/arrival trajectory, stale/poor fixes, order, startup and overnight tests passed');
