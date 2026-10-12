@@ -130,7 +130,7 @@ const weekdayPattern=partitioned.bus70RouteSchedulePatternFromDb_('5','2099-02-0
 assert.equal(weekdayPattern.available,true);assert.equal(weekdayPattern.predicted,true);assert.equal(weekdayPattern.sourceDate,'2099-02-01');assert.equal(weekdayPattern.serviceClass,'WEEKDAY');assert.equal(weekdayPattern.trips.length,2);
 const saturdayPattern=partitioned.bus70RouteSchedulePatternFromDb_('5','2099-02-07');
 assert.equal(saturdayPattern.available,false);assert.equal(saturdayPattern.serviceClass,'SATURDAY');
-const scheduleSheet5=spreadsheet.getSheetByName('노선_5_배차스케줄DB'),scheduleHeaders5=scheduleSheet5.rows[0],scheduleColumns5=Object.fromEntries(scheduleHeaders5.map((header,index)=>[header,index])),revisedTrip=scheduleSheet5.rows[1].slice();
+const scheduleSheet5=spreadsheet.getSheetByName('노선_5_배차스케줄DB_2099_02'),scheduleHeaders5=scheduleSheet5.rows[0],scheduleColumns5=Object.fromEntries(scheduleHeaders5.map((header,index)=>[header,index])),revisedTrip=scheduleSheet5.rows[1].slice();
 revisedTrip[scheduleColumns5['발차시간']]='05:07';revisedTrip[scheduleColumns5['원본근거']]='합성 수기 확정';scheduleSheet5.appendRow(revisedTrip);
 const revisedSchedule5=partitioned.bus70RouteScheduleFromDb_('5','2099-02-01','SYN-R5-DB-V1');
 assert.equal(revisedSchedule5.trips.length,2);assert.equal(revisedSchedule5.trips.find(item=>item.sequence===1&&item.trip===1).startTime,'05:07');
@@ -155,7 +155,7 @@ const predicted5=partitioned.bus70Route5ReferenceData_('2099-02-02',null,{allowP
 assert.equal(predicted5.ok,true);assert.equal(predicted5.predicted,true);assert.equal(predicted5.predictionSourceDate,'2099-02-01');assert.equal(predicted5.verificationStatus,'소장 확정 전 예측 초안');
 const dbOnly70=partitioned.bus70Route70ReferenceData_('2099-02-01');
 assert.equal(dbOnly70.ok,true);assert.equal(dbOnly70.scheduleVersion,'SYN-R70-DB-V1');assert.equal(dbOnly70.trips.length,1);assert.equal(dbOnly70.trips[0].startTime,'04:30');
-assert.equal(dbOnly70.routeProfile.storage.stopSheet,'노선_70_정류장DB');assert.equal(dbOnly70.routeProfile.storage.scheduleSheet,'노선_70_배차스케줄DB');
+assert.equal(dbOnly70.routeProfile.storage.stopSheet,'노선_70_정류장DB');assert.equal(dbOnly70.routeProfile.storage.scheduleSheet,'노선_70_배차스케줄DB_2099_02');
 
 const property = loadContext({propertyData:fixture,propertyOverrides:{BUS70_SHIFT_ANCHOR_DATE:'2099-01-09',BUS70_SHIFT_ANCHOR_SHIFT:'A'}});
 assert.equal(property.bus70PrivateRouteSource_('70','2099-01-08').scheduleVersion,'SYN-R70-V1');

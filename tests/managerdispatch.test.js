@@ -70,7 +70,7 @@ assert.equal(newDriver.ok,true); assert.equal(drivers.rows[drivers.rows.length-1
 assert.equal(context.bus70MasterDriverUpsert_({empId:'699902',name:'가상중복신규',shift:'A',route:'70',driverType:'노선',status:'재직'},'D1').error,'EMP_ID_DUPLICATE');
 const beforeSickLeave=context.bus70ManagerBootstrap_('2026-06-30'); assert.equal(beforeSickLeave.drivers.some(v=>v.name==='가상휴직기사'),true);
 const boot=context.bus70ManagerBootstrap_('2026-09-18'); assert.equal(boot.ok,true); assert.equal(boot.drivers.length,23); assert.equal(boot.departures[1].time,'05:00');
-assert.equal(boot.routeStorage.stopSheet,'노선_70_정류장DB');assert.equal(boot.routeStorage.scheduleSheet,'노선_70_배차스케줄DB');
+assert.equal(boot.routeStorage.stopSheet,'노선_70_정류장DB');assert.equal(boot.routeStorage.scheduleSheet,'노선_70_배차스케줄DB_2026_09');
 assert.equal(boot.drivers.some(v=>v.name==='가상휴직기사'),false);
 assert.equal(boot.unavailableNames.includes('가상휴직기사'),true);
 assert.equal(context.bus70ManagerBootstrap_('2026-10-01').drivers.some(v=>v.name==='가상휴직기사'),false);
@@ -200,14 +200,14 @@ context.bus70ManagerReferenceData_=()=>({ok:true,route:'70',date:'2099-01-08',tr
 assert.equal(context.bus70ManagerBootstrap_('2099-01-08','5').error,'ROUTE_DATA_MISMATCH');
 context.bus70ManagerReferenceData_=realReferenceLoader;
 const route5Editor=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableEditorLoad',route:'5',date:'2099-01-08'},'D1');
-assert.equal(route5Editor.ok,true);assert.equal(route5Editor.route,'5');assert.equal(route5Editor.date,'2099-01-08');assert.equal(route5Editor.routeStorage.scheduleSheet,'노선_5_배차스케줄DB');
+assert.equal(route5Editor.ok,true);assert.equal(route5Editor.route,'5');assert.equal(route5Editor.date,'2099-01-08');assert.equal(route5Editor.routeStorage.scheduleSheet,'노선_5_배차스케줄DB_2099_01');
 assert.equal(route5Editor.trips.find(v=>v.sequence===25&&v.trip===1).startTime,'05:45');
 assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableEditorLoad',route:'5',date:'2099-01-08'},'D2').error,'MANAGER_REQUIRED');
 const route70ScheduleRowsBefore=(sheets['노선_70_배차스케줄DB']&&sheets['노선_70_배차스케줄DB'].rows.length)||0,adjustmentCountBeforeBulk=adjustments.rows.length;
 const bulkSaved=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableBulkSave',route:'5',date:'2099-01-08',reason:'합성 전체 시간표 편집',changes:[{sequence:25,trip:1,phase:'발차',before:'05:45',after:'05:47'}]},'D1');
 assert.equal(bulkSaved.ok,true);assert.equal(bulkSaved.changeCount,1);assert.equal(bulkSaved.data.route,'5');assert.equal(bulkSaved.data.trips.find(v=>v.sequence===25&&v.trip===1).startTime,'05:47');
 assert.equal(adjustments.rows.length,adjustmentCountBeforeBulk+1);assert.equal((sheets['노선_70_배차스케줄DB']&&sheets['노선_70_배차스케줄DB'].rows.length)||0,route70ScheduleRowsBefore);
-const route5ScheduleHeaders=Object.fromEntries(sheets['노선_5_배차스케줄DB'].rows[0].map((v,i)=>[v,i])),route5Revision=sheets['노선_5_배차스케줄DB'].rows[sheets['노선_5_배차스케줄DB'].rows.length-1];
+const route5ScheduleHeaders=Object.fromEntries(sheets['노선_5_배차스케줄DB_2099_01'].rows[0].map((v,i)=>[v,i])),route5Revision=sheets['노선_5_배차스케줄DB_2099_01'].rows[sheets['노선_5_배차스케줄DB_2099_01'].rows.length-1];
 assert.equal(route5Revision[route5ScheduleHeaders['노선']],'5');assert.equal(route5Revision[route5ScheduleHeaders['개정번호']],1);assert.equal(route5Revision[route5ScheduleHeaders['변경사유']],'합성 전체 시간표 편집');
 assert.equal(context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'routeTimetableBulkSave',route:'5',date:'2099-01-08',reason:'오래된 화면 저장 차단',changes:[{sequence:25,trip:1,phase:'발차',before:'05:45',after:'05:49'}]},'D1').error,'TIMETABLE_STALE');
 const allRoutes=context.bus70ManagerBootstrap_('2099-01-08','ALL');

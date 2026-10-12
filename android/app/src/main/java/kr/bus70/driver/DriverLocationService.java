@@ -27,6 +27,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -56,6 +59,7 @@ public class DriverLocationService extends Service implements LocationListener {
     private volatile boolean liveLocationInFlight;
     private long lastLiveLocationAt;
     private Location lastLiveLocation;
+    private long lastAcceptedFix;
 
     static void start(Context context) {
         Intent intent = new Intent(context, DriverLocationService.class).setAction(ACTION_START);
@@ -129,7 +133,7 @@ public class DriverLocationService extends Service implements LocationListener {
             schedule = new JSONObject(raw);
             schedule.put("trips", TripOrder.actual(schedule.optJSONArray("trips")));
             scheduleRaw = raw;
-            String nextKey = schedule.optString("dispatchId") + "|" + schedule.optString("date");
+            String nextKey = schedule.optString("driverId") + "|" + schedule.optString("dispatchId") + "|" + schedule.optString("vehicleId") + "|" + schedule.optString("date");
             JSONObject saved = new JSONObject(store.locationState());
             if (!nextKey.equals(saved.optString("scheduleKey"))) {
                 saved = new JSONObject().put("scheduleKey", nextKey).put("trips", new JSONObject());
@@ -181,12 +185,20 @@ public class DriverLocationService extends Service implements LocationListener {
 
     @Override public void onLocationChanged(Location location) {
         if (!loadSchedule()) return;
+        ZonedDateTime localNow = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+        String serviceDate = localNow.minusHours(3).minusMinutes(30).toLocalDate().toString();
+        if (!serviceDate.equals(schedule.optString("date"))) { failAndStop("운행일이 바뀌었습니다. 오늘 배차를 확인하세요."); return; }
+        long now = System.currentTimeMillis(), fix = location.getTime();
+        if (!location.hasAccuracy() || location.getAccuracy() > 60 || fix > now + 5000 || now - fix > 20000 || fix <= lastAcceptedFix || lastAcceptedFix > 0 && fix - lastAcceptedFix < 1500) return;
+        if (lastAcceptedFix > 0 && fix - lastAcceptedFix > 45000) { try { states.put("trips", new JSONObject()); } catch (Exception ignored) {} }
+        lastAcceptedFix = fix;
         store.lastLocation(location.getLatitude(), location.getLongitude(), location.getAccuracy(), location.hasSpeed() ? location.getSpeed() : 0, location.getTime());
         JSONArray trips = schedule.optJSONArray("trips");
         if (trips == null || trips.length() == 0) return;
         int index = activeTripIndex(trips);
         JSONObject trip = trips.optJSONObject(index);
         if (trip == null) return;
+        if (!trip.optString("actualEnd").isEmpty()) { failAndStop("오늘 탕 운행 자동 기록을 완료했습니다."); return; }
         int tripNo = trip.optInt("trip", index + 1);
         JSONObject tripStates = states.optJSONObject("trips");
         if (tripStates == null) {
@@ -201,21 +213,23 @@ public class DriverLocationService extends Service implements LocationListener {
         String nearestText = nearestText(location, tripNo, start, turn, end);
         setStatus(nearestText);
         try {
-            if (actualStart.isEmpty() && start != null && reliable(location, start)) {
+            long plannedStart = scheduleMoment(trip.optString("startTime"));
+            if (actualStart.isEmpty() && start != null && reliable(location, start) && (plannedStart == 0 || now >= plannedStart - 1800000L && now <= plannedStart + 7200000L)) {
                 double distance = distance(location, start);
                 if (distance <= radius(start)) {
                     state.put("startInside", state.optInt("startInside") + 1).put("startOutside", 0);
                     if (state.optInt("startInside") >= 2) state.put("seenStart", true);
-                } else if (state.optBoolean("seenStart") && distance > radius(start) + 25) {
+                } else if (state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy())) {
                     state.put("startOutside", state.optInt("startOutside") + 1);
                     if (state.optInt("startOutside") >= 2) postEvent(trip, "DEPART", location);
-                }
+                    state.put("startInside", 0);
+                } else { state.put("startInside", 0).put("startOutside", 0); }
             }
             if (!actualStart.isEmpty() && actualTurn.isEmpty() && turn != null && reliable(location, turn)) {
                 state.put("turnInside", distance(location, turn) <= radius(turn) ? state.optInt("turnInside") + 1 : 0);
                 if (state.optInt("turnInside") >= 2) postEvent(trip, "TURN", location);
             }
-            if (!actualStart.isEmpty() && actualEnd.isEmpty() && end != null && (turn == null || !actualTurn.isEmpty()) && reliable(location, end)) {
+            if (!actualStart.isEmpty() && actualEnd.isEmpty() && end != null && ((trip.optString("turnPlace").isEmpty() && trip.optString("turnTime").isEmpty()) || !actualTurn.isEmpty()) && reliable(location, end)) {
                 state.put("endInside", distance(location, end) <= radius(end) ? state.optInt("endInside") + 1 : 0);
                 if (state.optInt("endInside") >= 2) postEvent(trip, "ARRIVE", location);
             }
@@ -231,13 +245,24 @@ public class DriverLocationService extends Service implements LocationListener {
         }
         for (int i = 0; i < trips.length(); i++) {
             JSONObject trip = trips.optJSONObject(i);
-            if (trip != null && trip.optString("actualEnd").isEmpty()) return i;
+            if (trip != null && trip.optString("actualEnd").isEmpty() && (scheduleMoment(trip.optString("endTime")) == 0 || scheduleMoment(trip.optString("endTime")) >= System.currentTimeMillis())) return i;
         }
         return Math.max(0, trips.length() - 1);
     }
 
+    private long scheduleMoment(String time) {
+        try {
+            String[] parts = time.split(":");
+            int hour = Integer.parseInt(parts[0]), minute = Integer.parseInt(parts[1]);
+            if (hour < 0 || hour > 47 || minute < 0 || minute > 59) return 0;
+            LocalDate day = LocalDate.parse(schedule.optString("date"));
+            if (hour < 24 && hour * 60 + minute < 210) day = day.plusDays(1);
+            return day.atStartOfDay(ZoneId.of("Asia/Seoul")).plusHours(hour).plusMinutes(minute).toInstant().toEpochMilli();
+        } catch (Exception error) { return 0; }
+    }
+
     private boolean reliable(Location location, JSONObject point) {
-        return location.hasAccuracy() && location.getAccuracy() <= Math.max(100, radius(point) * 2);
+        return location.hasAccuracy() && location.getAccuracy() <= 60;
     }
 
     private double radius(JSONObject point) { return Math.max(20, Math.min(500, point.optDouble("radiusM", 80))); }
@@ -279,16 +304,19 @@ public class DriverLocationService extends Service implements LocationListener {
                     .put("plannedEnd", trip.optString("endTime")).put("plannedFrontGap", trip.opt("plannedFrontGap"))
                     .put("plannedRearGap", trip.opt("plannedRearGap")).put("source", "GPS_AUTO")
                     .put("latitude", location.getLatitude()).put("longitude", location.getLongitude())
-                    .put("accuracy", location.hasAccuracy() ? location.getAccuracy() : JSONObject.NULL);
+                    .put("accuracy", location.hasAccuracy() ? location.getAccuracy() : JSONObject.NULL)
+                    .put("observedAt", location.getTime());
         } catch (Exception error) {
             inFlight.remove(key);
             return;
         }
+        final String eventScheduleKey = scheduleKey, eventApiUrl = schedule.optString("apiUrl");
         network.execute(() -> {
             try {
-                JSONObject result = postJson(schedule.optString("apiUrl"), body);
+                JSONObject result = postJson(eventApiUrl, body);
                 main.post(() -> {
                     try {
+                        if (!eventScheduleKey.equals(scheduleKey) || !body.optString("token").equals(schedule.optString("token"))) { inFlight.remove(key); return; }
                         if (result.optBoolean("ok")) {
                             String field = "DEPART".equals(event) ? "actualStart" : "TURN".equals(event) ? "actualTurn" : "actualEnd";
                             trip.put(field, result.optString("recordedAt", String.valueOf(System.currentTimeMillis())));

@@ -37,7 +37,8 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
   const node = id => nodes[id] ||= {value:id === 'workDate' ? date : '', disabled:false, contents:[], replaceChildren(...values){this.contents = values;}};
   const front = vm.createContext({
     console:{error(){}}, currentDriverId:driver.driverId, authToken:'SYNTHETIC-TOKEN',
-    scheduleRequestId:0, lastSchedule:null, document:{getElementById:node},
+    scheduleRequestId:0, lastSchedule:null, locationTrackingActive:false,
+    prepareDriverLocationPoints(){}, driverAssignmentBinding:data=>({dispatchId:data?.dispatch?.id||"",vehicleId:""}), document:{getElementById:node},
     el:(tag,text,type) => ({tag,text,type}), resetConfirmation(){},
     apiErrorMessage:(error,fallback) => fallback,
     apiPost:async body => {calls.push(body);return respond ? respond(body,server,driver) : server.bus70AuthAction_(body);},

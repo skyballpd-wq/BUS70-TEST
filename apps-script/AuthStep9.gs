@@ -42,6 +42,7 @@ function bus70RevokeSession_(token) {
 }
 
 function bus70AuthAction_(body) {
+  if(typeof BUS70_PARTITION_READS_ !== 'undefined')BUS70_PARTITION_READS_={};
   body = body || {};
   const action = String(body.action || '').trim();
   if (action === 'loginSecure') {
@@ -650,7 +651,13 @@ function bus70DriverRunLogSave_(body, driverId) {
   if(!scheduledTrip){const numbers=timetable.trips.map(function(item){return Number(item.trip);}),first=numbers[0];return {ok:false,error:'TRIP_NOT_SCHEDULED',message:first>1&&trip<first?currentRoute+'번 '+sequence+'순차는 '+first+'탕부터 운행하며 '+trip+'탕 운행기록은 만들 수 없습니다.':currentRoute+'번 '+sequence+'순차의 실제 운행 탕만 기록할 수 있습니다. 운행 탕: '+numbers.join(', ')};}
   const rows=logSheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
   for(let j=1;j<rows.length;j++) if(normalizeDate_(rows[j][c['날짜']])===date&&String(rows[j][c['기사ID']]||'')===driverId&&Number(rows[j][c['순차']])===sequence&&Number(rows[j][c['탕']])===trip){rowNo=j+1;break;}
-  const row=rowNo?rows[rowNo-1].slice():new Array(rows[0].length).fill(''), now=new Date(),pointRoles=bus70RunLogPointRoles_(timetable.trips,scheduledTrip);
+  const row=rowNo?rows[rowNo-1].slice():new Array(rows[0].length).fill('');let now=new Date();
+  if(String(body.source||'')==='GPS_AUTO'&&body.observedAt!==undefined){
+    const observed=new Date(Number(body.observedAt));
+    if(!Number.isFinite(observed.getTime())||now.getTime()-observed.getTime()>120000||observed.getTime()-now.getTime()>30000)return {ok:false,error:'GPS_EVENT_STALE',message:'GPS 시각이 오래되었거나 휴대폰 시각이 맞지 않아 기록하지 않았습니다.'};
+    now=observed;
+  }
+  const pointRoles=bus70RunLogPointRoles_(timetable.trips,scheduledTrip);
   if(!rowNo){const identity=bus70DriverContextForDate_(driver,date);row[c['logId']]=newId_('RUN');row[c['날짜']]=date;row[c['기사ID']]=driverId;row[c['차량ID']]=currentVehicleId;row[c['순차']]=sequence;row[c['탕']]=trip;row[c['발차예정']]=String(scheduledTrip.startTime||body.plannedStart||'');row[c['회차예정']]=String(scheduledTrip.turnTime||body.plannedTurn||'');row[c['도착예정']]=String(scheduledTrip.endTime||body.plannedEnd||'');row[c['앞차예정간격']]=String(scheduledTrip.plannedFrontGapMinutes===null||scheduledTrip.plannedFrontGapMinutes===undefined?body.plannedFrontGap||'':scheduledTrip.plannedFrontGapMinutes);row[c['뒷차예정간격']]=String(scheduledTrip.plannedRearGapMinutes===null||scheduledTrip.plannedRearGapMinutes===undefined?body.plannedRearGap||'':scheduledTrip.plannedRearGapMinutes);row[c['시간표버전']]=currentScheduleVersion;row[c['기사명']]=String(identity.name||'');row[c['사원번호']]=String(identity.empId||'');row[c['노선']]=String(currentRoute||identity.route||'');row[c['배차ID']]=currentDispatchId;}
   row[c['발차지']]=row[c['발차지']]||String(scheduledTrip.startPlace||'');row[c['회차지']]=row[c['회차지']]||String(scheduledTrip.turnPlace||'');row[c['도착지']]=row[c['도착지']]||String(scheduledTrip.serviceEndPlace||scheduledTrip.endPlace||'');row[c['발차역할']]=row[c['발차역할']]||pointRoles.startRole;row[c['회차역할']]=row[c['회차역할']]||pointRoles.turnRole;row[c['도착역할']]=row[c['도착역할']]||pointRoles.endRole;row[c['막탕복귀지']]=row[c['막탕복귀지']]||pointRoles.deadheadDestination;
   const locationMode=String(body.source||'MANUAL')==='GPS_AUTO'?'GPS 자동':'수동';
@@ -668,6 +675,8 @@ function bus70DriverRunLogSave_(body, driverId) {
     else {row[c['회차실제']]=now;row[c['회차편차분']]=bus70RunLogDeviationMinutes_(date,row[c['회차예정']],now);row[c['상태']]='회차완료';applyLocation_(event);}
   }
   else if(event==='ARRIVE'){
+    if(!row[c['발차실제']])return {ok:false,error:'DEPART_REQUIRED',message:'발차 확인 전에는 도착을 기록할 수 없습니다.'};
+    if(locationMode==='GPS 자동'&&(scheduledTrip.turnPlace||scheduledTrip.turnTime)&&!row[c['회차실제']])return {ok:false,error:'TURN_REQUIRED',message:'회차 확인 후 도착을 자동 기록합니다.'};
     if(row[c['도착실제']]){alreadyRecorded=true;actualAt=row[c['도착실제']];}
     else {row[c['도착실제']]=now;row[c['도착편차분']]=bus70RunLogDeviationMinutes_(date,row[c['도착예정']],now);row[c['상태']]='완료';applyLocation_(event);}
   }
