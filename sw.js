@@ -1,5 +1,5 @@
 // BUS70 TEST: 정적 리소스만 캐시. 기사 개인정보 및 API 결과는 캐시하지 않음.
-const CACHE = "soshin-ops-static-v60-4-work-return";
+const CACHE = "soshin-ops-static-v60-5-session-recovery";
 const ASSETS = ["./", "./index.html", "./login-korean.js", "./manager-ocr.js?v=11", "./manifest.webmanifest", "./icons/bus70-192.png", "./icons/bus70-512.png", "./icons/bus70-180.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
