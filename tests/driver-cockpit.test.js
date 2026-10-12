@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict'),gps=require('../driver-automation'),cockpit=require('../driver-cockpit');
+const date='2099-01-10',base=gps.moment(date,'06:00');let now=base,state={};
+const points={start:{lat:37,lng:127,radiusM:60,departureBearing:0},turn:{lat:37.01,lng:127,radiusM:60},control:{lat:37.005,lng:127.003,radiusM:60},end:{lat:37.001,lng:127.003,radiusM:60},return:{lat:37,lng:127,radiusM:60}};
+function fix(point,log,extra={}){now+=4000;const r=gps.step(state,{points,date,startTime:'06:00',hasTurn:true,hasControl:true,hasReturn:true,log,now,position:{timestamp:now,coords:{latitude:point.lat,longitude:point.lng,accuracy:8,...extra}}});state=r.state;return r.event;}
+const log={actualStart:'recorded'};
+assert.equal(fix(points.turn,log),null);assert.equal(fix(points.turn,log),'TURN');log.actualTurn='recorded';
+assert.equal(fix({lat:37.008,lng:127},log),null);assert.equal(fix({lat:37.008,lng:127},log),'TURN_DEPART');log.turnDepartedAt='recorded';
+assert.equal(fix(points.control,log),null);assert.equal(fix(points.control,log),'CONTROL');log.actualControl='recorded';
+assert.equal(fix(points.end,log),null);assert.equal(fix(points.end,log),'ARRIVE');log.actualEnd='recorded';
+assert.equal(gps.activeIndex([{...log,trip:1,deadheadDestination:'합성차고지',endPlace:'합성종점'},{trip:2}], [log,{}],date,now),0);
+assert.equal(fix(points.return,log),null);assert.equal(fix(points.return,log),'DEADHEAD_RETURN');log.deadheadReturnedAt='recorded';assert.equal(fix(points.return,log),null);
+state={};fix(points.start,{});fix(points.start,{});fix({lat:36.998,lng:127},{},{speed:5,heading:180});assert.equal(fix({lat:36.998,lng:127},{},{speed:5,heading:180}),null,'wrong direction departure is not recorded');
+const stops=[{id:'S1',name:'합성차고지',order:1,lat:37,lng:127,origin:true},{id:'S2',name:'합성중간',order:2,lat:37.01,lng:127},{id:'S3',name:'합성회차',order:3,lat:37.02,lng:127},{id:'S4',name:'API전환점',order:4,lat:37.03,lng:127,turnaround:true},{id:'S5',name:'합성중간',order:5,lat:37.01,lng:127.003},{id:'S6',name:'합성차고지',order:6,lat:37,lng:127.003}];
+const trip={startPlace:'합성차고지',turnPlace:'합성회차',endPlace:'합성차고지',turnLocation:{lat:37.02,lng:127,referenceId:'MANAGER-POINT'}};
+const path=gps.course(trip,stops);assert.equal(path.turnIndex,2,'operational turnaround may precede the API pivot');assert.equal(path.stops.length,6);
+assert.equal(gps.course(trip,[...stops,{...stops[0],id:'DUPLICATE'}]),null,'ambiguous stop order not silently accepted');
+const short=gps.course({startPlace:'합성중간',endPlace:'합성차고지'},stops);assert.equal(short.stops[0].id,'S2');
+const pos={timestamp:now,coords:{latitude:37.012,longitude:127,accuracy:8,speed:5,heading:0}},nav=gps.navigate(path,pos,{actualStart:'recorded'},{},now);
+assert.equal(nav.configured,true);assert.equal(nav.tripPassedStops,2);assert.equal(nav.tripStopCount,6);assert.equal(nav.nextStop,'합성회차');
+assert.equal(gps.navigate(path,{...pos,timestamp:now-25000},log,nav,now).configured,false);
+assert.equal(gps.navigate(path,{...pos,coords:{...pos.coords,heading:180}},{actualStart:'recorded'},{},now).configured,false);
+assert.equal(gps.navigate(path,{...pos,coords:{...pos.coords,longitude:127.1}},{actualStart:'recorded'},{},now).configured,false);
+const ring=cockpit.ringSegments(114,42);assert.equal(ring.length,114);assert.equal(ring.filter(s=>s.done).length,42);
+const phases=cockpit.phases({...trip,controlPoint:'합성중간',deadheadDestination:'합성복귀지'},log,{midStart:true});assert.deepEqual(phases.map(p=>p.label),['중간 시작','회차 도착','회차 출발','중간 기준','영업 종료','차고지 복귀']);assert.equal(phases[2].planned,'');assert.equal(phases[5].planned,'');
+assert.equal(cockpit.weatherLabel({available:true,temperature:null,observedAt:new Date(now).toISOString()},now),'날씨 갱신 대기');
+assert.equal(cockpit.weatherLabel({available:true,temperature:0,condition:'눈',observedAt:new Date(now).toISOString()},now),'0.0° · 눈');
+assert.equal(cockpit.weatherLabel({available:true,temperature:12,observedAt:'invalid'},now),'날씨 갱신 대기');
+console.log('Extended GPS stages, direction gates, operational course, freshness, N-stop ring and missing-data tests passed');

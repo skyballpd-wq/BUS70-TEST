@@ -175,6 +175,12 @@ assert.equal(duplicateDepart.alreadyRecorded,true); assert.strictEqual(runLogs.r
 const turn=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'TURN',source:'GPS_AUTO',latitude:0.11,longitude:0.21,accuracy:18});
 assert.equal(turn.ok,true); assert.equal(runLogs.rows[1][runLogColumns['상태']],'회차완료'); assert.ok(runLogs.rows[1][9]);
 assert.equal(runLogs.rows[1][runLogs.rows[0].indexOf('회차기록방식')],'GPS 자동');
+const phaseBase={action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'TURN_DEPART',source:'GPS_AUTO',latitude:0.11,longitude:0.21,accuracy:8,observedAt:Date.now()};
+assert.equal(context.bus70AuthAction_({...phaseBase,accuracy:90}).error,'GPS_ACCURACY_REQUIRED');
+assert.equal(context.bus70AuthAction_({...phaseBase,observedAt:Date.now()-180000}).error,'GPS_EVENT_STALE');
+assert.equal(context.bus70AuthAction_(phaseBase).ok,true);
+assert.equal(context.bus70AuthAction_(phaseBase).alreadyRecorded,true);
+assert.equal(context.bus70AuthAction_({...phaseBase,event:'CONTROL'}).error,'CONTROL_NOT_SCHEDULED');
 const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
 assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][runLogColumns['상태']],'완료');
 const breakConnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_CONNECTED'});
@@ -182,7 +188,7 @@ assert.equal(breakConnected.ok,true); assert.equal(breakConnected.status,'휴식
 const breakDisconnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_DISCONNECTED'});
 assert.equal(breakDisconnected.ok,true); assert.equal(breakDisconnected.status,'다음운행준비');
 const listed=context.bus70AuthAction_({action:'driverRunLogs',token:session.token,from:'2026-09-18',to:'2026-09-18'});
-assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].actualTurn); assert.equal(listed.logs[0].turnRecordMode,'GPS 자동'); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
+assert.ok(listed.logs[0].turnDepartedAt);assert.equal(listed.logs[0].turnDepartureMode,'GPS 자동');assert.equal(listed.logs.length,1); assert.equal(listed.logs[0].trip,1); assert.ok(listed.logs[0].actualTurn); assert.equal(listed.logs[0].turnRecordMode,'GPS 자동'); assert.ok(listed.logs[0].breakChargeConnectedAt); assert.ok(listed.logs[0].breakChargeDisconnectedAt);
 assert.equal(listed.logs[0].startPlace,'가상차고지');assert.equal(listed.logs[0].turnRole,'회차지·복귀 구간 시작지');assert.equal(listed.logs[0].endRole,'막탕 운행 종료지');
 assert.notEqual(listed.logs[0].startDeviationMinutes,'');assert.notEqual(listed.logs[0].turnDeviationMinutes,'');assert.notEqual(listed.logs[0].endDeviationMinutes,'');
 
@@ -224,4 +230,5 @@ dispatch.rows.push(['DSP-NOCAR','2026-09-18','B','6','DRV-NOCAR','','WD-V1','확
 const noVehicleLive=context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:6,trip:1,latitude:37.5,longitude:126.7},'DRV-NOCAR');
 assert.equal(noVehicleLive.ok,false);assert.equal(noVehicleLive.error,'VEHICLE_NOT_ASSIGNED');
 
+assert.equal(context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:4,trip:1,latitude:37.5,longitude:126.7,observedAt:Date.now()-180000},'DRV-1').error,'GPS_STALE');
 console.log('AuthStep9 tests passed');
