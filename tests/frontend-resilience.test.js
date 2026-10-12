@@ -14,7 +14,7 @@ assert.match(html, /최근 저장정보입니다\. 서버에서 현재 사번·�
 assert.match(html, /function tripGapSummary\(trip\)/);
 assert.match(html, /function tripOperationalState\(data,trip,index\)/);
 assert.match(html, /function renderDriverLiveDashboard\(root,data\)/);
-assert.match(html, /"driver-progress-arrow"/);
+assert.match(html, /Bus70Cockpit.drawRing/);
 assert.match(html, /data-trip-progress/);
 assert.match(html, /function tripPointRoles\(data,trip,index\)/);
 assert.match(html, /막탕 회송 복귀지/);
@@ -45,7 +45,7 @@ assert.match(html, /function driverAssignmentBinding\(data\)/);
 assert.match(html, /확정 배차·배정 차량/);
 assert.match(html, /result\.own\.speedKmh/);
 assert.match(html, /navigator\.geolocation\.watchPosition/);
-assert.match(html, /automaticRunEvent\(trip,"TURN",position\)/);
+assert.match(html, /automaticRunEvent\(trip,decision.event,position\)/);
 assert.match(html, /source:"GPS_AUTO"/);
 assert.match(html, /plannedTurn:trip\.turnTime/);
 assert.match(html, /id="managerRoute"/);

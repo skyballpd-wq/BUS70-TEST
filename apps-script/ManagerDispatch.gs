@@ -10,6 +10,7 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'depotContactsSave') return bus70DepotContactsSave_(body,driverId);
   if (action === 'driverAlertSettingsGet') return bus70DriverAlertSettingsGet_(driverId);
   if (action === 'driverAlertSettingsSave') return bus70DriverAlertSettingsSave_(body, driverId);
+  if (action === 'driverWeather') return bus70DriverWeather_(body,driverId);
   if (action === 'driverRunLogs') return bus70DriverRunLogs_(body, driverId);
   if (action === 'driverRunLogSave') return bus70DriverRunLogSave_(body, driverId);
   if (action === 'driverLiveLocationSave') return bus70DriverLiveLocationSave_(body, driverId);

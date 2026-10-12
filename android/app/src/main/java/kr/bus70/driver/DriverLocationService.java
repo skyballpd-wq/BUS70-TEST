@@ -192,13 +192,13 @@ public class DriverLocationService extends Service implements LocationListener {
         if (!location.hasAccuracy() || location.getAccuracy() > 60 || fix > now + 5000 || now - fix > 20000 || fix <= lastAcceptedFix || lastAcceptedFix > 0 && fix - lastAcceptedFix < 1500) return;
         if (lastAcceptedFix > 0 && fix - lastAcceptedFix > 45000) { try { states.put("trips", new JSONObject()); } catch (Exception ignored) {} }
         lastAcceptedFix = fix;
-        store.lastLocation(location.getLatitude(), location.getLongitude(), location.getAccuracy(), location.hasSpeed() ? location.getSpeed() : 0, location.getTime());
+        store.lastLocation(location.getLatitude(), location.getLongitude(), location.getAccuracy(), location.hasSpeed() ? location.getSpeed() : -1, location.getTime());
         JSONArray trips = schedule.optJSONArray("trips");
         if (trips == null || trips.length() == 0) return;
         int index = activeTripIndex(trips);
         JSONObject trip = trips.optJSONObject(index);
         if (trip == null) return;
-        if (!trip.optString("actualEnd").isEmpty()) { failAndStop("오늘 탕 운행 자동 기록을 완료했습니다."); return; }
+        if (!trip.optString("actualEnd").isEmpty() && (!needsReturn(trip) || !trip.optString("deadheadReturnedAt").isEmpty())) { failAndStop("오늘 탕 운행 자동 기록을 완료했습니다."); return; }
         int tripNo = trip.optInt("trip", index + 1);
         JSONObject tripStates = states.optJSONObject("trips");
         if (tripStates == null) {
@@ -207,7 +207,7 @@ public class DriverLocationService extends Service implements LocationListener {
         }
         JSONObject state = tripStates.optJSONObject(String.valueOf(tripNo));
         if (state == null) state = new JSONObject();
-        JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation");
+        JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation"), control = point(trip,"controlLocation"), returned = point(trip,"returnLocation");
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         postLiveLocation(trip, location, actualTurn.isEmpty() ? "OUTBOUND" : "RETURN");
         String nearestText = nearestText(location, tripNo, start, turn, end);
@@ -216,21 +216,36 @@ public class DriverLocationService extends Service implements LocationListener {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
             if (actualStart.isEmpty() && start != null && reliable(location, start) && (plannedStart == 0 || now >= plannedStart - 1800000L && now <= plannedStart + 7200000L)) {
                 double distance = distance(location, start);
-                if (distance <= radius(start)) {
+                if (distance <= radius(start) && matchesDirection(location,start,"approachBearing")) {
                     state.put("startInside", state.optInt("startInside") + 1).put("startOutside", 0);
                     if (state.optInt("startInside") >= 2) state.put("seenStart", true);
-                } else if (state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy())) {
+                } else if (state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy()) && matchesDirection(location,start,"departureBearing")) {
                     state.put("startOutside", state.optInt("startOutside") + 1);
                     if (state.optInt("startOutside") >= 2) postEvent(trip, "DEPART", location);
                     state.put("startInside", 0);
                 } else { state.put("startInside", 0).put("startOutside", 0); }
             }
-            if (!actualStart.isEmpty() && actualTurn.isEmpty() && turn != null && reliable(location, turn)) {
-                state.put("turnInside", distance(location, turn) <= radius(turn) ? state.optInt("turnInside") + 1 : 0);
+            if (actualEnd.isEmpty() && !actualStart.isEmpty() && actualTurn.isEmpty() && turn != null && reliable(location, turn)) {
+                state.put("turnInside", distance(location, turn) <= radius(turn) && matchesDirection(location,turn,"approachBearing") ? state.optInt("turnInside") + 1 : 0);
                 if (state.optInt("turnInside") >= 2) postEvent(trip, "TURN", location);
             }
+            if (actualEnd.isEmpty() && !actualStart.isEmpty() && trip.optString("actualControl").isEmpty() && control != null) {
+                state.put("controlInside", distance(location,control) <= radius(control) ? state.optInt("controlInside")+1 : 0);
+                if (state.optInt("controlInside")>=2) postEvent(trip,"CONTROL",location);
+            }
+            if (actualEnd.isEmpty() && !actualTurn.isEmpty() && trip.optString("turnDepartedAt").isEmpty() && turn != null) {
+                if(distance(location,turn)<=radius(turn)) { state.put("turnStay",state.optInt("turnStay")+1).put("turnOutside",0); }
+                else if(state.optInt("turnInside")>=2 || state.optInt("turnStay")>=2) {
+                    state.put("turnOutside",distance(location,turn)>radius(turn)+Math.max(30,location.getAccuracy()) && matchesDirection(location,turn,"departureBearing") ? state.optInt("turnOutside")+1 : 0);
+                    if(state.optInt("turnOutside")>=2) postEvent(trip,"TURN_DEPART",location);
+                }
+            }
+            if (!actualEnd.isEmpty() && needsReturn(trip) && trip.optString("deadheadReturnedAt").isEmpty() && returned != null) {
+                state.put("returnInside",distance(location,returned)<=radius(returned) && matchesDirection(location,returned,"approachBearing") ? state.optInt("returnInside")+1 : 0);
+                if(state.optInt("returnInside")>=2)postEvent(trip,"DEADHEAD_RETURN",location);
+            }
             if (!actualStart.isEmpty() && actualEnd.isEmpty() && end != null && ((trip.optString("turnPlace").isEmpty() && trip.optString("turnTime").isEmpty()) || !actualTurn.isEmpty()) && reliable(location, end)) {
-                state.put("endInside", distance(location, end) <= radius(end) ? state.optInt("endInside") + 1 : 0);
+                state.put("endInside", distance(location, end) <= radius(end) && matchesDirection(location,end,"approachBearing") ? state.optInt("endInside") + 1 : 0);
                 if (state.optInt("endInside") >= 2) postEvent(trip, "ARRIVE", location);
             }
             tripStates.put(String.valueOf(tripNo), state);
@@ -238,7 +253,12 @@ public class DriverLocationService extends Service implements LocationListener {
         } catch (Exception ignored) {}
     }
 
+    private boolean needsReturn(JSONObject trip) {
+        return !trip.optString("deadheadDestination").isEmpty() && !trip.optString("deadheadDestination").equals(trip.optString("endPlace"));
+    }
+
     private int activeTripIndex(JSONArray trips) {
+        for(int i=0;i<trips.length();i++) { JSONObject t=trips.optJSONObject(i); if(t!=null && needsReturn(t) && !t.optString("actualEnd").isEmpty() && t.optString("deadheadReturnedAt").isEmpty())return i; }
         for (int i = 0; i < trips.length(); i++) {
             JSONObject trip = trips.optJSONObject(i);
             if (trip != null && !trip.optString("actualStart").isEmpty() && trip.optString("actualEnd").isEmpty()) return i;
@@ -263,6 +283,11 @@ public class DriverLocationService extends Service implements LocationListener {
 
     private boolean reliable(Location location, JSONObject point) {
         return location.hasAccuracy() && location.getAccuracy() <= 60;
+    }
+
+    private boolean matchesDirection(Location location, JSONObject point, String field) {
+        if (!point.has(field) || !location.hasBearing() || !location.hasSpeed() || location.getSpeed()<1.5) return true;
+        return Math.abs((location.getBearing()-point.optDouble(field)+540)%360-180)<=100;
     }
 
     private double radius(JSONObject point) { return Math.max(20, Math.min(500, point.optDouble("radiusM", 80))); }
@@ -318,7 +343,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     try {
                         if (!eventScheduleKey.equals(scheduleKey) || !body.optString("token").equals(schedule.optString("token"))) { inFlight.remove(key); return; }
                         if (result.optBoolean("ok")) {
-                            String field = "DEPART".equals(event) ? "actualStart" : "TURN".equals(event) ? "actualTurn" : "actualEnd";
+                            String field = "DEPART".equals(event) ? "actualStart" : "TURN".equals(event) ? "actualTurn" : "TURN_DEPART".equals(event) ? "turnDepartedAt" : "CONTROL".equals(event) ? "actualControl" : "DEADHEAD_RETURN".equals(event) ? "deadheadReturnedAt" : "actualEnd";
                             trip.put(field, result.optString("recordedAt", String.valueOf(System.currentTimeMillis())));
                             scheduleRaw = schedule.toString();
                             store.schedule(scheduleRaw);
@@ -358,7 +383,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     .put("longitude", location.getLongitude()).put("accuracy", location.hasAccuracy() ? location.getAccuracy() : JSONObject.NULL)
                     .put("speedKmh", location.hasSpeed() ? Math.max(0, location.getSpeed() * 3.6) : JSONObject.NULL)
                     .put("heading", location.hasBearing() ? location.getBearing() : JSONObject.NULL)
-                    .put("direction", direction);
+                    .put("direction", direction).put("observedAt", location.getTime());
         } catch (Exception error) {
             liveLocationInFlight = false;
             return;
@@ -400,6 +425,9 @@ public class DriverLocationService extends Service implements LocationListener {
     }
 
     private String eventLabel(String event) {
+        if("TURN_DEPART".equals(event))return "회차 후 출발";
+        if("CONTROL".equals(event))return "중간 기준점";
+        if("DEADHEAD_RETURN".equals(event))return "차고지 복귀";
         if ("DEPART".equals(event)) return "발차";
         if ("TURN".equals(event)) return "회차";
         return "도착";
