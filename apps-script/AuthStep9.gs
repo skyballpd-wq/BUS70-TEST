@@ -696,6 +696,32 @@ function bus70RunLogTimetable_(ss, route, date, sequence, scheduleVersion, drive
   return {configured:configured,trips:trips};
 }
 
+// Missing TURN must not suppress an independently observed arrival. Require
+// two ordered return-stop observations plus an arrival inside the assigned end
+// geofence. Never invent a time for the missed turnaround.
+function bus70ObservedArrivalEvidence_(body,stops,endPoint,startedAt,arrivedAt) {
+  const evidence=body.returnEvidence;
+  if(!Array.isArray(evidence)||evidence.length!==2||!endPoint||!stops||stops.length<3)return false;
+  const pivots=stops.filter(function(s){return s.turnaround;});if(pivots.length!==1)return false;
+  const pivot=Number(pivots[0].order),started=new Date(startedAt).getTime(),arrived=new Date(arrivedAt).getTime();
+  const number=function(v){return v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));};
+  if(!Number.isFinite(started)||!Number.isFinite(arrived)||arrived<=started)return false;
+  let previousOrder=pivot,previousAt=started;
+  for(let i=0;i<evidence.length;i++){
+    const item=evidence[i],stop=stops.find(function(s){return String(s.id)===String(item.stopId);}),time=Number(item.observedAt);
+    if(!stop||Number(stop.order)<=previousOrder||!number(item.accuracy)||Number(item.accuracy)>60||Number(item.accuracy)<0||!number(item.latitude)||!number(item.longitude)||!number(time)||time<=previousAt||time>arrived||arrived-time>7200000)return false;
+    if(bus70LiveLocationDistance_(item,{latitude:stop.lat,longitude:stop.lng})>Math.max(45,Number(item.accuracy)))return false;
+    previousOrder=Number(stop.order);previousAt=time;
+  }
+  if(!number(body.latitude)||!number(body.longitude))return false;
+  return bus70LiveLocationDistance_(body,{latitude:endPoint.lat,longitude:endPoint.lng})<=Number(endPoint.radiusM||80);
+}
+function bus70AllowObservedArrival_(body,scheduledTrip,route,date,sequence,started,arrived){
+  const copy=Object.assign({},scheduledTrip),data={route:route,date:date,dispatch:{sequence:sequence},trips:[copy]};
+  bus70AttachLocationReferences_(data);
+  return bus70ObservedArrivalEvidence_(body,bus70RouteStopsFromDb_(route,date).stops,copy.endLocation,started,arrived);
+}
+
 function bus70DriverRunLogSave_(body, driverId) {
   const date=normalizeDate_(body.date), sequence=Number(body.sequence||0), trip=Number(body.trip||0), event=String(body.event||'');
   const allowedEvents=['DEPART','TURN','TURN_DEPART','CONTROL','ARRIVE','BREAK_CHARGE_CONNECTED','BREAK_CHARGE_DISCONNECTED','SERVICE_END','DEADHEAD_RETURN','CLEANING_DONE','CHARGER_CONNECTED','SHIFT_END'];
@@ -765,7 +791,10 @@ function bus70DriverRunLogSave_(body, driverId) {
   }
   else if(event==='ARRIVE'){
     if(!row[c['발차실제']])return {ok:false,error:'DEPART_REQUIRED',message:'발차 확인 전에는 도착을 기록할 수 없습니다.'};
-    if(locationMode==='GPS 자동'&&(scheduledTrip.turnPlace||scheduledTrip.turnTime)&&!row[c['회차실제']])return {ok:false,error:'TURN_REQUIRED',message:'회차 확인 후 도착을 자동 기록합니다.'};
+    if(locationMode==='GPS 자동'&&(scheduledTrip.turnPlace||scheduledTrip.turnTime)&&!row[c['회차실제']]){
+      if(!bus70AllowObservedArrival_(body,scheduledTrip,currentRoute,date,sequence,row[c['발차실제']],now))return {ok:false,error:'TURN_REQUIRED',message:'회차 미기록 · 복귀 정류장과 도착 GPS 근거 확인 필요'};
+      row[c['비고']]=String(row[c['비고']]||'')+' 회차 시각 미기록 · 순서가 확인된 복귀 정류장 및 도착 GPS로 완료';
+    }
     if(row[c['도착실제']]){alreadyRecorded=true;actualAt=row[c['도착실제']];}
     else {row[c['도착실제']]=now;row[c['도착편차분']]=bus70RunLogDeviationMinutes_(date,row[c['도착예정']],now);row[c['상태']]='완료';applyLocation_(event);if(scheduledTrip.deadheadDestination&&scheduledTrip.deadheadDestination!==scheduledTrip.endPlace){row[c['영업종료형태']]=scheduledTrip.serviceEndType||'';row[c['영업종료지']]=scheduledTrip.serviceEndPlace||scheduledTrip.endPlace;row[c['회송목적지']]=scheduledTrip.deadheadDestination;row[c['상태']]='영업종료';}}
   }

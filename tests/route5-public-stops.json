@@ -1,0 +1,1142 @@
+[
+  {
+    "id": "R5-GBIS-210000014-0001-212000379",
+    "order": 1,
+    "name": "고강공영차고지",
+    "lat": 37.5377,
+    "lng": 126.8193167,
+    "origin": true,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0002-277102365",
+    "order": 2,
+    "name": "고강차고지(경유)",
+    "lat": 37.5360333,
+    "lng": 126.8215667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0003-212000401",
+    "order": 3,
+    "name": "고강차고지입구",
+    "lat": 37.5349667,
+    "lng": 126.8214,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0004-212000391",
+    "order": 4,
+    "name": "민속가든",
+    "lat": 37.5344,
+    "lng": 126.8185667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0005-212000077",
+    "order": 5,
+    "name": "수주초등학교",
+    "lat": 37.5301,
+    "lng": 126.8159333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0006-212000076",
+    "order": 6,
+    "name": "상우아파트.고리울청소년센터",
+    "lat": 37.5292167,
+    "lng": 126.8186167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0007-212000074",
+    "order": 7,
+    "name": "진영아파트",
+    "lat": 37.5281333,
+    "lng": 126.8218833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0008-212000073",
+    "order": 8,
+    "name": "새보미아파트.고리울동굴시장",
+    "lat": 37.5264833,
+    "lng": 126.82155,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0009-212000072",
+    "order": 9,
+    "name": "청실빌라.고강초등학교후문",
+    "lat": 37.5257167,
+    "lng": 126.81975,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0010-212000071",
+    "order": 10,
+    "name": "고강동우체국",
+    "lat": 37.5264333,
+    "lng": 126.8176833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0011-212000070",
+    "order": 11,
+    "name": "수주도서관.고강선사유적공원",
+    "lat": 37.5249667,
+    "lng": 126.8156333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0012-212000069",
+    "order": 12,
+    "name": "간대미사거리",
+    "lat": 37.5234833,
+    "lng": 126.8153333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0013-212000068",
+    "order": 13,
+    "name": "작동지하차도앞",
+    "lat": 37.5209,
+    "lng": 126.8148667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0014-212000346",
+    "order": 14,
+    "name": "신작동사거리.동도센트리움",
+    "lat": 37.51935,
+    "lng": 126.8145167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0015-212000067",
+    "order": 15,
+    "name": "성곡중학교.장애인종합복지관",
+    "lat": 37.5179167,
+    "lng": 126.8140833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0016-212000066",
+    "order": 16,
+    "name": "까치울초등학교",
+    "lat": 37.5148167,
+    "lng": 126.8131833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0017-212000065",
+    "order": 17,
+    "name": "까치울전원마을1.2단지",
+    "lat": 37.5107167,
+    "lng": 126.81225,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0018-212000064",
+    "order": 18,
+    "name": "까치울역4번출구.까치울전원마을3.4단지",
+    "lat": 37.5074667,
+    "lng": 126.8115667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0019-210000302",
+    "order": 19,
+    "name": "(임시)밤골.산울림청소년센터",
+    "lat": 37.4979167,
+    "lng": 126.80845,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0020-210000386",
+    "order": 20,
+    "name": "역곡안동네",
+    "lat": 37.4935667,
+    "lng": 126.8084667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0021-210000301",
+    "order": 21,
+    "name": "역곡초.중.고등학교",
+    "lat": 37.4912,
+    "lng": 126.8088667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0022-210000300",
+    "order": 22,
+    "name": "제이디팰리시티",
+    "lat": 37.4891833,
+    "lng": 126.8098167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0023-210000299",
+    "order": 23,
+    "name": "역곡상상시장",
+    "lat": 37.4875167,
+    "lng": 126.8106833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0024-210000298",
+    "order": 24,
+    "name": "역곡역북부",
+    "lat": 37.48565,
+    "lng": 126.8105833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0025-210000297",
+    "order": 25,
+    "name": "역곡2동행정복지센터입구",
+    "lat": 37.4842833,
+    "lng": 126.8064167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0026-210000036",
+    "order": 26,
+    "name": "가톨릭대학교입구.보람쉬움아파트",
+    "lat": 37.4836333,
+    "lng": 126.8043833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0027-210000035",
+    "order": 27,
+    "name": "대진아파트",
+    "lat": 37.4835,
+    "lng": 126.8016167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0028-210000034",
+    "order": 28,
+    "name": "금강맨션",
+    "lat": 37.4840167,
+    "lng": 126.7997667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0029-210000033",
+    "order": 29,
+    "name": "소사역7번출구.대화아파트",
+    "lat": 37.4842667,
+    "lng": 126.7960833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0030-210000186",
+    "order": 30,
+    "name": "소사역.부천성모병원입구",
+    "lat": 37.4845,
+    "lng": 126.79295,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0031-210000185",
+    "order": 31,
+    "name": "소명사거리",
+    "lat": 37.4848667,
+    "lng": 126.7904,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0032-210000184",
+    "order": 32,
+    "name": "부천역.심곡2동행정복지센터",
+    "lat": 37.48575,
+    "lng": 126.7853,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0033-210000363",
+    "order": 33,
+    "name": "부천역북부.농협",
+    "lat": 37.4868333,
+    "lng": 126.7834667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0034-210000032",
+    "order": 34,
+    "name": "장말삼거리",
+    "lat": 37.4904167,
+    "lng": 126.7819,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0035-210000031",
+    "order": 35,
+    "name": "부천대후문",
+    "lat": 37.4908333,
+    "lng": 126.7789833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0036-210000030",
+    "order": 36,
+    "name": "심곡초등학교",
+    "lat": 37.4912667,
+    "lng": 126.7760833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0037-210000029",
+    "order": 37,
+    "name": "상공회의소",
+    "lat": 37.4917333,
+    "lng": 126.7726833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0038-210000028",
+    "order": 38,
+    "name": "부천중학교",
+    "lat": 37.4922833,
+    "lng": 126.7687,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0039-210000027",
+    "order": 39,
+    "name": "팰리스카운티.장말문예사거리",
+    "lat": 37.4924667,
+    "lng": 126.76775,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0040-210000320",
+    "order": 40,
+    "name": "복사골마을",
+    "lat": 37.4943667,
+    "lng": 126.7673333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0041-210000051",
+    "order": 41,
+    "name": "중동시장앞.넘말",
+    "lat": 37.4962,
+    "lng": 126.76525,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0042-210000227",
+    "order": 42,
+    "name": "영안아파트",
+    "lat": 37.4965167,
+    "lng": 126.7627667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0043-210000045",
+    "order": 43,
+    "name": "순천향대학병원.부명고",
+    "lat": 37.4973667,
+    "lng": 126.76185,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0044-210000044",
+    "order": 44,
+    "name": "경기국제통상고.포도마을뉴서울.중앙공원",
+    "lat": 37.5010167,
+    "lng": 126.7626,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0045-210000043",
+    "order": 45,
+    "name": "부천시청역2번출구.현대백화점.이마트",
+    "lat": 37.5029833,
+    "lng": 126.76295,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0046-210000042",
+    "order": 46,
+    "name": "중4동행정복지센터.고용노동지청",
+    "lat": 37.5068333,
+    "lng": 126.7638167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0047-210000069",
+    "order": 47,
+    "name": "한라마을.덕유마을",
+    "lat": 37.5095667,
+    "lng": 126.7643667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0048-210000026",
+    "order": 48,
+    "name": "덕유마을",
+    "lat": 37.5105833,
+    "lng": 126.766,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0049-210000056",
+    "order": 49,
+    "name": "덕유마을3단지",
+    "lat": 37.51035,
+    "lng": 126.7684167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0050-210000058",
+    "order": 50,
+    "name": "트레지움1단지.다니엘병원",
+    "lat": 37.5111,
+    "lng": 126.7700167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0051-210000057",
+    "order": 51,
+    "name": "약대동행정복지센터.약대초등학교",
+    "lat": 37.5130167,
+    "lng": 126.7701667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0052-212000037",
+    "order": 52,
+    "name": "신흥시장",
+    "lat": 37.5155167,
+    "lng": 126.7702833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0053-212000036",
+    "order": 53,
+    "name": "종로약국",
+    "lat": 37.5167833,
+    "lng": 126.7702833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0054-212000035",
+    "order": 54,
+    "name": "삼정초등학교",
+    "lat": 37.5191833,
+    "lng": 126.7702333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0055-212000034",
+    "order": 55,
+    "name": "부천아트벙커B39",
+    "lat": 37.5203167,
+    "lng": 126.7688167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0056-212000033",
+    "order": 56,
+    "name": "삼정종합사회복지관",
+    "lat": 37.5190333,
+    "lng": 126.7663333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0057-212000187",
+    "order": 57,
+    "name": "부천테크노파크3단지301동앞",
+    "lat": 37.5180667,
+    "lng": 126.7646833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0058-212000047",
+    "order": 58,
+    "name": "부천테크노파크3단지300동앞",
+    "lat": 37.5186333,
+    "lng": 126.7635667,
+    "origin": false,
+    "turnaround": true,
+    "direction": "기점→회차"
+  },
+  {
+    "id": "R5-GBIS-210000014-0059-277101671",
+    "order": 59,
+    "name": "부천테크노파크3단지(경유)",
+    "lat": 37.52005,
+    "lng": 126.76485,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0060-212000041",
+    "order": 60,
+    "name": "부천아트벙커B39",
+    "lat": 37.52005,
+    "lng": 126.7680167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0061-212000040",
+    "order": 61,
+    "name": "삼정초등학교",
+    "lat": 37.5192167,
+    "lng": 126.76995,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0062-212000039",
+    "order": 62,
+    "name": "종로약국",
+    "lat": 37.5177333,
+    "lng": 126.7699667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0063-212000038",
+    "order": 63,
+    "name": "신흥시장",
+    "lat": 37.5156,
+    "lng": 126.7699667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0064-210000066",
+    "order": 64,
+    "name": "약대동행정복지센터.약대초등학교",
+    "lat": 37.5139667,
+    "lng": 126.7699667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0065-210000065",
+    "order": 65,
+    "name": "트레지움1단지.다니엘병원",
+    "lat": 37.51105,
+    "lng": 126.7696833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0066-210000216",
+    "order": 66,
+    "name": "덕유마을3단지",
+    "lat": 37.5106,
+    "lng": 126.7678667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0067-210000215",
+    "order": 67,
+    "name": "덕유마을상가",
+    "lat": 37.5107833,
+    "lng": 126.7663333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0068-210000087",
+    "order": 68,
+    "name": "한라마을.덕유마을",
+    "lat": 37.5094,
+    "lng": 126.764,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0069-210000329",
+    "order": 69,
+    "name": "중4동행정복지센터.고용노동지청",
+    "lat": 37.5063833,
+    "lng": 126.76335,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0070-210000488",
+    "order": 70,
+    "name": "포도마을사거리.현대백화점.이마트",
+    "lat": 37.5027833,
+    "lng": 126.7626333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0071-210000289",
+    "order": 71,
+    "name": "경기국제통상고.포도마을뉴서울.중앙공원",
+    "lat": 37.5009167,
+    "lng": 126.7621833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0072-210000288",
+    "order": 72,
+    "name": "부명고.순천향대학병원",
+    "lat": 37.4976167,
+    "lng": 126.7615,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0073-210000222",
+    "order": 73,
+    "name": "영안아파트",
+    "lat": 37.4962333,
+    "lng": 126.7623833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0074-210000221",
+    "order": 74,
+    "name": "중동시장앞.넘말",
+    "lat": 37.4958833,
+    "lng": 126.7652333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0075-210000235",
+    "order": 75,
+    "name": "복사골마을",
+    "lat": 37.4943667,
+    "lng": 126.7670667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0076-210000318",
+    "order": 76,
+    "name": "팰리스카운티.부천중학교",
+    "lat": 37.4921833,
+    "lng": 126.7680667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0077-210000317",
+    "order": 77,
+    "name": "부천중학교",
+    "lat": 37.4917333,
+    "lng": 126.7713333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0078-210000316",
+    "order": 78,
+    "name": "부천상공회의소",
+    "lat": 37.4913167,
+    "lng": 126.7742333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0079-210000315",
+    "order": 79,
+    "name": "심곡초등학교",
+    "lat": 37.4909333,
+    "lng": 126.7768333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0080-210000314",
+    "order": 80,
+    "name": "부천대후문.심곡1동행정복지센터",
+    "lat": 37.4905,
+    "lng": 126.7799167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0081-210000313",
+    "order": 81,
+    "name": "장말삼거리",
+    "lat": 37.4900667,
+    "lng": 126.7828167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0082-210000340",
+    "order": 82,
+    "name": "노마즈하우스.우리은행",
+    "lat": 37.4886333,
+    "lng": 126.78355,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0083-210000465",
+    "order": 83,
+    "name": "부천역북부",
+    "lat": 37.4855667,
+    "lng": 126.7843333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0084-210000271",
+    "order": 84,
+    "name": "부천역.심곡2동행정복지센터",
+    "lat": 37.48535,
+    "lng": 126.7858667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0085-210000173",
+    "order": 85,
+    "name": "소명사거리",
+    "lat": 37.4848167,
+    "lng": 126.7896833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0086-210000312",
+    "order": 86,
+    "name": "소사역7번출구.대화아파트",
+    "lat": 37.4841167,
+    "lng": 126.7948333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0087-210000311",
+    "order": 87,
+    "name": "금강맨션",
+    "lat": 37.4838667,
+    "lng": 126.7996,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0088-210000310",
+    "order": 88,
+    "name": "대진아파트",
+    "lat": 37.4831667,
+    "lng": 126.8025667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0089-210000309",
+    "order": 89,
+    "name": "가톨릭대학교입구.보람쉬움아파트",
+    "lat": 37.4836333,
+    "lng": 126.8049833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0090-210000308",
+    "order": 90,
+    "name": "역곡2동행정복지센터입구",
+    "lat": 37.4844667,
+    "lng": 126.8074667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0091-210000307",
+    "order": 91,
+    "name": "역곡역북부",
+    "lat": 37.4855167,
+    "lng": 126.8107667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0092-210000306",
+    "order": 92,
+    "name": "농협사거리",
+    "lat": 37.4878333,
+    "lng": 126.8107,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0093-210000387",
+    "order": 93,
+    "name": "제이디팰리시티",
+    "lat": 37.4892167,
+    "lng": 126.8099833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0094-210000305",
+    "order": 94,
+    "name": "역곡초.중.고등학교",
+    "lat": 37.4906667,
+    "lng": 126.8093667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0095-210000304",
+    "order": 95,
+    "name": "역곡안동네",
+    "lat": 37.4936,
+    "lng": 126.8087667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0096-210000303",
+    "order": 96,
+    "name": "(임시)밤골.산울림청소년센터",
+    "lat": 37.49795,
+    "lng": 126.8090333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0097-212000105",
+    "order": 97,
+    "name": "까치울역5번출구.까치울전원마을3.4단지",
+    "lat": 37.5073667,
+    "lng": 126.8119167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0098-212000104",
+    "order": 98,
+    "name": "까치울전원마을1.2단지",
+    "lat": 37.51055,
+    "lng": 126.8125667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0099-212000103",
+    "order": 99,
+    "name": "까치울초등학교",
+    "lat": 37.5144833,
+    "lng": 126.8133833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0100-212000102",
+    "order": 100,
+    "name": "성곡중학교.장애인종합복지관",
+    "lat": 37.5178,
+    "lng": 126.81435,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0101-212000345",
+    "order": 101,
+    "name": "신작동사거리.동도센트리움",
+    "lat": 37.5192,
+    "lng": 126.8147333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0102-212000101",
+    "order": 102,
+    "name": "작동지하차도앞",
+    "lat": 37.5202167,
+    "lng": 126.8150333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0103-212000100",
+    "order": 103,
+    "name": "간대미사거리",
+    "lat": 37.5234333,
+    "lng": 126.8156167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0104-212000099",
+    "order": 104,
+    "name": "수주도서관.고강선사유적공원",
+    "lat": 37.5248667,
+    "lng": 126.8158667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0105-212000098",
+    "order": 105,
+    "name": "고강동우체국",
+    "lat": 37.5263333,
+    "lng": 126.8177,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0106-212000097",
+    "order": 106,
+    "name": "청실빌라.고강초등학교후문",
+    "lat": 37.5256333,
+    "lng": 126.8197333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0107-212000096",
+    "order": 107,
+    "name": "새보미아파트.고리울동굴시장",
+    "lat": 37.5264667,
+    "lng": 126.8216667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0108-212000095",
+    "order": 108,
+    "name": "진영아파트",
+    "lat": 37.5280833,
+    "lng": 126.8219667,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0109-212000094",
+    "order": 109,
+    "name": "남정빌라",
+    "lat": 37.5289333,
+    "lng": 126.8218,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0110-212000093",
+    "order": 110,
+    "name": "상우아파트.고리울청소년센터",
+    "lat": 37.5292833,
+    "lng": 126.8186333,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0111-212000159",
+    "order": 111,
+    "name": "수주초등학교",
+    "lat": 37.53025,
+    "lng": 126.8162167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0112-212000158",
+    "order": 112,
+    "name": "서울농원",
+    "lat": 37.5360667,
+    "lng": 126.8162833,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0113-212000226",
+    "order": 113,
+    "name": "고강동공영차고지입구",
+    "lat": 37.5389833,
+    "lng": 126.821,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  },
+  {
+    "id": "R5-GBIS-210000014-0114-212000380",
+    "order": 114,
+    "name": "고강공영차고지",
+    "lat": 37.5378,
+    "lng": 126.8193167,
+    "origin": false,
+    "turnaround": false,
+    "direction": "회차→기점"
+  }
+]

@@ -8,9 +8,11 @@ android {
         applicationId "kr.bus70.driver"
         minSdk 26
         targetSdk 35
-        versionCode 65
-        versionName "0.65-reliable-gps"
+        versionCode 66
+        versionName "0.66-route-continuity"
     }
+
+    sourceSets { test.resources.srcDir "../../tests" }
 
     signingConfigs {
         release {
