@@ -37,7 +37,7 @@ jobs:
           BUS70_KEYSTORE_PASSWORD: ${{ secrets.BUS70_KEYSTORE_PASSWORD }}
           BUS70_KEY_ALIAS: ${{ secrets.BUS70_KEY_ALIAS }}
           BUS70_KEY_PASSWORD: ${{ secrets.BUS70_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleRelease
+        run: gradle --no-daemon :app:testReleaseUnitTest :app:assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: BUS70-driver-fixed-signed-apk

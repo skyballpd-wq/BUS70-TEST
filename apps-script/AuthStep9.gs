@@ -727,7 +727,9 @@ function bus70DriverRunLogSave_(body, driverId) {
   const row=rowNo?rawRows[rowNo-1].slice():new Array(rows[0].length).fill('');let now=new Date();
   if(String(body.source||'')==='GPS_AUTO'&&body.observedAt!==undefined){
     const observed=new Date(Number(body.observedAt));
-    if(!Number.isFinite(observed.getTime())||now.getTime()-observed.getTime()>120000||observed.getTime()-now.getTime()>30000)return {ok:false,error:'GPS_EVENT_STALE',message:'GPS 시각이 오래되었거나 휴대폰 시각이 맞지 않아 기록하지 않았습니다.'};
+    const deferred=body.deferredGPS===true,maximumAge=deferred?172800000:120000;
+    if(!Number.isFinite(observed.getTime())||now.getTime()-observed.getTime()>maximumAge||observed.getTime()-now.getTime()>30000)return {ok:false,error:'GPS_EVENT_STALE',message:'GPS 시각 확인이 필요합니다. 기기에 보관한 기록을 소장에게 확인 요청하세요.'};
+    if(deferred&&bus70ServiceDateKey_(observed)!==date)return {ok:false,error:'GPS_EVENT_DATE_MISMATCH',message:'기점 통과 시각의 운행일과 배차 운행일이 다릅니다.'};
     now=observed;
   }
   const pointRoles=bus70RunLogPointRoles_(timetable.trips,scheduledTrip);

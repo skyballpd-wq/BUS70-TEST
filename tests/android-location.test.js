@@ -33,7 +33,7 @@ assert.match(alarm, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
 assert.match(calendar, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
 assert.match(service, /server cache expires it instead of building a location history/);
 assert.match(fs.readFileSync('android/app/src/main/java/kr/bus70/driver/NativeStore.java', 'utf8'), /remove\("locationTimestamp"\)/);
-assert.match(build, /versionCode 62/);
-assert.match(build, /versionName "0\.62-driver-cockpit"/);
+assert.match(build, /versionCode 65/);
+assert.match(build, /versionName "0\.65-reliable-gps"/);
 
 console.log('Android location integration tests passed');

@@ -182,6 +182,15 @@ assert.equal(context.bus70AuthAction_({...phaseBase,accuracy:90}).error,'GPS_ACC
 assert.equal(context.bus70AuthAction_({...phaseBase,observedAt:Date.now()-180000}).error,'GPS_EVENT_STALE');
 assert.equal(context.bus70AuthAction_(phaseBase).ok,true);
 assert.equal(context.bus70AuthAction_(phaseBase).alreadyRecorded,true);
+context.bus70ServiceDateKey_=()=> '2026-09-18';
+const delayed=context.bus70AuthAction_({...phaseBase,event:'DEPART',deferredGPS:true,observedAt:Date.now()-3600000});
+assert.equal(delayed.ok,true);assert.equal(delayed.alreadyRecorded,true);
+assert.strictEqual(runLogs.rows[1][7],firstDeparture,'replayed GPS must not replace the first confirmed instant');
+assert.equal(context.bus70AuthAction_({...phaseBase,deferredGPS:true,observedAt:Date.now()-172800001}).error,'GPS_EVENT_STALE');
+context.bus70ServiceDateKey_=()=> '2026-09-19';
+assert.equal(context.bus70AuthAction_({...phaseBase,deferredGPS:true,observedAt:Date.now()-3600000}).error,'GPS_EVENT_DATE_MISMATCH');
+delete context.bus70ServiceDateKey_;
+
 assert.equal(context.bus70AuthAction_({...phaseBase,event:'CONTROL'}).error,'CONTROL_NOT_SCHEDULED');
 const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
 assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][runLogColumns['상태']],'완료');

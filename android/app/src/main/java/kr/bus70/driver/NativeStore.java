@@ -10,6 +10,8 @@ final class NativeStore {
     NativeStore(Context context) { prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE); }
     String schedule() { return prefs.getString("schedule", ""); }
     void schedule(String json) { prefs.edit().putString("schedule", json).apply(); }
+    String trackingSchedule() { return prefs.getString("trackingSchedule", schedule()); }
+    void trackingSchedule(String json) { prefs.edit().putString("trackingSchedule", json).apply(); }
     String alarms() { return prefs.getString("alarms", "[]"); }
     void alarms(String json) { prefs.edit().putString("alarms", json).apply(); }
     String calendarEvents() { return prefs.getString("calendarEvents", "[]"); }
@@ -23,6 +25,10 @@ final class NativeStore {
     void locationStatus(String message) { prefs.edit().putString("locationStatus", message).apply(); }
     String locationState() { return prefs.getString("locationState", "{}"); }
     void locationState(String json) { prefs.edit().putString("locationState", json).apply(); }
+    String eventOutbox() { return prefs.getString("eventOutbox", "[]"); }
+    boolean eventOutbox(String json) { return prefs.edit().putString("eventOutbox", json).commit(); }
+    String eventSyncError() { return prefs.getString("eventSyncError", ""); }
+    void eventSyncError(String text) { prefs.edit().putString("eventSyncError", text).apply(); }
     void lastLocation(double latitude,double longitude,float accuracy,float speed,long timestamp) {
         prefs.edit().putLong("locationLat",Double.doubleToRawLongBits(latitude)).putLong("locationLng",Double.doubleToRawLongBits(longitude)).putFloat("locationAccuracy",accuracy).putFloat("locationSpeed",speed).putLong("locationTimestamp",timestamp).apply();
     }
@@ -41,6 +47,6 @@ final class NativeStore {
         } catch (Exception ignored) {}
         prefs.edit().putBoolean("locationTracking",false).remove("locationState").remove("locationStatus")
                 .remove("locationLat").remove("locationLng").remove("locationAccuracy")
-                .remove("locationSpeed").remove("locationTimestamp").apply();
+                .remove("locationSpeed").remove("locationTimestamp").remove("trackingSchedule").apply();
     }
 }
