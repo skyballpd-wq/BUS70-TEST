@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),outbox=require('../driver-outbox');
+const date='2099-01-08',driver='SYN-D1',base={date,dispatchId:'SYN-DSP',vehicleId:'SYN-V1',sequence:14,trip:2};
+let items=[];let at=Date.parse(date+'T08:00:00+09:00');
+for(const event of ['DEPART','TURN','TURN_DEPART','ARRIVE']){outbox.add(items,driver,{...base,event,observedAt:at,token:'synthetic'});at+=60000;}
+items=JSON.parse(JSON.stringify(items));assert(!JSON.stringify(items).includes('synthetic'));assert.equal(items.length,4);
+outbox.add(items,driver,{...base,event:'DEPART',observedAt:at});assert.equal(items[0].body.observedAt,at-240000);
+const data={date,dispatch:{dispatchId:base.dispatchId},vehicle:{vehicleId:base.vehicleId},trips:[{trip:2}]};
+outbox.overlay(items,driver,data);assert(data.runLogs[0].actualEnd);assert.equal(data.runLogs[0].endRecordMode,'기기 저장·전송 대기');
+assert.equal(outbox.next(items,driver,at).body.event,'DEPART');items[0].retryAt=at+10000;assert.equal(outbox.next(items,driver,at),null);
+items[0].delivered=true;items[0].recordedAt='2099-01-08T08:01:00+09:00';outbox.overlay(items,driver,data);assert.equal(data.runLogs[0].actualStart,items[0].recordedAt);assert.equal(data.runLogs[0].startRecordMode,'GPS 자동');
+assert.equal(outbox.next(items,'other',at),null);const other=JSON.parse(JSON.stringify(data));other.vehicle.vehicleId='OTHER';other.runLogs=[];outbox.overlay(items,driver,other);assert.equal(other.runLogs.length,0);
+assert.equal(outbox.prune(items,at+172800001).length,3,'unacknowledged checkpoint timestamps survive beyond retry window');
+const html=fs.readFileSync('index.html','utf8');function fn(name){const a=html.indexOf('function '+name+'('),b=html.indexOf('{',a);let d=0;for(let i=b;i<html.length;i++){if(html[i]==='{')d++;if(html[i]==='}'&&!--d)return html.slice(a,i+1);}}
+let started=0,pref=null;const c=vm.createContext({document:{hidden:false,getElementById:()=>({value:date})},locationTrackingActive:false,lastSchedule:{trips:[{}],dispatch:{}},authToken:'test',currentRole:'',currentDriverId:driver,todayLocal:()=>date,tripCompleted:()=>false,trackingCoverage:()=>({ready:true,dispatchId:'SYN-DSP',vehicleId:'SYN-V1'}),localStorage:{getItem:()=>pref},driverLocationPreference:()=>driver,locationResumeKey:'',toggleDriverLocationTracking:()=>started++});
+vm.runInContext('async '+fn('resumeDriverLocationIfAllowed'),c);
+(async()=>{await c.resumeDriverLocationIfAllowed();await c.resumeDriverLocationIfAllowed();assert.equal(started,1,'first login starts GPS without prior Y preference, at most one permission prompt');c.locationResumeKey='';pref='N';await c.resumeDriverLocationIfAllowed();assert.equal(started,1,'respect intentional stop');pref=null;c.document.hidden=true;await c.resumeDriverLocationIfAllowed();assert.equal(started,1,'do not start foreground service from hidden UI');console.log('Offline checkpoints, restart, order, deduplication, identity binding and automatic start passed');})().catch(e=>{console.error(e);process.exitCode=1;});

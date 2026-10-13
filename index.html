@@ -624,6 +624,15 @@
     .orbit-cockpit .cockpit-phases td small{display:none}
     @media(max-height:740px){.orbit-ring{width:min(270px,calc(100vw - 38px))}.orbit-cockpit .location-status{padding:4px}}
     @media(max-height:680px){.orbit-ring{width:min(248px,calc(100vw - 38px))}.orbit-ring>.orbit-center{inset:14% 12%;gap:1px}.orbit-ring .orbit-speed{font-size:23px}}
+    .orbit-cockpit{min-width:0;overflow:visible}
+    .orbit-cockpit .orbit-ring{width:100%;max-width:330px;height:auto;aspect-ratio:1;min-width:0;overflow:visible;flex-shrink:0}
+    .orbit-ring>svg{display:block;overflow:visible;isolation:isolate}
+    .orbit-ring>.orbit-endpoint{background:transparent;left:15%;right:15%;font-size:10px;padding:0}
+    .orbit-ring>.orbit-start{top:0}.orbit-ring>.orbit-turn{bottom:0}
+    .driver-mode .trip-list,.driver-mode .trip-list .trip{min-width:0;overflow:visible}
+    .driver-mode .orbit-cockpit .location-status{max-height:none;overflow:visible;overflow-wrap:anywhere}
+    @media(max-height:740px){.orbit-cockpit .orbit-ring{max-width:270px}}
+    @media(max-height:680px){.orbit-cockpit .orbit-ring{max-width:248px}}
 </style>
 </head>
 
@@ -1014,7 +1023,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v64.1
+    소신여객 통합 운행관리 TEST · v65.0
   </footer>
 
 </div>
@@ -1023,7 +1032,8 @@
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
 <script src="./driver-automation.js?v=62"></script>
-<script src="./driver-cockpit.js?v=64"></script>
+<script src="./driver-cockpit.js?v=65"></script>
+<script src="./driver-outbox.js?v=65"></script>
 <script>
   /*
    * STEP 6-1
@@ -1206,6 +1216,7 @@
   let liveLocationSubmittedPosition = null;
   const geofenceVisitState = new Map();
   const automaticRunEvents = new Set();
+  let gpsOutboxSending=false,gpsOutboxAttemptAt=0,nativeEventItems=[],nativePendingCount=0,nativeSyncError="",nativeEventSignature="";
 
   function normalizedRoute(value) {
     const text=String(value??"").trim().toUpperCase();
@@ -1224,7 +1235,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v64.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v65.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2181,7 +2192,7 @@
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
   window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
-  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
+  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);const eventSignature=JSON.stringify(result.events||[]),eventsChanged=eventSignature!==nativeEventSignature;nativeEventSignature=eventSignature;nativeEventItems=Array.isArray(result.events)?result.events:[];nativePendingCount=Number(result.pendingCount||0);nativeSyncError=result.syncError||"";if(lastSchedule){overlayGpsEvents(lastSchedule);if(eventsChanged)renderSchedule(false);}locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
 
   function testScreenOffAlarm(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.scheduleTestAlarm!=="function"){root.replaceChildren(el("div","화면 꺼짐 시험은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.scheduleTestAlarm(120,driverAlertSettings.voice,driverAlertSettings.vibration);root.replaceChildren(el("div","2분 후 시험 알람을 예약했습니다. 지금 앱을 닫고 화면을 잠그세요.","notice"));}
   function checkNativeAlarms(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.alarmStatus!=="function"){root.replaceChildren(el("div","예약 확인은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.alarmStatus();}
@@ -2458,7 +2469,7 @@
 
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
-    driverLiveTimer=setInterval(()=>{pollNativeLocation();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
+    driverLiveTimer=setInterval(()=>{flushGpsOutbox();pollNativeLocation();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
     updateDriverLiveDashboard();
   }
 
@@ -2511,10 +2522,11 @@
   function driverLocationPreference(){return "BUS70_AUTO_LOCATION_"+currentDriverId;}
 
   async function resumeDriverLocationIfAllowed(){
-    if(locationTrackingActive||!lastSchedule||!authToken||currentRole||lastSchedule.trips?.every(t=>tripCompleted(lastSchedule,t))||document.getElementById("workDate").value!==todayLocal()||localStorage.getItem(driverLocationPreference())!=="Y")return;
-    const key=currentDriverId+"|"+todayLocal()+"|"+String(lastSchedule.dispatch?.dispatchId||"");if(locationResumeKey===key)return;locationResumeKey=key;
-    if(hasNativeLocationBridge()){toggleDriverLocationTracking();return;}
-    try{if(navigator.permissions&&(await navigator.permissions.query({name:"geolocation"})).state==="granted")toggleDriverLocationTracking();}catch(error){console.warn("GPS 권한 상태 확인 대기",error);}
+    if(document.hidden||locationTrackingActive||!lastSchedule||!authToken||currentRole||!lastSchedule.trips?.length||lastSchedule.trips.every(t=>tripCompleted(lastSchedule,t))||document.getElementById("workDate").value!==todayLocal()||localStorage.getItem(driverLocationPreference())==="N")return;
+    const coverage=trackingCoverage(lastSchedule);if(!coverage.ready)return;
+    const key=currentDriverId+"|"+todayLocal()+"|"+coverage.dispatchId+"|"+coverage.vehicleId;if(locationResumeKey===key)return;locationResumeKey=key;
+    // Login with a confirmed current assignment starts recording; OS permission remains mandatory.
+    toggleDriverLocationTracking();
   }
 
   function renderTripPicker(root,data){
@@ -2554,7 +2566,7 @@
     const speed=el("strong","—","orbit-speed"),clock=el("span","--:--:--","orbit-clock"),weather=el("div","날씨 연결 대기","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";clock.id="driverLiveClock";weather.id="driverWeather";weatherTime.id="driverWeatherTime";value.id="driverTripProgressValue";inner.append(speed,clock,weather,weatherTime,value);ring.append(inner,start,turn);box.append(ring);
     const target=el("div",undefined,"cockpit-target"),count=el("small","");count.id="driverLiveCountdown";count.dataset.nextTime=context.time||"";target.append(el("strong",context.action+(context.time?" · "+displayTime(context.time):"")),count);box.append(target);
     box.append(cockpitPhaseTable(data,context.trip,context.log,true));
-    const status=el("p",locationStatusText||"GPS 자동 기록을 켜면 운행 지점을 자동 기록합니다.","location-status");status.id="locationStatus";status.setAttribute("role","status");status.hidden=!isDisplayedTripLive(data);box.append(status);
+    const status=el("p",locationStatusText||"GPS 자동 기록을 켜면 운행 지점을 자동 기록합니다.","location-status");status.id="locationStatus";status.setAttribute("role","status");status.hidden=!isDisplayedTripLive(data)&&!gpsPendingCount();box.append(status);
     const button=el("button","GPS 자동 기록 켜기","driver-live-location-action");button.id="driverLiveLocationToggle";button.type="button";button.hidden=!isDisplayedTripLive(data)||locationTrackingActive;button.addEventListener("click",toggleDriverLocationTracking);box.append(button);
     const maintenance=el("div","","driver-live-maintenance");maintenance.id="driverLiveMaintenance";box.append(maintenance);root.append(box);refreshCockpitWeather(data);
   }
@@ -2599,7 +2611,7 @@
   function updateLocationPanel(){
     const button=document.getElementById("locationToggle"),status=document.getElementById("locationStatus"),accuracy=document.getElementById("locationAccuracy"),speed=document.getElementById("locationSpeed");
     if(button){button.textContent=locationTrackingActive?"GPS 자동기록·공유 중지":"GPS 자동기록·실시간 공유 시작";button.classList.toggle("tracking",locationTrackingActive);}
-    if(status){status.textContent=locationStatusText;status.className="location-status"+(locationStatusType?" "+locationStatusType:"");}
+    if(status){const pending=gpsPendingCount();status.textContent=locationStatusText+(pending?" · 기기 보관 "+pending+"건 전송 대기":"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(locationStatusType?" "+locationStatusType:"");}
     if(lastDriverPosition){const c=lastDriverPosition.coords||{};if(accuracy)accuracy.textContent=Number.isFinite(Number(c.accuracy))?Math.round(Number(c.accuracy))+"m":"-";if(speed)speed.textContent=Number.isFinite(Number(c.speed))?Math.max(0,Number(c.speed)*3.6).toFixed(1)+"km/h":"-";}
     updateDriverLiveDashboard();
   }
@@ -2626,7 +2638,7 @@
   }
 
   function toggleDriverLocationTracking(){
-    if(locationTrackingActive){localStorage.removeItem(driverLocationPreference());stopDriverLocationTracking();return;}
+    if(locationTrackingActive){localStorage.setItem(driverLocationPreference(),"N");stopDriverLocationTracking();return;}
     if(!lastSchedule||document.getElementById("workDate").value!==todayLocal()){locationStatusText="현재 운행일의 확정 배차에서만 시작할 수 있습니다.";locationStatusType="error";updateLocationPanel();return;}
     const coverage=trackingCoverage(lastSchedule);if(!coverage.assignmentReady){locationStatusText="로그인 기사·확정 배차·배정 차량이 일치해야 위치 추적을 시작할 수 있습니다.";locationStatusType="error";updateLocationPanel();return;}
     if(!coverage.locationReady){locationStatusText="노선별 정류장DB 좌표 또는 운행 기준점 등록이 필요합니다.";locationStatusType="error";updateLocationPanel();return;}
@@ -2651,12 +2663,29 @@
     updateLocationPanel();
   }
 
-  async function automaticRunEvent(trip,event,position){
-    const data=lastSchedule,key=currentDriverId+"|"+driverAssignmentBinding(data).dispatchId+"|"+document.getElementById("workDate").value+"|"+scheduleSequence(data)+"|"+trip.trip+"|"+event;if(automaticRunEvents.has(key))return;automaticRunEvents.add(key);
-    const c=position.coords;locationStatusText=trip.trip+"탕 "+({DEPART:"출발",TURN:"회차",TURN_DEPART:"회차 출발",CONTROL:"중간 기준점",DEADHEAD_RETURN:"차고지 복귀",ARRIVE:"도착"}[event])+" 자동 기록 중...";updateLocationPanel();
-    try{const result=await saveRunEvent(trip,event,null,{source:"GPS_AUTO",latitude:c.latitude,longitude:c.longitude,accuracy:c.accuracy,observedAt:position.timestamp});if(!result||!result.ok)automaticRunEvents.delete(key);else{locationStatusText=result.message;locationStatusType="ok";updateLocationPanel();}}
-    catch(error){automaticRunEvents.delete(key);locationStatusText="위치 이벤트를 서버에 기록하지 못했습니다. 수동 기록 버튼을 사용하세요.";locationStatusType="error";updateLocationPanel();}
+  function readGpsOutbox(){try{return JSON.parse(localStorage.getItem("BUS70_GPS_OUTBOX_V1")||"[]");}catch(error){return [];}}
+  function writeGpsOutbox(items){localStorage.setItem("BUS70_GPS_OUTBOX_V1",JSON.stringify(Bus70Outbox.prune(items,Date.now())));}
+  function overlayGpsEvents(data){Bus70Outbox.overlay(hasNativeLocationBridge()?nativeEventItems:readGpsOutbox(),currentDriverId,data);}
+  function gpsPendingCount(){return hasNativeLocationBridge()?nativePendingCount:readGpsOutbox().filter(i=>i.driverId===currentDriverId&&!i.delivered).length;}
+  async function flushGpsOutbox(){
+    if(hasNativeLocationBridge()||gpsOutboxSending||!authToken||currentRole||Date.now()-gpsOutboxAttemptAt<5000)return;
+    const item=Bus70Outbox.next(readGpsOutbox(),currentDriverId,Date.now());if(!item)return;
+    gpsOutboxSending=true;gpsOutboxAttemptAt=Date.now();const token=authToken,owner=currentDriverId;
+    try{
+      const result=await apiPost({...item.body,token,deferredGPS:true}),items=readGpsOutbox(),stored=items.find(i=>i.key===item.key);
+      if(stored){if(result.ok){stored.delivered=true;stored.recordedAt=result.recordedAt||new Date(stored.body.observedAt).toISOString();delete stored.error;}
+        else {stored.error=result.message||"서버 전송 대기";stored.retryAt=Date.now()+15000;if(["GPS_EVENT_STALE","GPS_EVENT_DATE_MISMATCH","DISPATCH_MISMATCH","VEHICLE_MISMATCH","TRIP_NOT_SCHEDULED"].includes(result.error))stored.blocked=true;}writeGpsOutbox(items);}
+      if(authToken===token&&currentDriverId===owner&&lastSchedule){overlayGpsEvents(lastSchedule);locationStatusText=result.ok?"기점 기록 서버 저장 완료":(result.message||"기점 시각 기기 보관 · 자동 재전송 대기");locationStatusType=result.ok?"ok":"error";renderSchedule(false);}
+    }catch(error){locationStatusText="통신 대기 · 기점 시각은 기기에 보관 중";locationStatusType="error";updateLocationPanel();}
+    finally{gpsOutboxSending=false;}
   }
+  async function automaticRunEvent(trip,event,position){
+    const data=lastSchedule,d=data.dispatch||{},v=data.vehicle||{},c=position.coords;
+    const body={action:"managerAccountUpsert",operation:"driverRunLogSave",date:document.getElementById("workDate").value,route:data.route||v.route||"",dispatchId:d.dispatchId||d.id||"",vehicleId:v.vehicleId||v.id||d.vehicleId||"",sequence:d.seq||d.sequence,trip:trip.trip,event,plannedStart:trip.startTime,plannedTurn:trip.turnTime,plannedEnd:trip.endTime,source:"GPS_AUTO",latitude:c.latitude,longitude:c.longitude,accuracy:c.accuracy,observedAt:position.timestamp};
+    try{const items=Bus70Outbox.add(readGpsOutbox(),currentDriverId,body);writeGpsOutbox(items);overlayGpsEvents(data);locationStatusText=trip.trip+"탕 기점 시각 기기 저장 · 자동 전송 중";locationStatusType="";renderSchedule(false);flushGpsOutbox();}
+    catch(error){locationStatusText="기점 시각을 기기에 저장하지 못했습니다. 저장 공간을 확인하세요.";locationStatusType="error";updateLocationPanel();}
+  }
+  window.addEventListener("online",()=>{gpsOutboxAttemptAt=0;flushGpsOutbox();});
 
   function upsertLocalRunEvent(trip,event,result,extra){
     if(!lastSchedule)return;const logs=Array.isArray(lastSchedule.runLogs)?lastSchedule.runLogs:(lastSchedule.runLogs=[]),date=document.getElementById("workDate").value,sequence=scheduleSequence(lastSchedule);let log=logs.find(v=>v.date===date&&Number(v.sequence)===sequence&&Number(v.trip)===Number(trip.trip));
@@ -2861,9 +2890,9 @@
       prepareDriverLocationPoints(data);
       const nextSignature=JSON.stringify([data.dispatch,data.trips,data.runLogs,data.timeAdjustments]);
       const priorBinding=driverAssignmentBinding(lastSchedule),nextBinding=driverAssignmentBinding(data);
-      if(locationTrackingActive&&(priorBinding.dispatchId!==nextBinding.dispatchId||priorBinding.vehicleId!==nextBinding.vehicleId))stopDriverLocationTracking(true);
+      if(!hasNativeLocationBridge()&&locationTrackingActive&&priorBinding.ready&&document.getElementById("workDate").value===todayLocal()&&(priorBinding.dispatchId!==nextBinding.dispatchId||priorBinding.vehicleId!==nextBinding.vehicleId))stopDriverLocationTracking(true);
       if(silent&&!followCurrentTrip&&lastSchedule?.trips?.[activeTripIndex]){const selectedNumber=Number(lastSchedule.trips[activeTripIndex].trip),selected=(data.trips||[]).findIndex(trip=>Number(trip.trip)===selectedNumber);if(selected>=0){activeTripIndex=selected;data._viewInitialized=true;}}
-      lastSchedule = data;scheduleRefreshedAt=Date.now();
+      overlayGpsEvents(data);lastSchedule = data;scheduleRefreshedAt=Date.now();if(hasNativeLocationBridge()&&locationTrackingActive&&date===todayLocal()){if(typeof window.Bus70Android.syncTrackingSchedule==="function")window.Bus70Android.syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(data)));else syncNativeSchedule(data);}
       if(!silent||previousSignature!==nextSignature)renderSchedule();
     } catch (error) {
       console.error(error);
@@ -2886,7 +2915,7 @@
   document.getElementById("workDate").addEventListener("change", () => {
     scheduleRequestId++;
     clearDriverAlarms();
-    stopDriverLocationTracking(true);
+    if(!hasNativeLocationBridge())stopDriverLocationTracking(true);
     stopDriverFleetTimer();
     lastSchedule = null;
     activeTripIndex = 0;
