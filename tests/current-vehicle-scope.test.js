@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const makeSheet=rows=>({getLastRow:()=>rows.length,getDataRange:()=>({getDisplayValues:()=>rows.map(r=>r.slice())})});
+const dispatch=[['날짜','기사ID','차량ID','상태','근무조','순차'],['2099-01-06','SYN-DRIVER','OLD','확정','B',1],['2099-01-08','SYN-DRIVER','CURRENT','확정','B',2],['2099-01-10','SYN-DRIVER','FUTURE','확정','B',3]];
+const incidents=[['incidentId','날짜','차량ID','기사ID','요청자','상태'],['CURRENT-HISTORY','2098-12-01','CURRENT','OTHER','OTHER','종결'],['OLD-OWN','2099-01-06','OLD','SYN-DRIVER','SYN-DRIVER','접수'],...Array.from({length:35},(_,i)=>['OTHER-'+i,'2099-01-08','OTHER','OTHER','OTHER','접수'])];
+const sheets={'차량DB':makeSheet([['vehicleId','차량번호','현재노선'],['OLD','9901','70'],['CURRENT','9902','5'],['OTHER','9903','5'],['FUTURE','9904','5']]),'사건DB':makeSheet(incidents),'정비DB':makeSheet([['maintId','incidentId','정비완료일','운행가능일']]),'기사DB':makeSheet([['driverId','성명'],['SYN-DRIVER','합성기사']]),'배차DB':makeSheet(dispatch)};
+const c=vm.createContext({Date,console,SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>sheets[n]})},makeHeaderMap_:headers=>Object.fromEntries(headers.map((h,i)=>[h,i])),normalizeDate_:v=>String(v||'')});
+vm.runInContext(fs.readFileSync('apps-script/ManagerDispatch.gs','utf8'),c);
+c.bus70CanOperate_=id=>id==='MANAGER';c.bus70IsKnownDriver_=()=>true;c.bus70RoleFor_=id=>id==='MANAGER'?'MANAGER':'';c.bus70ServiceDateKey_=()=> '2099-01-08';c.bus70EnsureSheetColumns_=()=>{};
+let result=c.bus70OperationBootstrap_('SYN-DRIVER');
+assert.deepEqual(Array.from(result.vehicles,v=>v.id),['CURRENT']);assert.deepEqual(Array.from(result.incidents,v=>v.incidentId),['CURRENT-HISTORY'],'filter before global history limit; include current vehicle history by other drivers');assert.equal(result.vehicleScope,'CURRENT_ASSIGNMENT');assert.equal(result.adjustments.length,0);
+result=c.bus70OperationBootstrap_('MANAGER');assert.equal(result.vehicles.length,4);assert.equal(result.incidents.length,30);
+dispatch[2][3]='취소';result=c.bus70OperationBootstrap_('SYN-DRIVER');assert.equal(result.vehicles.length,0);assert.equal(result.incidents.length,0,'no current assignment must not fall back to old own requests');
+console.log('Current-day confirmed vehicle scope, historical exclusion, pre-limit filtering and manager visibility passed');
