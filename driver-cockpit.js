@@ -1,6 +1,16 @@
 /* Display helpers: missing telemetry stays missing. No live data is fabricated. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.Bus70Cockpit=api;})(typeof window==='object'?window:this,function(){
   'use strict';
+  function nativePosition(result,previous){
+    const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+    const position={timestamp:Number(result.timestamp||0),coords:{latitude:Number(result.latitude),longitude:Number(result.longitude),accuracy:has(result.accuracy)?Number(result.accuracy):null,speed:has(result.speed)&&Number(result.speed)>=0?Number(result.speed):null,heading:has(result.heading)?Number(result.heading):null}};
+    if(previous&&position.coords.heading===null){
+      const a=previous.coords,b=position.coords,dt=(position.timestamp-previous.timestamp)/1000,r=Math.PI/180,lat1=a.latitude*r,lat2=b.latitude*r,dl=(b.longitude-a.longitude)*r;
+      const h=Math.sin((lat2-lat1)/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dl/2)**2,distance=6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+      if(dt>=1&&dt<=15&&has(a.accuracy)&&has(b.accuracy)&&a.accuracy<=30&&b.accuracy<=30&&distance>Math.max(8,a.accuracy,b.accuracy)&&distance/dt<45)position.coords.heading=(Math.atan2(Math.sin(dl)*Math.cos(lat2),Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dl))*180/Math.PI+360)%360;
+    }
+    return position;
+  }
   function phases(trip,log,options={}){
     const rows=[{label:options.midStart?'중간 시작':'출발',place:trip.startPlace,planned:trip.startTime,actual:log.actualStart,mode:log.startRecordMode}];
     if(trip.turnPlace||trip.turnTime){
@@ -47,5 +57,5 @@
     if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '날씨 갱신 대기';
     return Number(weather.temperature).toFixed(1)+'° · '+(weather.condition||'관측정보');
   }
-  return {phases,ringSegments,drawRing,drawRoute,weatherLabel};
+  return {nativePosition,phases,ringSegments,drawRing,drawRoute,weatherLabel};
 });

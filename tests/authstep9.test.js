@@ -6,9 +6,9 @@ function sheet(rows) {
   return {
     rows,
     getLastRow() { return this.rows.length; },
-    getDataRange() { return { getDisplayValues: () => this.rows.map(r => r.map(String)) }; },
+    getDataRange() { return { getValues: () => this.rows.map(r => r.slice()), getDisplayValues: () => this.rows.map(r => r.map(String)) }; },
     appendRow(row) { this.rows.push(row); },
-    getRange(row,col) { return {setValue:value => {this.rows[row-1][col-1]=value;},setValues:values => {values.forEach((rr,ri)=>rr.forEach((value,ci)=>{this.rows[row-1+ri][col-1+ci]=value;}));}}; },
+    getRange(row,col) { return {setNumberFormat(){},setValue:value => {this.rows[row-1][col-1]=value;},setValues:values => {values.forEach((rr,ri)=>rr.forEach((value,ci)=>{this.rows[row-1+ri][col-1+ci]=value;}));}}; },
     setFrozenRows() {}
   };
 }
@@ -174,6 +174,8 @@ const duplicateDepart=context.bus70AuthAction_({action:'driverRunLogSave',token:
 assert.equal(duplicateDepart.alreadyRecorded,true); assert.strictEqual(runLogs.rows[1][7],firstDeparture);
 const turn=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'TURN',source:'GPS_AUTO',latitude:0.11,longitude:0.21,accuracy:18});
 assert.equal(turn.ok,true); assert.equal(runLogs.rows[1][runLogColumns['상태']],'회차완료'); assert.ok(runLogs.rows[1][9]);
+assert.strictEqual(runLogs.rows[1][7],firstDeparture,'later events preserve the original Date object, not the formatted display string');
+const firstTurn=runLogs.rows[1][9];
 assert.equal(runLogs.rows[1][runLogs.rows[0].indexOf('회차기록방식')],'GPS 자동');
 const phaseBase={action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'TURN_DEPART',source:'GPS_AUTO',latitude:0.11,longitude:0.21,accuracy:8,observedAt:Date.now()};
 assert.equal(context.bus70AuthAction_({...phaseBase,accuracy:90}).error,'GPS_ACCURACY_REQUIRED');
@@ -183,6 +185,7 @@ assert.equal(context.bus70AuthAction_(phaseBase).alreadyRecorded,true);
 assert.equal(context.bus70AuthAction_({...phaseBase,event:'CONTROL'}).error,'CONTROL_NOT_SCHEDULED');
 const arrive=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'ARRIVE'});
 assert.equal(arrive.ok,true); assert.equal(runLogs.rows.length,2); assert.equal(runLogs.rows[1][runLogColumns['상태']],'완료');
+assert.strictEqual(runLogs.rows[1][9],firstTurn,'arrival must not erase the earlier turnaround timestamp');
 const breakConnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_CONNECTED'});
 assert.equal(breakConnected.ok,true); assert.equal(breakConnected.status,'휴식충전중');
 const breakDisconnected=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,event:'BREAK_CHARGE_DISCONNECTED'});

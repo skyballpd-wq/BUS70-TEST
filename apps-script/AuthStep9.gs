@@ -632,6 +632,7 @@ function bus70RunLogPointRoles_(trips, trip) {
 }
 
 function bus70RunLogDeviationMinutes_(serviceDate, plannedTime, actualAt) {
+  if(plannedTime instanceof Date)plannedTime=Utilities.formatDate(plannedTime,'Asia/Seoul','HH:mm');
   const dateMatch=String(serviceDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/),timeMatch=String(plannedTime||'').match(/^(\d{1,2}):(\d{2})$/),actual=actualAt instanceof Date?actualAt:new Date(actualAt);
   if(!dateMatch||!timeMatch||isNaN(actual.getTime()))return '';
   const hour=Number(timeMatch[1]),minute=Number(timeMatch[2]);if(hour>23||minute>59)return '';
@@ -639,11 +640,36 @@ function bus70RunLogDeviationMinutes_(serviceDate, plannedTime, actualAt) {
   return Math.round((actual.getTime()-planned)/60000);
 }
 
+function bus70RunLogTimestampColumns_() {
+  return ['발차실제','회차실제','도착실제','회차출발실제','중간실제','휴식충전연결','휴식충전해제','회송완료','청소완료','충전잭연결','근무종료시간'];
+}
+
+function bus70RunLogReadRows_(sheet) {
+  const range=sheet.getDataRange(),rows=range.getDisplayValues(),raw=range.getValues(),c=makeHeaderMap_(rows[0]||[]);
+  const timestamps=bus70RunLogTimestampColumns_();
+  rows.slice(1).forEach(function(row,i){
+    timestamps.forEach(function(header){
+      const col=c[header];if(col===undefined)return;
+      const value=raw[i+1][col];
+      if(value instanceof Date&&!isNaN(value.getTime())){
+        const time=Utilities.formatDate(value,'Asia/Seoul','HH:mm:ss');
+        // A legacy date-only cell may already have lost its clock on a later save.
+        // Preserve that uncertainty instead of inventing an event at midnight.
+        row[col]=time==='00:00:00'&&!/\d{1,2}:\d{2}/.test(String(row[col]||''))
+          ?Utilities.formatDate(value,'Asia/Seoul','yyyy-MM-dd')
+          :Utilities.formatDate(value,'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
+      }
+    });
+    ['발차예정','회차예정','도착예정','중간예정'].forEach(function(header){const col=c[header];if(col!==undefined&&raw[i+1][col] instanceof Date)row[col]=Utilities.formatDate(raw[i+1][col],'Asia/Seoul','HH:mm');});
+  });
+  return rows;
+}
+
 function bus70DriverRunLogs_(body, driverId) {
   const from = normalizeDate_(body.from), to = normalizeDate_(body.to || body.from);
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('운행일지');
   if (!sheet || sheet.getLastRow() < 2) return {ok:true,logs:[]};
-  const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
+  const rows=bus70RunLogReadRows_(sheet), c=makeHeaderMap_(rows[0]);
   const logs=rows.slice(1).filter(function(r){const d=normalizeDate_(r[c['날짜']]);return String(r[c['기사ID']]||'')===driverId&&(!from||d>=from)&&(!to||d<=to);})
     .map(function(r){return {logId:String(r[c['logId']]||''),date:normalizeDate_(r[c['날짜']]),driverName:String(r[c['기사명']]||''),empId:String(r[c['사원번호']]||''),route:String(r[c['노선']]||''),dispatchId:String(r[c['배차ID']]||''),vehicleId:String(r[c['차량ID']]||''),sequence:Number(r[c['순차']]||0),trip:Number(r[c['탕']]||0),startPlace:String(r[c['발차지']]||''),turnPlace:String(r[c['회차지']]||''),endPlace:String(r[c['도착지']]||''),startRole:String(r[c['발차역할']]||''),turnRole:String(r[c['회차역할']]||''),endRole:String(r[c['도착역할']]||''),plannedStart:String(r[c['발차예정']]||''),actualStart:String(r[c['발차실제']]||''),startDeviationMinutes:String(r[c['발차편차분']]||''),plannedTurn:String(r[c['회차예정']]||''),actualTurn:String(r[c['회차실제']]||''),turnDeviationMinutes:String(r[c['회차편차분']]||''),plannedEnd:String(r[c['도착예정']]||''),actualEnd:String(r[c['도착실제']]||''),endDeviationMinutes:String(r[c['도착편차분']]||''),plannedFrontGap:String(r[c['앞차예정간격']]||''),actualFrontGap:String(r[c['앞차실제간격']]||''),frontDeviation:String(r[c['앞차편차']]||''),plannedRearGap:String(r[c['뒷차예정간격']]||''),actualRearGap:String(r[c['뒷차실제간격']]||''),rearDeviation:String(r[c['뒷차편차']]||''),status:String(r[c['상태']]||''),note:String(r[c['비고']]||''),startRecordMode:String(r[c['발차기록방식']]||''),startLatitude:String(r[c['발차위도']]||''),startLongitude:String(r[c['발차경도']]||''),startAccuracyM:String(r[c['발차정확도m']]||''),turnRecordMode:String(r[c['회차기록방식']]||''),turnLatitude:String(r[c['회차위도']]||''),turnLongitude:String(r[c['회차경도']]||''),turnAccuracyM:String(r[c['회차정확도m']]||''),endRecordMode:String(r[c['도착기록방식']]||''),endLatitude:String(r[c['도착위도']]||''),endLongitude:String(r[c['도착경도']]||''),endAccuracyM:String(r[c['도착정확도m']]||''),breakChargeConnectedAt:String(r[c['휴식충전연결']]||''),breakChargeDisconnectedAt:String(r[c['휴식충전해제']]||''),serviceEndType:String(r[c['영업종료형태']]||''),serviceEndPlace:String(r[c['영업종료지']]||''),deadheadDestination:String(r[c['회송목적지']]||r[c['막탕복귀지']]||''),turnDepartedAt:String(r[c['회차출발실제']]||''),turnDepartureMode:String(r[c['회차출발기록방식']]||''),controlPoint:String(r[c['중간기준지']]||''),plannedControl:String(r[c['중간예정']]||''),actualControl:String(r[c['중간실제']]||''),controlDeviationMinutes:String(r[c['중간편차분']]||''),controlRecordMode:String(r[c['중간기록방식']]||''),returnRecordMode:String(r[c['복귀기록방식']]||''),deadheadReturnedAt:String(r[c['회송완료']]||''),cleanedAt:String(r[c['청소완료']]||''),chargerConnectedAt:String(r[c['충전잭연결']]||''),officeChargeStatus:String(r[c['사무실충전확인']]||''),shiftEndedAt:String(r[c['근무종료시간']]||'')};});
   logs.sort(function(a,b){return b.date.localeCompare(a.date)||b.sequence-a.sequence||b.trip-a.trip;});
@@ -696,9 +722,9 @@ function bus70DriverRunLogSave_(body, driverId) {
   if(!timetable.configured||!timetable.trips.length)return {ok:false,error:'ROUTE_TIMETABLE_NOT_CONFIGURED',message:currentRoute+'번 '+sequence+'순차의 실제 탕별 시간표를 찾을 수 없습니다.'};
   const scheduledTrip=timetable.trips.find(function(item){return Number(item.trip)===trip;});
   if(!scheduledTrip){const numbers=timetable.trips.map(function(item){return Number(item.trip);}),first=numbers[0];return {ok:false,error:'TRIP_NOT_SCHEDULED',message:first>1&&trip<first?currentRoute+'번 '+sequence+'순차는 '+first+'탕부터 운행하며 '+trip+'탕 운행기록은 만들 수 없습니다.':currentRoute+'번 '+sequence+'순차의 실제 운행 탕만 기록할 수 있습니다. 운행 탕: '+numbers.join(', ')};}
-  const rows=logSheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
+  const logRange=logSheet.getDataRange(),rows=logRange.getDisplayValues(),rawRows=logRange.getValues(), c=makeHeaderMap_(rows[0]); let rowNo=0;
   for(let j=1;j<rows.length;j++) if(normalizeDate_(rows[j][c['날짜']])===date&&String(rows[j][c['기사ID']]||'')===driverId&&Number(rows[j][c['순차']])===sequence&&Number(rows[j][c['탕']])===trip){rowNo=j+1;break;}
-  const row=rowNo?rows[rowNo-1].slice():new Array(rows[0].length).fill('');let now=new Date();
+  const row=rowNo?rawRows[rowNo-1].slice():new Array(rows[0].length).fill('');let now=new Date();
   if(String(body.source||'')==='GPS_AUTO'&&body.observedAt!==undefined){
     const observed=new Date(Number(body.observedAt));
     if(!Number.isFinite(observed.getTime())||now.getTime()-observed.getTime()>120000||observed.getTime()-now.getTime()>30000)return {ok:false,error:'GPS_EVENT_STALE',message:'GPS 시각이 오래되었거나 휴대폰 시각이 맞지 않아 기록하지 않았습니다.'};
@@ -749,7 +775,15 @@ function bus70DriverRunLogSave_(body, driverId) {
   else if(event==='CHARGER_CONNECTED'){if(!row[c['청소완료']])return {ok:false,error:'CLEANING_REQUIRED',message:'퇴근 전 차량 청소를 먼저 완료하세요.'};row[c['충전잭연결']]=now;row[c['사무실충전확인']]='사무실 모니터 확인';row[c['상태']]='충전잭연결';}
   else if(event==='SHIFT_END'){if(!row[c['충전잭연결']])return {ok:false,error:'CHARGER_REQUIRED',message:'충전잭 연결 완료 후 퇴근 처리하세요.'};row[c['근무종료시간']]=now;row[c['상태']]='근무종료';}
   if(body.note) row[c['비고']]=String(body.note).slice(0,200);
-  if(!alreadyRecorded){if(rowNo)logSheet.getRange(rowNo,1,1,row.length).setValues([row]);else logSheet.appendRow(row);}
+  if(!alreadyRecorded){
+    if(rowNo)logSheet.getRange(rowNo,1,1,row.length).setValues([row]);else logSheet.appendRow(row);
+    const targetRow=rowNo||logSheet.getLastRow();
+    bus70RunLogTimestampColumns_().forEach(function(header){
+      const col=c[header];if(col===undefined||!(row[col] instanceof Date))return;
+      const legacyDateOnly=rowNo&&rawRows[rowNo-1][col]===row[col]&&Utilities.formatDate(row[col],'Asia/Seoul','HH:mm:ss')==='00:00:00'&&!/\d{1,2}:\d{2}/.test(String(rows[rowNo-1][col]||''));
+      if(!legacyDateOnly)logSheet.getRange(targetRow,col+1).setNumberFormat('yyyy-mm-dd hh:mm:ss');
+    });
+  }
   const messages={TURN_DEPART:'회차 후 출발을 기록했습니다.',CONTROL:'중간 기준점 통과를 기록했습니다.',DEPART:'발차 시간을 기록했습니다.',TURN:'회차 시간을 기록했습니다.',ARRIVE:'도착 시간을 기록했습니다.',BREAK_CHARGE_CONNECTED:'기사 판단에 따른 휴식 충전잭 연결을 기록했습니다.',BREAK_CHARGE_DISCONNECTED:'다음 운행 전 충전잭 분리와 출발 준비를 기록했습니다.',SERVICE_END:'막탕 상행 영업종료를 기록했습니다.',DEADHEAD_RETURN:'고강동공영차고지 회송 완료를 기록했습니다.',CLEANING_DONE:'퇴근 전 차량 청소 완료를 기록했습니다.',CHARGER_CONNECTED:'다음 조 운행을 위한 필수 충전잭 연결을 기록했습니다. 충전 상태는 사무실 모니터에서 확인합니다.',SHIFT_END:'근무 종료와 퇴근 처리를 기록했습니다.'};
   const recordedAt=actualAt instanceof Date?Utilities.formatDate(actualAt,'Asia/Seoul','yyyy-MM-dd HH:mm:ss'):String(actualAt||'');
   const modeColumns=locationColumns[event],recordMode=modeColumns?String(row[c[modeColumns[0]]]||locationMode):locationMode;
