@@ -264,10 +264,10 @@
     .schedule-panel .result { margin-top: 18px; line-height: 1.6; }
     .schedule-panel .trip { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-top: 12px; }
     .schedule-panel .trip h3 { margin: 0 0 8px; font-size: 17px; }
-    .schedule-panel .trip-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 9px 0; font-size: 14px; align-items: center; border-bottom: 1px solid #f1f5f9; }
+    .schedule-panel .trip-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.65fr); gap: 12px; padding: 9px 0; font-size: 14px; align-items: center; border-bottom: 1px solid #f1f5f9; }
     .schedule-panel .trip-row:last-child { border-bottom: 0; }
-    .schedule-panel .trip-row .place { min-width: 0; overflow-wrap: anywhere; }
-    .schedule-panel .trip-row strong { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .schedule-panel .trip-row .place { min-width: 0; word-break:keep-all; overflow-wrap:break-word; }
+    .schedule-panel .trip-row strong { min-width:0; text-align: right; white-space: normal; font-variant-numeric: tabular-nums; }
     .schedule-panel .trip-row .time-main { display: block; font-size: 16px; }
     .schedule-panel .trip-row .time-sub { display: block; color: #64748b; font-size: 12px; font-weight: 500; }
     .session-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px; }
@@ -994,7 +994,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v62.0
+    소신여객 통합 운행관리 TEST · v63.0
   </footer>
 
 </div>
@@ -1003,7 +1003,7 @@
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
 <script src="./driver-automation.js?v=62"></script>
-<script src="./driver-cockpit.js?v=62"></script>
+<script src="./driver-cockpit.js?v=63"></script>
 <script>
   /*
    * STEP 6-1
@@ -1204,7 +1204,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v62.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v63.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2020,28 +2020,30 @@
   function actualTimeLabel(value, mode) {
     if(!value)return "";
     const clock=actualClock(value);
-    return "실제 " + (clock?displayTime(clock):String(value)) + (mode ? " · " + mode : "");
+    return "실제 " + (clock?displayTime(clock):"시각 확인 필요") + (mode ? " · " + mode : "");
   }
 
   function actualClock(value){
     const text=String(value||"").trim();if(!text)return "";
-    if(/T/.test(text)&&/(?:Z|[+-]\d{2}:?\d{2})$/.test(text)){const parsed=new Date(text);if(!Number.isNaN(parsed.getTime()))return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Seoul",hour12:false,hour:"2-digit",minute:"2-digit"}).format(parsed);}
-    const match=text.match(/(?:^|[T\s])(\d{1,2}):(\d{2})(?::\d{2})?(?:\s|$|[+-])/ )||text.match(/^(\d{1,2}):(\d{2})/);
-    return match?String(match[1]).padStart(2,"0")+":"+match[2]:"";
+    if(/T/.test(text)&&/(?:Z|[+-]\d{2}:?\d{2})$/.test(text)){const parsed=new Date(text);if(!Number.isNaN(parsed.getTime()))return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Seoul",hourCycle:"h23",hour:"2-digit",minute:"2-digit"}).format(parsed);}
+    const match=text.match(/(?:^|[T\s])(\d{1,2}):(\d{2})(?::\d{2})?(?:\s|$|[+-])/);if(!match)return "";
+    let hour=Number(match[1]),minute=Number(match[2]);const period=text.match(/오전|오후|\bAM\b|\bPM\b/i);
+    if(period){if(hour<1||hour>12)return "";hour=hour%12+(/오후|PM/i.test(period[0])?12:0);}
+    return hour<=23&&minute<=59?String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0"):"";
   }
 
   function actualMoment(serviceDate,value){
-    const text=String(value||"").trim();if(!text)return null;
+    const text=String(value||"").trim(),clock=actualClock(text);if(!clock)return null;
     if(/T/.test(text)&&/(?:Z|[+-]\d{2}:?\d{2})$/.test(text)){const parsed=new Date(text);if(!Number.isNaN(parsed.getTime()))return parsed;}
-    const dated=text.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})[T\s]+(\d{1,2}):(\d{2})/);
-    if(dated)return new Date(Date.UTC(Number(dated[1]),Number(dated[2])-1,Number(dated[3]),Number(dated[4])-9,Number(dated[5]),0,0));
-    const clock=actualClock(text);return clock?scheduleMoment(serviceDate,clock):null;
+    const dated=text.match(/^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})/),seconds=text.match(/\d{1,2}:\d{2}:(\d{2})/);
+    if(dated){const y=Number(dated[1]),m=Number(dated[2]),d=Number(dated[3]),valid=new Date(Date.UTC(y,m-1,d));if(valid.getUTCFullYear()!==y||valid.getUTCMonth()!==m-1||valid.getUTCDate()!==d)return null;return new Date(Date.UTC(y,m-1,d,Number(clock.slice(0,2))-9,Number(clock.slice(3)),seconds?Number(seconds[1]):0));}
+    const moment=scheduleMoment(serviceDate,clock);if(moment&&seconds)moment.setSeconds(Number(seconds[1]));return moment;
   }
 
   function scheduleComparison(serviceDate,planned,actual){
     const plannedMoment=scheduleMoment(serviceDate,canonicalTime(planned)),actualValue=actualMoment(serviceDate,actual),clock=actualClock(actual);
     if(!plannedMoment)return {state:"unknown",label:"계획 확인 필요",deltaMinutes:null,actualClock:clock};
-    if(!actualValue)return {state:"pending",label:"실제 미기록",deltaMinutes:null,actualClock:""};
+    if(!actualValue)return {state:"pending",label:actual?"시각 확인 필요":"실제 미기록",deltaMinutes:null,actualClock:""};
     const delta=Math.round((actualValue.getTime()-plannedMoment.getTime())/60000),state=delta===0?"on-time":delta>0?"late":"early";
     return {state,label:delta===0?"정시":delta>0?"+"+delta+"분 지연":delta+"분 빠름",deltaMinutes:delta,actualClock:clock};
   }
@@ -2147,7 +2149,7 @@
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
   window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
-  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition={coords:{latitude:Number(result.latitude),longitude:Number(result.longitude),accuracy:Number(result.accuracy||0),speed:hasNumericValue(result.speed)?Number(result.speed):null,heading:hasNumericValue(result.heading)?Number(result.heading):null},timestamp:Number(result.timestamp||Date.now())};if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();if(authToken&&lastSchedule)loadDriverLiveLocations(true);}catch(error){console.warn(error);}};
+  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
 
   function testScreenOffAlarm(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.scheduleTestAlarm!=="function"){root.replaceChildren(el("div","화면 꺼짐 시험은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.scheduleTestAlarm(120,driverAlertSettings.voice,driverAlertSettings.vibration);root.replaceChildren(el("div","2분 후 시험 알람을 예약했습니다. 지금 앱을 닫고 화면을 잠그세요.","notice"));}
   function checkNativeAlarms(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.alarmStatus!=="function"){root.replaceChildren(el("div","예약 확인은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.alarmStatus();}
@@ -2409,9 +2411,15 @@
 
   function stopDriverLiveTimer(){if(driverLiveTimer){clearInterval(driverLiveTimer);driverLiveTimer=0;}}
 
+  let nativeLocationPolledAt=0;
+  function pollNativeLocation(){
+    if(document.hidden||!authToken||currentRole||!lastSchedule||document.getElementById("workDate").value!==todayLocal()||!hasNativeLocationBridge()||typeof window.Bus70Android.locationStatus!=="function"||Date.now()-nativeLocationPolledAt<2000)return;
+    nativeLocationPolledAt=Date.now();window.Bus70Android.locationStatus();
+  }
+
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
-    driverLiveTimer=setInterval(()=>{updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
+    driverLiveTimer=setInterval(()=>{pollNativeLocation();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
     updateDriverLiveDashboard();
   }
 
@@ -2435,7 +2443,7 @@
     if(ring&&typeof Bus70Cockpit!=="undefined"){const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;Bus70Cockpit.drawRing(ring,navigation.tripStopCount||path?.stops.length||0,navigation.configured?navigation.tripPassedStops:0);}
     const weather=document.getElementById("driverWeather"),weatherTime=document.getElementById("driverWeatherTime"),map=document.getElementById("driverRouteDiagram");
     if(weather)weather.textContent=Bus70Cockpit.weatherLabel(cockpitWeather,Date.now());
-    if(weatherTime)weatherTime.textContent=cockpitWeather.available?"기상청 "+String(cockpitWeather.observedAt||"").slice(11,16)+" 관측":"";
+    if(weatherTime)weatherTime.textContent=cockpitWeather.available?"기상청 "+String(cockpitWeather.observedAt||"").slice(11,16)+" 관측":cockpitWeather.message==="기상청 활용승인 확인 필요"?"기상청 단기예보 조회서비스 활용신청 필요":"";
     if(map&&context)Bus70Cockpit.drawRoute(map,Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]),lastDriverPosition,navigation);
     if(lastSchedule)refreshCockpitWeather(lastSchedule);
     if(lastSchedule)document.querySelectorAll("[data-trip-progress]").forEach(node=>{const tripNo=Number(node.dataset.tripProgress),index=lastSchedule.trips.findIndex(item=>Number(item.trip)===tripNo);if(index<0)return;const value=tripProgressValue(lastSchedule,lastSchedule.trips[index],index,navigation);node.style.setProperty("--trip-progress",String(value));node.setAttribute("aria-label",tripNo+"탕 "+value+"% 진행");});
@@ -2478,10 +2486,10 @@
 
   async function refreshCockpitWeather(data){
     const key=currentDriverId+"|"+String(data.route||currentRoute)+"|"+document.getElementById("workDate").value;
-    if(cockpitWeatherBusy||!authToken||currentRole||document.getElementById("workDate").value!==todayLocal()||key===cockpitWeatherKey&&Date.now()-cockpitWeatherAt<600000)return;
+    if(cockpitWeatherBusy||!authToken||currentRole||document.getElementById("workDate").value!==todayLocal()||key===cockpitWeatherKey&&Date.now()-cockpitWeatherAt<(cockpitWeather.available?600000:120000))return;
     if(key!==cockpitWeatherKey)cockpitWeather={};cockpitWeatherKey=key;cockpitWeatherAt=Date.now();cockpitWeatherBusy=true;
     const c=lastDriverPosition?.coords||{},token=authToken;
-    try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverWeather",token,date:document.getElementById("workDate").value,latitude:c.latitude,longitude:c.longitude});if(token===authToken&&key===cockpitWeatherKey)cockpitWeather=result.ok?result.weather:{available:false,message:"날씨 연결 대기"};}
+    try{const result=await apiPost({action:"managerAccountUpsert",operation:"driverWeather",token,date:document.getElementById("workDate").value,latitude:c.latitude,longitude:c.longitude});if(token===authToken&&key===cockpitWeatherKey)cockpitWeather=result.ok?result.weather:{available:false,message:result.message||"날씨 연결 대기"};}
     catch(error){cockpitWeather={available:false,message:"날씨 연결 대기"};}finally{cockpitWeatherBusy=false;}
   }
 
@@ -2491,7 +2499,7 @@
     Bus70Cockpit.phases(trip,log,{midStart}).forEach(phase=>{
       const row=el("tr"),point=el("td"),compare=scheduleComparison(document.getElementById("workDate").value,phase.planned,phase.actual);
       point.append(el("strong",phase.label),el("small",phase.place||"지점 확인 필요"));
-      const planned=el("td",phase.planned?displayTime(phase.planned):"—"),actual=el("td",phase.actual?actualClock(phase.actual):"미기록"),diff=el("td",phase.actual&&phase.planned?compare.label:"—",phase.actual&&phase.planned?"time-deviation "+compare.state:"");
+      const planned=el("td",phase.planned?displayTime(phase.planned):"—"),actual=el("td",actualClock(phase.actual)|| (phase.actual?"시각 확인 필요":"미기록")),diff=el("td",phase.actual&&phase.planned?compare.label:"—",phase.actual&&phase.planned?"time-deviation "+compare.state:"");
       if(phase.actual)actual.append(el("small",phase.mode||"기록"));row.append(point,planned,actual,diff);body.append(row);
     });table.append(body);return table;
   }
@@ -2630,7 +2638,7 @@
   }
 
   function runLogPhaseRow(log,label,role,place,planned,actual,recordMode){
-    const row=el("div",undefined,"run-log-phase"),point=el("span");point.append(el("small",role||label+" 지점"),el("strong",label+(place?" · "+place:"")));const plannedBox=el("span"),actualBox=el("span"),differenceBox=el("span"),savedDeviation=label==="발차"?log.startDeviationMinutes:label==="회차"?log.turnDeviationMinutes:label==="도착"?log.endDeviationMinutes:label==="중간 기준"?log.controlDeviationMinutes:null,comparison=scheduleComparison(log.date,planned,actual);if(actual&&hasNumericValue(savedDeviation)){const delta=Number(savedDeviation);comparison.deltaMinutes=delta;comparison.state=delta===0?"on-time":delta>0?"late":"early";comparison.label=delta===0?"정시":delta>0?"+"+delta+"분 지연":delta+"분 빠름";}plannedBox.append(el("small","계획"),el("strong",planned?displayTime(planned):"-"));actualBox.append(el("small","실제"+(recordMode?" · "+recordMode:"")),el("strong",actual?(displayTime(comparison.actualClock)||String(actual)):"미기록"));differenceBox.append(el("small","계획 대비"),el("strong",comparison.label,"time-deviation "+comparison.state));row.append(point,plannedBox,actualBox,differenceBox);return row;
+    const row=el("div",undefined,"run-log-phase"),point=el("span");point.append(el("small",role||label+" 지점"),el("strong",label+(place?" · "+place:"")));const plannedBox=el("span"),actualBox=el("span"),differenceBox=el("span"),savedDeviation=label==="발차"?log.startDeviationMinutes:label==="회차"?log.turnDeviationMinutes:label==="도착"?log.endDeviationMinutes:label==="중간 기준"?log.controlDeviationMinutes:null,comparison=scheduleComparison(log.date,planned,actual);if(comparison.actualClock&&comparison.deltaMinutes!==null&&hasNumericValue(savedDeviation)){const delta=Number(savedDeviation);comparison.deltaMinutes=delta;comparison.state=delta===0?"on-time":delta>0?"late":"early";comparison.label=delta===0?"정시":delta>0?"+"+delta+"분 지연":delta+"분 빠름";}plannedBox.append(el("small","계획"),el("strong",planned?displayTime(planned):"-"));actualBox.append(el("small","실제"+(recordMode?" · "+recordMode:"")),el("strong",comparison.actualClock?displayTime(comparison.actualClock):actual?"시각 확인 필요":"미기록"));differenceBox.append(el("small","계획 대비"),el("strong",comparison.label,"time-deviation "+comparison.state));row.append(point,plannedBox,actualBox,differenceBox);return row;
   }
 
   function renderRunLogRows(logs){

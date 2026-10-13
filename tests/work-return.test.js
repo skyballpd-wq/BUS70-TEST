@@ -19,10 +19,11 @@ function extract(name) {
 function sheet(rows) {
   return {
     rows, getLastRow() { return rows.length; },
-    getDataRange() { return {getDisplayValues: () => rows.map(row => row.slice())}; },
+    getDataRange() { return {getValues: () => rows.map(row => row.slice()), getDisplayValues: () => rows.map(row => row.slice())}; },
     appendRow(row) { rows.push(row.slice()); },
     getRange(r, c) {
       return {
+        setNumberFormat() {},
         setValue(value) { rows[r - 1][c - 1] = value; },
         setValues(values) { values.forEach((row, i) => row.forEach((v, j) => rows[r - 1 + i][c - 1 + j] = v)); }
       };
