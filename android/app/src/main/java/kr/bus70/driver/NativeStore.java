@@ -29,9 +29,14 @@ final class NativeStore {
     boolean eventOutbox(String json) { return prefs.edit().putString("eventOutbox", json).commit(); }
     String eventSyncError() { return prefs.getString("eventSyncError", ""); }
     void eventSyncError(String text) { prefs.edit().putString("eventSyncError", text).apply(); }
-    void lastLocation(double latitude,double longitude,float accuracy,float speed,long timestamp) {
-        prefs.edit().putLong("locationLat",Double.doubleToRawLongBits(latitude)).putLong("locationLng",Double.doubleToRawLongBits(longitude)).putFloat("locationAccuracy",accuracy).putFloat("locationSpeed",speed).putLong("locationTimestamp",timestamp).apply();
+    void lastLocation(android.location.Location location,float speed) {
+        prefs.edit().putLong("locationLat",Double.doubleToRawLongBits(location.getLatitude())).putLong("locationLng",Double.doubleToRawLongBits(location.getLongitude())).putFloat("locationAccuracy",location.getAccuracy()).putFloat("locationSpeed",speed).putLong("locationTimestamp",location.getTime())
+            .putFloat("locationHeading",location.hasBearing()&&(!location.hasBearingAccuracy()||location.getBearingAccuracyDegrees()<=45)?location.getBearing():-1)
+            .putFloat("locationSpeedAccuracy",location.hasSpeedAccuracy()?location.getSpeedAccuracyMetersPerSecond():-1).putString("locationProvider",location.getProvider()).apply();
     }
+    float locationHeading(){return prefs.getFloat("locationHeading",-1);}
+    float locationSpeedAccuracy(){return prefs.getFloat("locationSpeedAccuracy",-1);}
+    String locationProvider(){return prefs.getString("locationProvider","");}
     double locationLatitude() { return Double.longBitsToDouble(prefs.getLong("locationLat",Double.doubleToRawLongBits(0))); }
     double locationLongitude() { return Double.longBitsToDouble(prefs.getLong("locationLng",Double.doubleToRawLongBits(0))); }
     float locationAccuracy() { return prefs.getFloat("locationAccuracy",0); }
@@ -47,6 +52,6 @@ final class NativeStore {
         } catch (Exception ignored) {}
         prefs.edit().putBoolean("locationTracking",false).remove("locationState").remove("locationStatus")
                 .remove("locationLat").remove("locationLng").remove("locationAccuracy")
-                .remove("locationSpeed").remove("locationTimestamp").remove("trackingSchedule").apply();
+                .remove("locationHeading").remove("locationSpeedAccuracy").remove("locationProvider").remove("locationSpeed").remove("locationTimestamp").remove("trackingSchedule").apply();
     }
 }

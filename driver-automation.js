@@ -87,8 +87,10 @@
     }
     if(input.hasControl&&!log.actualControl&&validPoint(points.control)&&count("controlInside",inside("control"))>=2)return {state,event:"CONTROL"};
     if(!log.actualTurn && input.hasTurn){
-      if(validPoint(points.turn)&&count("turnInside",inside("turn"))>=2)return {state,event:"TURN"};
-      return {state,event:null};
+      const near=validPoint(points.turn)&&distance(here,points.turn)<=Number(points.turn.radiusM||80);
+      if(near&&Number(state.turnInside||0)===0)state.turnFix=p;
+      if(count("turnInside",near)>=2)return {state,event:"TURN",position:state.turnFix};
+      if(!(input.navigation?.configured&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2))return {state,event:null};
     }
     if(log.actualTurn&&!log.turnDepartedAt&&validPoint(points.turn)){
       if(inside("turn")){if(count("turnStay",true)>=2)state.seenTurn=true;state.turnOutside=0;}
@@ -97,7 +99,9 @@
         if(count("turnOutside",outside)>=2)return {state,event:"TURN_DEPART"};
       }
     }
-    if(validPoint(points.end)&&count("endInside",inside("end"))>=2)return {state,event:"ARRIVE"};
+    const atEnd=validPoint(points.end)&&distance(here,points.end)<=Number(points.end.radiusM||80);
+    if(atEnd&&Number(state.endInside||0)===0)state.endFix=p;
+    if(count("endInside",atEnd)>=2)return {state,event:"ARRIVE",position:state.endFix};
     return {state,event:null};
   }
   function bearing(a,b){
@@ -122,29 +126,49 @@
     const turns=indices("turn",trip.turnPlace).filter(i=>i>start&&i<end),hasTurn=Boolean(trip.turnPlace||trip.turnTime);
     if(hasTurn&&turns.length!==1)return null;
     const control=indices("control",trip.controlPoint).filter(i=>i>=start&&i<=end);
-    return {stops:stops.slice(start,end+1),turnIndex:hasTurn?turns[0]-start:-1,controlIndex:control.length===1?control[0]-start:-1};
+    return {stops:stops.slice(start,end+1),turnIndex:hasTurn?turns[0]-start:-1,controlIndex:control.length===1?control[0]-start:-1,pivotIndex:stops.findIndex(s=>s.turnaround)-start};
   }
+  // Match occurrences in the complete ordered circuit. A missing timestamp is
+  // a log problem, not proof that the vehicle is still on the outward leg.
   function navigate(path,position,log,previous,now){
     const c=position?.coords||{},ts=Number(position?.timestamp),stops=path?.stops||[];
-    if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||c.accuracy<0||c.accuracy>60||!ts||now-ts>20000||ts>now+5000||stops.length<2)return {configured:false,reason:"GPS 갱신·정확도 확인 중"};
-    const here={lat:Number(c.latitude),lng:Number(c.longitude)},hasTurn=path.turnIndex>=0,returning=hasTurn&&Boolean(log.actualTurn);
-    const lo=returning?path.turnIndex:0,hi=hasTurn&&!returning?path.turnIndex:stops.length-1;
-    const last=previous&&previous.configured?Number(previous.matchedIndex):lo;
-    let best=null;
-    for(let i=lo;i<hi;i++){
-      if(i<last-1)continue;
+    const retained=previous&&number(previous.routeProgressPercent)?previous:null;
+    const hold=reason=>Object.assign({},retained||{},{configured:false,retained:Boolean(retained),reason});
+    if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||c.accuracy<0||c.accuracy>60||!ts||now-ts>10000||ts>now+5000||stops.length<2)return hold("GPS 재수신 대기");
+    if(retained&&ts<=retained.timestamp)return now-ts<=10000?Object.assign({},retained,{configured:true,retained:false}):hold("GPS 재수신 대기");
+    const here={lat:Number(c.latitude),lng:Number(c.longitude)},cumulative=[0];
+    for(let i=1;i<stops.length;i++)cumulative.push(cumulative[i-1]+distance(stops[i-1],stops[i]));
+    const total=cumulative.at(-1),dt=retained?Math.max(0,(ts-retained.timestamp)/1000):0;
+    const continuous=retained&&dt<=120,oldMeters=Number(retained?.matchedMeters||0);
+    const moving=number(c.speed)&&c.speed>2&&number(c.heading);
+    const candidates=[];
+    for(let i=0;i<stops.length-1;i++){
+      // A verified turnaround log provides a lower bound, never an upper bound.
+      if(log.actualTurn&&path.turnIndex>=0&&i<path.turnIndex)continue;
       const a=stops[i],b=stops[i+1],scale=Math.cos(here.lat*Math.PI/180),ax=(a.lng-here.lng)*111320*scale,ay=(a.lat-here.lat)*110540,bx=(b.lng-here.lng)*111320*scale,by=(b.lat-here.lat)*110540,dx=bx-ax,dy=by-ay;
-      const den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/den)):0,d=Math.hypot(ax+t*dx,ay+t*dy),heading=bearing(a,b);
-      const diff=number(c.heading)?Math.abs((Number(c.heading)-heading+540)%360-180):0;
-      if(number(c.speed)&&Number(c.speed)>2&&number(c.heading)&&diff>100)continue;
-      const score=d+(number(c.speed)&&Number(c.speed)>2?diff*.2:0);
-      if(!best||score<best.score)best={i,t,d,score,heading};
+      const den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/den)):0,d=Math.hypot(ax+t*dx,ay+t*dy),heading=bearing(a,b),meters=cumulative[i]+(cumulative[i+1]-cumulative[i])*t;
+      if(d>160)continue;
+      if(continuous&&(meters<oldMeters-100||meters>oldMeters+Math.max(160,dt*40)))continue;
+      const diff=moving?Math.abs((Number(c.heading)-heading+540)%360-180):0;
+      // At corners, the chord between bus stops differs from the road bearing.
+      // Keep heading as a score inside a continuous track; reject reversals only
+      // when reacquiring a track, where no sequence evidence exists.
+      if(!continuous&&moving&&diff>105)continue;
+      const score=d+diff*.65+(continuous?Math.abs(meters-oldMeters)*.025:0);
+      candidates.push({i,t,d,score,heading,meters});
     }
-    if(!best||best.d>120)return {configured:false,reason:"노선·진행방향 재확인 중"};
-    const nearNext=distance(here,stops[best.i+1])<=Math.max(25,Number(c.accuracy)),index=nearNext?best.i+1:best.i;
-    const seen=log.actualEnd?stops.length:log.actualStart?Math.max(index+1,previous?.tripPassedStops||0):0;
-    const nextIndex=Math.min(stops.length-1,index+1),nearCurrent=distance(here,stops[index])<=Math.max(25,Number(c.accuracy));
-    return {configured:true,matchedIndex:index,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(seen/stops.length*100),routeProgressPercent:Math.round((best.i+best.t)/Math.max(1,stops.length-1)*100),stopIndex:index+1,stopCount:stops.length,previousStop:stops[Math.max(0,index-1)].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[nextIndex].name,distanceToNextM:Math.round(distance(here,stops[nextIndex])),direction:returning?"회차→도착":"출발→"+(hasTurn?"회차":"도착"),heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
+    candidates.sort((a,b)=>a.score-b.score);const best=candidates[0];
+    if(!best)return hold("노선 위치 확인 중");
+    if(!continuous){const other=candidates.find(v=>Math.abs(v.meters-best.meters)>500);if(other&&other.score-best.score<30)return hold("상하행 확인 중");}
+    const fraction=Math.max(continuous?Number(retained.fraction||0):0,best.i+best.t),index=Math.min(stops.length-1,Math.floor(fraction));
+    const nearCurrent=distance(here,stops[index])<=Math.max(25,Number(c.accuracy)),seen=log.actualEnd?stops.length:log.actualStart?index+1:0;
+    const pivot=path.pivotIndex>=0?path.pivotIndex:path.turnIndex;
+    const returnConfirmed=(retained?.returnConfirmed||false)||(pivot>=0&&fraction>pivot+.15);
+    const turnPassed=path.turnIndex>=0&&fraction>path.turnIndex+.15;
+    const pct=log.actualEnd?100:log.actualStart?Math.min(99.9,fraction/(stops.length-1)*100):0;
+    const evidence=(retained?.returnEvidence||[]).slice();
+    if(returnConfirmed&&index<stops.length-1&&nearCurrent&&evidence.at(-1)?.stopId!==stops[index].id)evidence.push({stopId:stops[index].id,order:stops[index].order,observedAt:ts,latitude:here.lat,longitude:here.lng,accuracy:Number(c.accuracy)});
+    return {configured:true,retained:false,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
   }
   return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,navigate};
 });

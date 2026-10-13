@@ -45,7 +45,7 @@ assert.match(html, /function driverAssignmentBinding\(data\)/);
 assert.match(html, /확정 배차·배정 차량/);
 assert.match(html, /result\.own\.speedKmh/);
 assert.match(html, /navigator\.geolocation\.watchPosition/);
-assert.match(html, /automaticRunEvent\(trip,decision.event,position\)/);
+assert.match(html, /automaticRunEvent\(trip,decision.event,decision.position\|\|position\)/);
 assert.match(html, /source:"GPS_AUTO"/);
 assert.match(html, /plannedTurn:trip\.turnTime/);
 assert.match(html, /id="managerRoute"/);
