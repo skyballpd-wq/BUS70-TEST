@@ -15,5 +15,28 @@
       if(!log[field]||log[mode]==='기기 저장·전송 대기'){log[field]=item.recordedAt||new Date(Number(b.observedAt)).toISOString();log[mode]=item.delivered?'GPS 자동':'기기 저장·전송 대기';}
     }
   }
-  return {fields,modes,binding,add,next,prune,overlay};
+  // History is a read model. Never replace the server copy with local overlays.
+  function history(logs,items,driverId,from,to){
+    const result=logs.map(log=>({...log,pendingEvents:[]}));
+    const blockers=new Map(items.filter(i=>i.driverId===driverId&&!i.voided&&!i.delivered&&i.blocked).map(i=>[i.binding,i.error||'앞선 기록 확인 필요']));
+    for(const item of items){
+      const b=item.body||{},field=fields[b.event],mode=modes[b.event];
+      if(item.driverId!==driverId||item.voided||!field||b.date<from||b.date>to)continue;
+      let log=result.find(l=>l.date===b.date&&Number(l.sequence)===Number(b.sequence)&&Number(l.trip)===Number(b.trip)&&(!l.dispatchId||l.dispatchId===b.dispatchId)&&(!l.vehicleId||l.vehicleId===b.vehicleId));
+      if(!log){log={date:b.date,sequence:b.sequence,trip:b.trip,dispatchId:b.dispatchId,vehicleId:b.vehicleId,route:b.route,plannedStart:b.plannedStart,plannedTurn:b.plannedTurn,plannedEnd:b.plannedEnd,startPlace:b.startPlace,turnPlace:b.turnPlace,endPlace:b.endPlace,pendingEvents:[]};result.push(log);}
+      // A populated server field is authoritative, including manual corrections.
+      if(log[field]&&log[mode]!=='기기 저장·전송 대기')continue;
+      log[field]=item.recordedAt||new Date(Number(b.observedAt)).toISOString();
+      log[mode]=item.delivered?'서버 저장 확인':'기기 저장·전송 대기';
+      if(!item.delivered)log.pendingEvents.push({event:b.event,blocked:Boolean(item.blocked||blockers.has(item.binding)),error:item.error||blockers.get(item.binding)||''});
+    }
+    return result.sort((a,b)=>String(b.date).localeCompare(String(a.date))||Number(b.sequence)-Number(a.sequence)||Number(b.trip)-Number(a.trip));
+  }
+  function status(log,past){
+    if(log.pendingEvents?.length)return log.pendingEvents.some(v=>v.blocked)?'저장 확인 필요':'서버 저장 대기';
+    if(log.actualEnd&&(!log.deadheadDestination||log.deadheadDestination===log.endPlace||log.deadheadReturnedAt))return '완료';
+    if(past)return log.actualStart||log.actualTurn||log.actualEnd?'기록 미완료':'기록 없음';
+    return log.status||(log.actualStart?'운행 중':'기록');
+  }
+  return {fields,modes,binding,add,next,prune,overlay,history,status};
 });

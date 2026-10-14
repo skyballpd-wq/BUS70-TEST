@@ -59,6 +59,21 @@ final class EventOutbox {
     static int pending(JSONArray items,String driverId) throws Exception {
         int count=0;for(int i=0;i<items.length();i++){JSONObject item=items.getJSONObject(i);if(driverId.equals(item.optString("driverId"))&&!item.optBoolean("delivered"))count++;}return count;
     }
+    static void applyResponse(JSONArray items,String key,JSONObject result,long now) throws Exception {
+        for(int i=0;i<items.length();i++){
+            JSONObject item=items.getJSONObject(i);if(!key.equals(item.optString("key"))||item.optBoolean("voided"))continue;
+            if(result.optBoolean("ok")){
+                item.put("delivered",true).put("recordedAt",result.optString("recordedAt",Instant.ofEpochMilli(item.getJSONObject("body").getLong("observedAt")).toString()));
+                item.remove("error");item.remove("blocked");item.remove("retryAt");
+            }else{
+                int attempts=item.optInt("attempts")+1;
+                item.put("attempts",attempts).put("retryAt",now+Math.min(60000L,5000L*(1L<<Math.min(attempts,3))));
+                item.put("error",result.optString("message","통신 대기 · 기점 시각은 기기에 보관 중"));
+                String code=result.optString("error");item.put("errorCode",code);
+                if("GPS_EVENT_STALE".equals(code)||"GPS_EVENT_DATE_MISMATCH".equals(code)||"DISPATCH_MISMATCH".equals(code)||"VEHICLE_MISMATCH".equals(code)||"TRIP_NOT_SCHEDULED".equals(code))item.put("blocked",true);
+            }
+        }
+    }
     static JSONArray prune(JSONArray items,long now) throws Exception {
         JSONArray keep=new JSONArray();for(int i=0;i<items.length();i++){JSONObject item=items.getJSONObject(i);if(!item.optBoolean("delivered")||now-item.getJSONObject("body").optLong("observedAt")<172800000L)keep.put(item);}return keep;
     }
