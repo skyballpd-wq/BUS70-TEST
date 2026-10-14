@@ -244,3 +244,15 @@ assert.equal(noVehicleLive.ok,false);assert.equal(noVehicleLive.error,'VEHICLE_N
 
 assert.equal(context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:4,trip:1,latitude:37.5,longitude:126.7,observedAt:Date.now()-180000},'DRV-1').error,'GPS_STALE');
 console.log('AuthStep9 tests passed');
+
+// Recorded arrival may recover independently; missing departure/turn remain blank.
+const recoveryStops=require('./route5-public-stops'),recoveryEnd=recoveryStops.at(-1),recoveryNow=Date.now();
+context.bus70RouteStopsFromDb_=()=>({stops:recoveryStops});
+context.bus70AttachLocationReferences_=data=>{data.trips[0].endLocation={lat:recoveryEnd.lat,lng:recoveryEnd.lng,radiusM:80};return data;};
+for(const field of ['발차실제','회차실제','도착실제'])runLogs.rows[1][runLogColumns[field]]='';
+const recoveryEvidence=[111,112].map((i,k)=>({stopId:recoveryStops[i].id,observedAt:recoveryNow-60000+k*30000,latitude:recoveryStops[i].lat,longitude:recoveryStops[i].lng,accuracy:5}));
+const recoverBody={...phaseBase,event:'ARRIVE',latitude:recoveryEnd.lat,longitude:recoveryEnd.lng,accuracy:5,observedAt:recoveryNow,returnEvidence:recoveryEvidence};
+assert.equal(context.bus70AuthAction_({...recoverBody,returnEvidence:[]}).error,'DEPART_REQUIRED');
+const recoveredArrival=context.bus70AuthAction_(recoverBody);assert.equal(recoveredArrival.ok,true);
+assert.equal(runLogs.rows[1][runLogColumns['발차실제']],'');assert.equal(runLogs.rows[1][runLogColumns['회차실제']],'');
+assert.equal(runLogs.rows[1][runLogColumns['도착실제']].getTime(),recoveryNow);
