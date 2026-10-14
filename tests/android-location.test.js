@@ -29,11 +29,11 @@ assert.match(service, /put\("source", "GPS_AUTO"\)/);
 assert.match(service, /TripOrder\.actual\(schedule\.optJSONArray\("trips"\)\)/);
 assert.match(tripOrder, /a sequence may start at trip 2/);
 assert.match(tripOrder, /comparingInt/);
-assert.match(alarm, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
-assert.match(calendar, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
+assert.match(alarm, /AlarmPolicy\.build\(payload/);
+assert.match(calendar, /CalendarSchedule\.plan\(payload/);
 assert.match(service, /server cache expires it instead of building a location history/);
 assert.match(fs.readFileSync('android/app/src/main/java/kr/bus70/driver/NativeStore.java', 'utf8'), /remove\("locationTimestamp"\)/);
-assert.match(build, /versionCode 72/);
-assert.match(build, /versionName "0\.72-current-date"/);
+assert.match(build, /versionCode 73/);
+assert.match(build, /versionName "0\.73-alarm-once"/);
 
 console.log('Android location integration tests passed');

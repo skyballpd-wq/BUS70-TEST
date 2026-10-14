@@ -1252,7 +1252,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v72.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v73.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2256,7 +2256,7 @@
     catch(error){document.getElementById("alertStatus").replaceChildren(el("div","Android 스케줄 연결에 실패했습니다: "+error.message,"notice error"));return false;}
   }
 
-  window.bus70NativeSyncResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;const message=result.ok?("Android 정확한 알람 "+result.alarmCount+"개"+(result.calendarCount!==undefined?" · 캘린더 "+result.calendarCount+"건":"")+" 등록 완료"):(result.message||"Android 자동연동 실패");document.getElementById("alertStatus").replaceChildren(el("div",message,result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
+  window.bus70NativeSyncResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;const message=result.ok?(result.message||("운행 알림 "+result.alarmCount+"개"+(result.calendarCount!==undefined?" · 캘린더 일정 "+result.calendarCount+"건 (알림 없음)":"")+" 등록")):(result.message||"Android 자동연동 실패");document.getElementById("alertStatus").replaceChildren(el("div",message+(result.calendarError?" · "+result.calendarError:""),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
   window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
@@ -2267,15 +2267,19 @@
 
   function armDriverAlarms() {
     clearDriverAlarms(); const data=lastSchedule;
-    if(!driverAlertSettings.enabled||!data?.ok||data.type!=="WORK"||!Array.isArray(data.trips)||!data.trips.length)return;
+    if(!driverAlertSettings.enabled){
+      if(hasAndroidBridge()&&typeof window.Bus70Android.cancelDriverAlarms==="function")window.Bus70Android.cancelDriverAlarms();
+      return;
+    }
+    if(!data?.ok||data.type!=="WORK"||!Array.isArray(data.trips)||!data.trips.length)return;
     data.trips=normalizeScheduleTrips(data.trips);
     prepareDriverLocationPoints(data);if(!data.trips.length)return;
-    if(syncNativeSchedule(data)){document.getElementById("alertStatus").replaceChildren(el("div","Android 캘린더·정확한 알람 등록 중...","notice"));return;}
+    if(syncNativeSchedule(data)){document.getElementById("alertStatus").replaceChildren(el("div","운행 알림과 캘린더 일정 갱신 중...","notice"));return;}
     const now=Date.now(), date=data.date?.value||document.getElementById("workDate").value, seq=data.dispatch?.seq||data.dispatch?.sequence, route=normalizedRoute(data.route||data.vehicle?.route||currentRoute)||"";
     const alarms=[], first=scheduleMoment(date,data.trips[0].startTime);
-    if(first)driverAlertSettings.commuteMinutes.forEach(min=>alarms.push({at:first.getTime()-min*60000,title:route+"번 출근 준비",message:min+"분 후 "+route+"번 "+seq+"순차 운행이 시작됩니다."}));
-    data.trips.forEach(trip=>{const at=scheduleMoment(date,trip.startTime);if(!at)return;driverAlertSettings.tripMinutes.forEach(min=>alarms.push({at:at.getTime()-min*60000,title:route+"번 "+trip.trip+"탕 준비",message:min+"분 후 "+route+"번 "+trip.trip+"탕 출발입니다. 출발 예정 "+trip.startTime+"."}));if(driverAlertSettings.exact)alarms.push({at:at.getTime(),title:route+"번 "+trip.trip+"탕 출발",message:route+"번 "+trip.trip+"탕 출발 예정 시각입니다."});});
-    alarms.filter(v=>v.at>now&&v.at-now<=2147483647).forEach(v=>alarmTimers.push(setTimeout(()=>fireDriverAlert(v.title,v.message),v.at-now)));
+    if(first&&!runLogForTrip(data,data.trips[0])?.actualStart&&!runLogForTrip(data,data.trips[0])?.actualEnd)driverAlertSettings.commuteMinutes.forEach(min=>alarms.push({trip:Number(data.trips[0].trip),at:first.getTime()-min*60000,title:route+"번 출근 준비",message:min+"분 후 "+route+"번 "+seq+"순차 운행이 시작됩니다."}));
+    data.trips.forEach(trip=>{const log=runLogForTrip(data,trip)||{};if(log.actualStart||log.actualEnd)return;const at=scheduleMoment(date,trip.startTime);if(!at)return;driverAlertSettings.tripMinutes.forEach(min=>alarms.push({trip:Number(trip.trip),at:at.getTime()-min*60000,title:route+"번 "+trip.trip+"탕 준비",message:min+"분 후 "+route+"번 "+trip.trip+"탕 출발입니다. 출발 예정 "+trip.startTime+"."}));if(driverAlertSettings.exact)alarms.push({trip:Number(trip.trip),at:at.getTime(),title:route+"번 "+trip.trip+"탕 출발",message:route+"번 "+trip.trip+"탕 출발 예정 시각입니다."});});
+    alarms.filter(v=>v.at>now&&v.at-now<=2147483647).forEach(v=>alarmTimers.push(setTimeout(()=>{const current=(lastSchedule?.trips||[]).find(t=>Number(t.trip)===v.trip),log=current?runLogForTrip(lastSchedule,current)||{}:null;if(driverAlertSettings.enabled&&Date.now()-v.at<=90000&&log&&!log.actualStart&&!log.actualEnd)fireDriverAlert(v.title,v.message);},v.at-now)));
     const status=document.getElementById("alertStatus"); status.replaceChildren(el("div",alarmTimers.length?alarmTimers.length+"개 알림을 이 기기에 예약했습니다.":"현재부터 24일 안에 울릴 알림이 없습니다.","notice"));
   }
 
