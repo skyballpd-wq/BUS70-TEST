@@ -35,3 +35,11 @@ assert(!context.bus70ObservedArrivalEvidence_({...body,returnEvidence:evidence.s
 assert(!context.bus70ObservedArrivalEvidence_({...body,latitude:37},stops,end,new Date(time-7200000),new Date(time)));
 assert(!context.bus70ObservedArrivalEvidence_({...body,returnEvidence:evidence.map(e=>({...e,observedAt:time+1000}))},stops,end,new Date(time-7200000),new Date(time)));
 console.log(`${observations} route-coordinate replay samples passed; missing TURN, distinct pivots, return reacquisition, stale marker/speed and evidence validation passed`);
+
+// A missed departure must not suppress a newly observed arrival after two verified return stops.
+let recoveryState={};const recoveryLog={},endPoint={lat:finalStop.lat,lng:finalStop.lng,radiusM:80};
+for(let k=0;k<2;k++){
+ const at=time+4000*(k+1),out=gps.step(recoveryState,{now:at,date:'2099-01-01',startTime:'05:00',log:recoveryLog,hasTurn:true,points:{end:endPoint},navigation:{configured:true,returnConfirmed:true,returnEvidence:evidence},position:{timestamp:at,coords:{latitude:endPoint.lat,longitude:endPoint.lng,accuracy:5}}});
+ recoveryState=out.state;assert.equal(out.event,k===1?'ARRIVE':null);
+}
+assert.deepEqual(recoveryLog,{},'recovery cannot fill an unobserved departure');

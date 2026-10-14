@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),recording=require('../driver-recording');
+const ready={visible:true,ready:true,active:false,paused:false,finished:false,permission:'granted',locationEnabled:true,key:'D1|DATE|DISPATCH1|V1',previousKey:'D1|DATE|DISPATCH1|V1',lastAttempt:10000,now:41000};
+assert(recording.shouldResume(ready),'failed startup must retry on the same dispatch');
+for(const extra of [{visible:false},{ready:false},{active:true},{paused:true},{finished:true},{permission:'denied'},{locationEnabled:false},{now:11000}])assert(!recording.shouldResume({...ready,...extra}));
+assert(recording.shouldResume({...ready,key:'D1|DATE|DISPATCH2|V2',now:11000}));
+assert(!recording.crossCheckLabel({available:true,fetchedAt:1,status:'AGREE'},100000).includes('일치'),'stale provider result must expire');
+const c=vm.createContext({console,Date,Number});vm.runInContext(fs.readFileSync('apps-script/PublicTransitApi.gs','utf8'),c);vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'),c);
+const response={response:{msgHeader:{resultCode:0,queryTime:'2099-01-01 08:00:00'},msgBody:{busLocationList:[{routeId:'SYN-5',plateNo:'가상71아1234',stationSeq:3,stationId:33,stateCd:2},{routeId:'OTHER',plateNo:'다른71아1234',stationSeq:3}]}}};
+const parsed=c.bus70GyeonggiLiveParse_(response,'SYN-5',2000);assert.equal(parsed.items.length,1);assert.equal(parsed.items[0].stateCd,2);assert.equal(parsed.observedAt,undefined,'query time is not event time');
+assert.equal(c.bus70GyeonggiSelectVehicle_(parsed.items,'1234').plateNo,'가상71아1234');
+assert.equal(c.bus70GyeonggiSelectVehicle_([...parsed.items,{plateNo:'가상72아1234'}],'1234'),null,'ambiguous suffix never binds a vehicle');
+assert.equal(c.bus70GyeonggiSelectVehicle_(parsed.items,'234'),null);
+assert(!c.bus70GyeonggiLiveParse_({response:{msgHeader:{resultCode:4}}},'SYN-5',2000).available);
+const stops=[{order:3,name:'같은 이름',lat:37,lng:127},{order:80,name:'같은 이름',lat:38,lng:127}],own={latitude:37,longitude:127,accuracyM:5,matchedStopOrder:3,recordedAtMs:1900};
+assert.equal(c.bus70GyeonggiCompare_(parsed.items[0],stops,own,2000).status,'AGREE');
+assert.equal(c.bus70GyeonggiCompare_({...parsed.items[0],stationSeq:80},stops,own,2000).status,'DIFFERENT');
+assert.equal(c.bus70GyeonggiCompare_(parsed.items[0],stops,own,90000).status,'REFERENCE');
+console.log('Automatic retry, pause/permission/visibility guards and GBIS vehicle/stop/time comparison passed');

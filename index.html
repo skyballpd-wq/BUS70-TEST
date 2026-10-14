@@ -1041,7 +1041,8 @@
 
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
-<script src="./driver-automation.js?v=67"></script>
+<script src="./driver-automation.js?v=68"></script>
+<script src="./driver-recording.js?v=68"></script>
 <script src="./driver-cockpit.js?v=66"></script>
 <script src="./driver-outbox.js?v=65"></script>
 <script>
@@ -1184,6 +1185,7 @@
   let scheduleRefreshAttemptAt = 0;
   let followCurrentTrip = true;
   let locationResumeKey = "";
+  let locationResumeAttemptAt=0,locationPermissionState="unknown",nativeLocationEnabled=null;
   let boardCandidateId = "";
   let boardImageUrl = "";
   let currentIsManager = false;
@@ -2202,7 +2204,7 @@
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
   window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
-  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);const eventSignature=JSON.stringify(result.events||[]),eventsChanged=eventSignature!==nativeEventSignature;nativeEventSignature=eventSignature;nativeEventItems=Array.isArray(result.events)?result.events:[];nativePendingCount=Number(result.pendingCount||0);nativeSyncError=result.syncError||"";if(lastSchedule){overlayGpsEvents(lastSchedule);if(eventsChanged)renderSchedule(false);}locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
+  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;locationTrackingActive=Boolean(result.active);if(result.permissionGranted!==undefined)locationPermissionState=result.permissionGranted?"granted":"denied";if(result.locationEnabled!==undefined)nativeLocationEnabled=Boolean(result.locationEnabled);const eventSignature=JSON.stringify(result.events||[]),eventsChanged=eventSignature!==nativeEventSignature;nativeEventSignature=eventSignature;nativeEventItems=Array.isArray(result.events)?result.events:[];nativePendingCount=Number(result.pendingCount||0);nativeSyncError=result.syncError||"";if(lastSchedule){overlayGpsEvents(lastSchedule);if(eventsChanged)renderSchedule(false);}locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
 
   function testScreenOffAlarm(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.scheduleTestAlarm!=="function"){root.replaceChildren(el("div","화면 꺼짐 시험은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.scheduleTestAlarm(120,driverAlertSettings.voice,driverAlertSettings.vibration);root.replaceChildren(el("div","2분 후 시험 알람을 예약했습니다. 지금 앱을 닫고 화면을 잠그세요.","notice"));}
   function checkNativeAlarms(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.alarmStatus!=="function"){root.replaceChildren(el("div","예약 확인은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.alarmStatus();}
@@ -2420,7 +2422,7 @@
   function applyDriverLiveFleet(result){
     if(!result?.ok||!lastSchedule)return;
     const route=normalizedRoute(lastSchedule.route||lastSchedule.vehicle?.route||currentRoute),date=document.getElementById("workDate").value;if(normalizedRoute(result.route)!==route||String(result.date)!==date)return;
-    liveFleet={route:normalizedRoute(result.route),date:String(result.date||""),positions:Array.isArray(result.positions)?result.positions:[],front:result.front||null,rear:result.rear||null,own:result.own||null,updatedAt:Date.now(),error:""};
+    liveFleet={route:normalizedRoute(result.route),date:String(result.date||""),positions:Array.isArray(result.positions)?result.positions:[],front:result.front||null,rear:result.rear||null,own:result.own||null,crossCheck:result.crossCheck||null,updatedAt:Date.now(),error:""};
     if(!hasNativeLocationBridge()&&result.own&&hasNumericValue(result.own.latitude)&&hasNumericValue(result.own.longitude)&&(!lastDriverPosition||Date.parse(result.own.recordedAt)>Number(lastDriverPosition.timestamp||0))){
       lastDriverPosition={coords:{latitude:Number(result.own.latitude),longitude:Number(result.own.longitude),accuracy:Number(result.own.accuracyM||0),speed:hasNumericValue(result.own.speedKmh)?Number(result.own.speedKmh)/3.6:null,heading:hasNumericValue(result.own.heading)?Number(result.own.heading):null},timestamp:Date.parse(result.own.recordedAt)||Date.now()};
       currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);
@@ -2447,7 +2449,7 @@
     if(liveLocationRequestInFlight||!authToken||!lastSchedule||document.getElementById("workDate").value!==todayLocal())return;
     const coords=position?.coords||{},now=Date.now(),elapsed=now-liveLocationSubmittedAt,moved=liveLocationSubmittedPosition?haversineMeters(Number(coords.latitude),Number(coords.longitude),liveLocationSubmittedPosition):Infinity;if(elapsed<15000||elapsed<60000&&moved<20)return;
     liveLocationRequestInFlight=true;liveLocationSubmittedAt=now;liveLocationSubmittedPosition={lat:Number(coords.latitude),lng:Number(coords.longitude)};
-    const d=lastSchedule.dispatch||{},vehicle=lastSchedule.vehicle||{},payload={action:"managerAccountUpsert",operation:"driverLiveLocationSave",token:authToken,date:document.getElementById("workDate").value,dispatchId:d.dispatchId||d.id||"",vehicleId:vehicle.vehicleId||vehicle.id||d.vehicleId||"",sequence:d.seq||d.sequence,trip:Number(trip?.trip||0),observedAt:position.timestamp,latitude:Number(coords.latitude),longitude:Number(coords.longitude),accuracy:Number(coords.accuracy||0),speedKmh:hasNumericValue(coords.speed)?Math.max(0,Number(coords.speed)*3.6):null,heading:hasNumericValue(coords.heading)?Number(coords.heading):null,direction:navigation?.direction||"",previousStop:navigation?.previousStop||"",currentStop:navigation?.currentStop||"",nextStop:navigation?.nextStop||"",distanceToNextM:navigation?.distanceToNextM,routeProgressPercent:navigation?.routeProgressPercent,tripProgressPercent:navigation?.tripProgressPercent,segmentDurationMinutes:navigation?.segmentDurationMinutes};
+    const d=lastSchedule.dispatch||{},vehicle=lastSchedule.vehicle||{},payload={action:"managerAccountUpsert",operation:"driverLiveLocationSave",token:authToken,date:document.getElementById("workDate").value,dispatchId:d.dispatchId||d.id||"",vehicleId:vehicle.vehicleId||vehicle.id||d.vehicleId||"",sequence:d.seq||d.sequence,trip:Number(trip?.trip||0),observedAt:position.timestamp,latitude:Number(coords.latitude),longitude:Number(coords.longitude),accuracy:Number(coords.accuracy||0),speedKmh:hasNumericValue(coords.speed)?Math.max(0,Number(coords.speed)*3.6):null,heading:hasNumericValue(coords.heading)?Number(coords.heading):null,matchedStopOrder:navigation?.configured?navigation.path?.stops?.[navigation.matchedIndex]?.order:null,direction:navigation?.direction||"",previousStop:navigation?.previousStop||"",currentStop:navigation?.currentStop||"",nextStop:navigation?.nextStop||"",distanceToNextM:navigation?.distanceToNextM,routeProgressPercent:navigation?.routeProgressPercent,tripProgressPercent:navigation?.tripProgressPercent,segmentDurationMinutes:navigation?.segmentDurationMinutes};
     try{const result=await apiPost(payload);if(result.ok)applyDriverLiveFleet(result);else if(["AUTH_REQUIRED","DISPATCH_NOT_FOUND","DISPATCH_MISMATCH","VEHICLE_NOT_ASSIGNED","VEHICLE_MISMATCH"].includes(result.error)){locationStatusText=result.message||"확정 배차 또는 배정 차량이 변경되어 위치 추적을 중지했습니다.";locationStatusType="error";stopDriverLocationTracking(true);updateLocationPanel();}}
     catch(error){console.warn("최신 차량 위치 공유 실패",error);}
     finally{liveLocationRequestInFlight=false;}
@@ -2485,7 +2487,7 @@
 
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
-    driverLiveTimer=setInterval(()=>{flushGpsOutbox();pollNativeLocation();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
+    driverLiveTimer=setInterval(()=>{flushGpsOutbox();pollNativeLocation();resumeDriverLocationIfAllowed();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
     updateDriverLiveDashboard();
   }
 
@@ -2527,11 +2529,12 @@
       if(target)target.textContent=missing?(context.trip.trip+"탕 · "+(navigation.returnConfirmed?(context.trip.endPlace||"도착지")+" 방면 운행":"회차 구간 통과")):context.action+(context.time?" · "+displayTime(context.time):"");
       countdown.textContent=displayLive&&!context.log.actualStart&&context.state==="출발시각 미기록"?"출발시각 미기록 · 시간표 기준 현재 탕":missing?"회차 시각 미기록 · 위치 기준 진행 중":driverCountdownLabel(lastSchedule,context.time||"");
     }
-    if(displayLive){const status=document.getElementById("locationStatus");if(status){status.textContent=telemetry.label+(gpsPendingCount()?" · 기록 "+gpsPendingCount()+"건 전송 대기":"")+(!navigation.configured?" · "+(navigation.reason||"위치 확인 중"):"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(telemetry.fresh?" ok":"");}}
+    if(displayLive){const status=document.getElementById("locationStatus");if(status){status.textContent=(localStorage.getItem(driverLocationPreference())==="N"?"자동기록 일시중지 · 상세 설정에서 재개":locationTrackingActive?"자동 운행기록 중 · "+telemetry.label:locationPermissionState==="denied"?"자동기록 대기 · 위치 권한 필요":nativeLocationEnabled===false?"자동기록 대기 · 휴대폰 위치 꺼짐":locationStatusType==="error"?locationStatusText:"자동기록 연결 준비 중")+(gpsPendingCount()?" · 기록 "+gpsPendingCount()+"건 전송 대기":"")+(!navigation.configured?" · "+(navigation.reason||"위치 확인 중"):"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(telemetry.fresh?" ok":"");}}
     const maintenance=document.getElementById("driverLiveMaintenance");
     if(maintenance&&lastSchedule){const incidents=matchingOpenIncidents(lastSchedule);maintenance.className="driver-live-maintenance"+(operationDataLoaded?(incidents.length?" alert":" ok"):"");maintenance.textContent=!operationDataLoaded?"정비 공유 상태 확인 중...":incidents.length?("미해결 정비·사고 "+incidents.length+"건 · "+(incidents[0].type||"요청")+" "+(incidents[0].maintenanceStatus||incidents[0].status||"접수")):"공유된 미해결 정비·사고 없음";}
     const refreshed=document.getElementById("scheduleFreshness");if(refreshed&&scheduleRefreshedAt)refreshed.textContent="일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{hour12:false,hour:"2-digit",minute:"2-digit"})+" · 자동 확인 중";
-    const liveButton=document.getElementById("driverLiveLocationToggle");if(liveButton){liveButton.hidden=!displayLive||locationTrackingActive;liveButton.textContent=locationTrackingActive?"GPS 자동기록·공유 중지":"GPS 자동기록·실시간 공유 시작";liveButton.classList.toggle("tracking",locationTrackingActive);}
+    const crossCheck=document.getElementById("driverCrossCheckStatus");if(crossCheck)crossCheck.textContent=displayLive?Bus70Recording.crossCheckLabel(liveFleet.crossCheck,Date.now()):"";
+    const liveButton=document.getElementById("driverLiveLocationToggle");if(liveButton){liveButton.hidden=!displayLive||!(locationPermissionState==="denied"||nativeLocationEnabled===false);liveButton.textContent=locationPermissionState==="denied"?"위치 권한 설정":"휴대폰 위치 켜기";}
   }
 
   function liveMetric(label,value,id){const box=el("div",undefined,"driver-live-metric");box.append(el("span",label));const strong=el("strong",value);if(id)strong.id=id;box.append(strong);return box;}
@@ -2547,10 +2550,10 @@
   function driverLocationPreference(){return "BUS70_AUTO_LOCATION_"+currentDriverId;}
 
   async function resumeDriverLocationIfAllowed(){
-    if(document.hidden||locationTrackingActive||!lastSchedule||!authToken||currentRole||!lastSchedule.trips?.length||lastSchedule.trips.every(t=>tripCompleted(lastSchedule,t))||document.getElementById("workDate").value!==todayLocal()||localStorage.getItem(driverLocationPreference())==="N")return;
-    const coverage=trackingCoverage(lastSchedule);if(!coverage.ready)return;
-    const key=currentDriverId+"|"+todayLocal()+"|"+coverage.dispatchId+"|"+coverage.vehicleId;if(locationResumeKey===key)return;locationResumeKey=key;
-    // Login with a confirmed current assignment starts recording; OS permission remains mandatory.
+    if(!lastSchedule||!authToken||currentRole||!lastSchedule.trips?.length||document.getElementById("workDate").value!==todayLocal())return;
+    const coverage=trackingCoverage(lastSchedule),key=currentDriverId+"|"+todayLocal()+"|"+coverage.dispatchId+"|"+coverage.vehicleId;
+    if(!Bus70Recording.shouldResume({visible:!document.hidden,ready:coverage.ready,active:locationTrackingActive,paused:localStorage.getItem(driverLocationPreference())==="N",finished:tripCompleted(lastSchedule,lastSchedule.trips[lastSchedule.trips.length-1]),permission:locationPermissionState,locationEnabled:nativeLocationEnabled,key,previousKey:locationResumeKey,lastAttempt:locationResumeAttemptAt,now:Date.now()}))return;
+    locationResumeKey=key;locationResumeAttemptAt=Date.now();
     toggleDriverLocationTracking();
   }
 
@@ -2592,7 +2595,8 @@
     const target=el("div",undefined,"cockpit-target"),count=el("small","");count.id="driverLiveCountdown";count.dataset.nextTime=context.time||"";const targetLabel=el("strong",context.action+(context.time?" · "+displayTime(context.time):""));targetLabel.id="driverLiveTarget";target.append(targetLabel,count);box.append(target);
     box.append(cockpitPhaseTable(data,context.trip,context.log,true));
     const status=el("p",locationStatusText||"GPS 자동 기록을 켜면 운행 지점을 자동 기록합니다.","location-status");status.id="locationStatus";status.setAttribute("role","status");status.hidden=!isDisplayedTripLive(data)&&!gpsPendingCount();box.append(status);
-    const button=el("button","GPS 자동 기록 켜기","driver-live-location-action");button.id="driverLiveLocationToggle";button.type="button";button.hidden=!isDisplayedTripLive(data)||locationTrackingActive;button.addEventListener("click",toggleDriverLocationTracking);box.append(button);
+    const crossCheck=el("div","경기도 차량정보 연결 확인 중","location-status");crossCheck.id="driverCrossCheckStatus";box.append(crossCheck);
+    const button=el("button","위치 설정 확인","driver-live-location-action");button.id="driverLiveLocationToggle";button.type="button";button.hidden=true;button.addEventListener("click",()=>{if(hasNativeLocationBridge()&&typeof window.Bus70Android.openLocationSettings==="function")window.Bus70Android.openLocationSettings();else {locationPermissionState="unknown";locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();}});box.append(button);
     const maintenance=el("div","","driver-live-maintenance");maintenance.id="driverLiveMaintenance";box.append(maintenance);root.append(box);refreshCockpitWeather(data);
   }
 
@@ -2635,7 +2639,7 @@
 
   function updateLocationPanel(){
     const button=document.getElementById("locationToggle"),status=document.getElementById("locationStatus"),accuracy=document.getElementById("locationAccuracy"),speed=document.getElementById("locationSpeed");
-    if(button){button.textContent=locationTrackingActive?"GPS 자동기록·공유 중지":"GPS 자동기록·실시간 공유 시작";button.classList.toggle("tracking",locationTrackingActive);}
+    if(button){button.textContent=localStorage.getItem(driverLocationPreference())==="N"?"자동기록 재개":"자동기록 일시중지";button.classList.toggle("tracking",locationTrackingActive);}
     if(status){const pending=gpsPendingCount();status.textContent=locationStatusText+(pending?" · 기기 보관 "+pending+"건 전송 대기":"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(locationStatusType?" "+locationStatusType:"");}
     if(lastDriverPosition){const c=lastDriverPosition.coords||{};if(accuracy)accuracy.textContent=Number.isFinite(Number(c.accuracy))?Math.round(Number(c.accuracy))+"m":"-";if(speed)speed.textContent=Number.isFinite(Number(c.speed))?Math.max(0,Number(c.speed)*3.6).toFixed(1)+"km/h":"-";}
     updateDriverLiveDashboard();
@@ -2651,6 +2655,7 @@
     if(!coverage.assignmentReady){locationStatusText="로그인 기사에게 확정된 배차와 배정 차량이 모두 있어야 위치 추적을 시작할 수 있습니다.";locationStatusType="error";}
     else if(!coverage.locationReady){locationStatusText="검증된 노선 정류장 좌표 또는 운행 기준점이 없습니다. 노선별 정류장DB에 위도·경도를 등록하세요.";locationStatusType="error";}
     else if(document.getElementById("workDate").value!==todayLocal()){locationStatusText="실시간 위치 기록은 현재 운행일에만 시작할 수 있습니다.";locationStatusType="";}
+    const toggle=el("button",localStorage.getItem(driverLocationPreference())==="N"?"자동기록 재개":"자동기록 일시중지");toggle.id="locationToggle";toggle.type="button";toggle.addEventListener("click",()=>{const paused=localStorage.getItem(driverLocationPreference())==="N";localStorage.setItem(driverLocationPreference(),paused?"Y":"N");if(paused){locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();}else stopDriverLocationTracking();updateLocationPanel();});box.append(toggle);
     root.append(box);updateLocationPanel();
   }
 
@@ -2669,17 +2674,17 @@
     if(!coverage.locationReady){locationStatusText="노선별 정류장DB 좌표 또는 운행 기준점 등록이 필요합니다.";locationStatusType="error";updateLocationPanel();return;}
     localStorage.setItem(driverLocationPreference(),"Y");
     if(hasNativeLocationBridge()){
-      try{window.Bus70Android.syncSchedule(JSON.stringify(nativeSchedulePayload(lastSchedule)));window.Bus70Android.startLocationTracking();locationStatusText="Android 위치 권한과 화면 꺼짐 추적을 준비 중입니다.";locationStatusType="";updateLocationPanel();return;}
+      try{if(typeof window.Bus70Android.ensureLocationTracking==="function")window.Bus70Android.ensureLocationTracking(JSON.stringify(nativeSchedulePayload(lastSchedule)));else {window.Bus70Android.syncSchedule(JSON.stringify(nativeSchedulePayload(lastSchedule)));window.Bus70Android.startLocationTracking();}locationStatusText="Android 위치 권한과 화면 꺼짐 추적을 준비 중입니다.";locationStatusType="";updateLocationPanel();return;}
       catch(error){locationStatusText="Android 위치 추적을 시작하지 못했습니다: "+error.message;locationStatusType="error";updateLocationPanel();return;}
     }
     if(!navigator.geolocation){locationStatusText="이 브라우저는 위치 기능을 지원하지 않습니다.";locationStatusType="error";updateLocationPanel();return;}
-    browserLocationWatchId=navigator.geolocation.watchPosition(processDriverPosition,error=>{locationStatusText=error.code===1?"위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용하세요.":"현재 위치를 확인하지 못했습니다. GPS와 네트워크를 확인하세요.";locationStatusType="error";if(error.code===1)stopDriverLocationTracking(true);updateLocationPanel();},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
+    browserLocationWatchId=navigator.geolocation.watchPosition(processDriverPosition,error=>{locationStatusText=error.code===1?"위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용하세요.":"현재 위치를 확인하지 못했습니다. GPS와 네트워크를 확인하세요.";locationStatusType="error";if(error.code===1){locationPermissionState="denied";stopDriverLocationTracking(true);}updateLocationPanel();},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
     locationTrackingActive=true;locationStatusText="위치 확인 중입니다. 운행 중 이 화면 또는 브라우저를 닫지 마세요.";locationStatusType="ok";updateLocationPanel();
   }
 
   function processDriverPosition(position){
     if(!lastSchedule||!locationTrackingActive||!lastSchedule.trips?.length||document.getElementById("workDate").value!==todayLocal())return;
-    lastDriverPosition=position;const tripIndex=firstActiveTripIndex(lastSchedule),trip=lastSchedule.trips[tripIndex],log=runLogForTrip(lastSchedule,trip)||{},key=currentDriverId+"|"+driverAssignmentBinding(lastSchedule).dispatchId+"|"+trip.trip;
+    locationPermissionState="granted";lastDriverPosition=position;const tripIndex=firstActiveTripIndex(lastSchedule),trip=lastSchedule.trips[tripIndex],log=runLogForTrip(lastSchedule,trip)||{},key=currentDriverId+"|"+driverAssignmentBinding(lastSchedule).dispatchId+"|"+trip.trip;
     currentNavigation=routeNavigationState(lastSchedule,position);maybeShareDriverLiveLocation(position,currentNavigation,trip);
     const points={start:tripLocationPoint(trip,"start"),turn:tripLocationPoint(trip,"turn"),end:tripLocationPoint(trip,"end"),control:tripLocationPoint(trip,"control"),return:tripLocationPoint(trip,"return")};
     const decision=Bus70Automation.step(geofenceVisitState.get(key)||{},{position,now:Date.now(),points,log,navigation:currentNavigation,date:document.getElementById("workDate").value,startTime:trip.startTime,hasTurn:Boolean(trip.turnPlace||trip.turnTime),hasControl:Boolean(trip.controlPoint),hasReturn:Boolean(trip.deadheadDestination&&trip.deadheadDestination!==trip.endPlace)});geofenceVisitState.set(key,decision.state);

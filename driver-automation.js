@@ -100,7 +100,8 @@
       if(input.hasReturn&&!log.deadheadReturnedAt&&validPoint(points.return)&&count("returnInside",inside("return"))>=2)return {state,event:"DEADHEAD_RETURN"};
       return {state,event:null};
     }
-    if(!log.actualStart){
+    const recoveredArrival=input.navigation?.configured&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2;
+    if(!log.actualStart&&!recoveredArrival){
       const planned=moment(input.date,input.startTime);
       if(Number.isFinite(planned)&&(now<planned-30*60000||now>planned+120*60000))return {state,event:null};
       if(!validPoint(points.start))return {state,event:null};

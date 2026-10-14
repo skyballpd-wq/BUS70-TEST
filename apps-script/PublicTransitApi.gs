@@ -359,3 +359,61 @@ function bus70PublicTransitManagerAction_(action, body, requesterId) {
   if(action==='routeStopImportApply')return bus70PublicTransitImportApply_(body||{},requesterId);
   return {ok:false,error:'UNKNOWN_ACTION',message:'지원하지 않는 공공데이터 요청입니다.'};
 }
+
+// GBIS reports a queried stop/status snapshot, not a vehicle GPS fix or its
+// observation timestamp. Never substitute its query time for an event time.
+function bus70GyeonggiLiveParse_(json,routeId,fetchedAt){
+  const envelope=json&&json.response||json||{},header=envelope.msgHeader||{},code=String(header.resultCode==null?'':header.resultCode);
+  if(code!=='0')return {ok:false,available:false,error:'GBIS_RESPONSE',message:code==='4'?'경기도 운행 차량정보 없음':'경기도 차량위치 API 응답 확인 필요',fetchedAt:fetchedAt};
+  let items=envelope.msgBody&&envelope.msgBody.busLocationList||[];if(!Array.isArray(items))items=[items];
+  items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd)};});
+  return {ok:true,available:true,items:items,fetchedAt:fetchedAt,queryTime:String(header.queryTime||''),source:'GYEONGGI_BUS_LOCATION_V2'};
+}
+function bus70GyeonggiLiveFetch_(route){
+  const config=bus70PublicTransitRouteConfig_(route),key=bus70PublicTransitProperty_('BUS70_DATA_GO_KR_SERVICE_KEY');
+  if(!config||config.provider!==BUS70_GYEONGGI_ROUTE_PROVIDER_||!config.routeId)return {available:false,message:'경기도 차량위치 노선 연결 필요'};
+  if(!key)return {available:false,message:'경기도 차량위치 인증 설정 필요'};
+  const cache=CacheService.getScriptCache(),cacheKey='BUS70_GBIS_LIVE_V1_'+config.routeId,raw=cache.get(cacheKey);
+  if(raw){try{return JSON.parse(raw);}catch(ignore){}}
+  let result;
+  try{
+    const url=bus70PublicTransitQueryUrl_('https://apis.data.go.kr/6410000/buslocationservice/v2/getBusLocationListv2',key,{format:'json',routeId:config.routeId});
+    const response=UrlFetchApp.fetch(url,{method:'get',muteHttpExceptions:true,followRedirects:false,headers:{Accept:'application/json'}});
+    result=response.getResponseCode()===200?bus70GyeonggiLiveParse_(JSON.parse(response.getContentText('UTF-8')),config.routeId,Date.now()):{available:false,message:'경기도 차량위치 API 이용 권한·연결 확인 필요',error:'GBIS_HTTP_'+response.getResponseCode()};
+  }catch(ignore){result={available:false,message:'경기도 차량위치 응답 대기',error:'GBIS_UNAVAILABLE'};}
+  cache.put(cacheKey,JSON.stringify(result),result.available?30:120);return result;
+}
+function bus70GyeonggiSelectVehicle_(items,plate){
+  const normalize=function(value){return String(value||'').replace(/[\s.-]/g,'');},wanted=normalize(plate);
+  if(!wanted)return null;
+  let matches=items.filter(function(v){return normalize(v.plateNo)===wanted;});
+  if(matches.length===1)return matches[0];
+  // Four-digit registry numbers are accepted only when unique on this route.
+  if(/^\d{4}$/.test(wanted))matches=items.filter(function(v){return normalize(v.plateNo).endsWith(wanted);});
+  return matches.length===1?matches[0]:null;
+}
+function bus70GyeonggiCompare_(vehicle,stops,own,now){
+  const stop=stops.find(function(s){return Number(s.order)===vehicle.stationSeq;}),result={available:true,status:'REFERENCE',stationSeq:vehicle.stationSeq,stationId:vehicle.stationId,stateCd:vehicle.stateCd,stopName:stop?stop.name:'정류장 순번 '+vehicle.stationSeq};
+  if(!own||now-Number(own.recordedAtMs)>20000||Number(own.accuracyM)>60)return result;
+  const nearby=stops.map(function(s){return {order:Number(s.order),distance:bus70LiveLocationDistance_(own,{latitude:s.lat,longitude:s.lng})};}).filter(function(s){return s.distance!==null&&s.distance<=400;});
+  // Repeated roadside names are never a matching key. A nearby sequence is a
+  // corroborating signal only; the provider does not publish observation time.
+  const phoneOrder=Number(own.matchedStopOrder);
+  if(nearby.length&&Number.isInteger(phoneOrder)&&phoneOrder>0)result.status=Math.abs(phoneOrder-vehicle.stationSeq)<=2&&nearby.some(function(s){return Math.abs(s.order-phoneOrder)<=2;})?'AGREE':'DIFFERENT';
+  return result;
+}
+function bus70GyeonggiCrossCheck_(assignment,own){
+  if(assignment.date!==bus70GyeonggiToday_())return {available:false,message:'현재 운행일에만 차량정보 대조'};
+  const fetched=bus70GyeonggiLiveFetch_(assignment.route);if(!fetched.available)return fetched;
+  let plate='',sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('차량DB');
+  if(sheet&&sheet.getLastRow()>1){const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);const row=rows.slice(1).find(function(v){return String(v[c['vehicleId']])===String(assignment.vehicleId);});if(row)plate=String(row[c['차량번호']]||'');}
+  if(!plate&&/^VEH-\d{4}$/.test(assignment.vehicleId))plate=assignment.vehicleId.slice(-4);
+  const vehicle=bus70GyeonggiSelectVehicle_(fetched.items,plate);
+  if(!vehicle)return {available:false,message:'경기도 배정 차량정보 수신 대기',fetchedAt:fetched.fetchedAt};
+  const result=bus70GyeonggiCompare_(vehicle,bus70RouteStopsFromDb_(assignment.route,assignment.date).stops||[],own,Date.now());
+  result.fetchedAt=fetched.fetchedAt;result.source=fetched.source;return result;
+}
+function BUS70_checkGyeonggiLiveConnection(){
+  const result=bus70GyeonggiLiveFetch_('5');
+  console.log(JSON.stringify({available:result.available,error:result.error||'',message:result.message||'',vehicleCount:(result.items||[]).length,fetchedAt:result.fetchedAt||null}));
+}

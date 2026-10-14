@@ -43,6 +43,7 @@ import java.util.concurrent.Executors;
  * spacing; the server cache expires it instead of building a location history.
  */
 public class DriverLocationService extends Service implements LocationListener {
+    static volatile boolean running=false;
     static final String ACTION_START = "kr.bus70.driver.LOCATION_START";
     static final String ACTION_STOP = "kr.bus70.driver.LOCATION_STOP";
     private static final String CHANNEL = "bus70_driver_location";
@@ -116,7 +117,7 @@ public class DriverLocationService extends Service implements LocationListener {
                 failAndStop("휴대폰 위치 기능이 꺼져 있습니다.");
                 return START_NOT_STICKY;
             }
-            store.locationTracking(true);
+            running=true;store.locationTracking(true);
             main.removeCallbacks(retryEvents);main.post(retryEvents);
             setStatus("화면이 꺼져도 위치 자동 기록이 실행 중입니다.");
             return START_STICKY;
@@ -228,7 +229,7 @@ public class DriverLocationService extends Service implements LocationListener {
         JSONObject navigation=state.optJSONObject("navigation");
         try{navigation=RouteMatcher.match(trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,!actualTurn.isEmpty());state.put("navigation",navigation);}catch(Exception ignored){}
         boolean inbound=navigation!=null&&navigation.optBoolean("returnConfirmed");
-        postLiveLocation(trip, location, inbound?"RETURN":"OUTBOUND");
+        postLiveLocation(trip, location, inbound?"RETURN":"OUTBOUND",navigation);
         String nearestText = nearestText(location, tripNo, start, turn, end);
         setStatus(nearestText);
         try {
@@ -270,7 +271,7 @@ public class DriverLocationService extends Service implements LocationListener {
                 state.put("returnInside",distance(location,returned)<=radius(returned) && matchesDirection(location,returned,"approachBearing") ? state.optInt("returnInside")+1 : 0);
                 if(state.optInt("returnInside")>=2)postEvent(trip,"DEADHEAD_RETURN",location);
             }
-            if (!actualStart.isEmpty() && actualEnd.isEmpty() && end != null && ((trip.optString("turnPlace").isEmpty() && trip.optString("turnTime").isEmpty()) || !actualTurn.isEmpty() || inbound&&navigation.optJSONArray("returnEvidence")!=null&&navigation.optJSONArray("returnEvidence").length()>=2) && reliable(location, end)) {
+            if ((!actualStart.isEmpty() || inbound&&navigation.optJSONArray("returnEvidence")!=null&&navigation.optJSONArray("returnEvidence").length()>=2) && actualEnd.isEmpty() && end != null && ((trip.optString("turnPlace").isEmpty() && trip.optString("turnTime").isEmpty()) || !actualTurn.isEmpty() || inbound&&navigation.optJSONArray("returnEvidence")!=null&&navigation.optJSONArray("returnEvidence").length()>=2) && reliable(location, end)) {
                 state.put("endInside", distance(location, end) <= radius(end) ? state.optInt("endInside") + 1 : 0);
                 rememberFix(state,"arrival",location,state.optInt("endInside")==1);
                 if (state.optInt("endInside") >= 2) {
@@ -414,7 +415,7 @@ public class DriverLocationService extends Service implements LocationListener {
         }catch(Exception error){setStatus("기기 보관 기록 확인 필요");}
     }
 
-    private void postLiveLocation(JSONObject trip, Location location, String direction) {
+    private void postLiveLocation(JSONObject trip, Location location, String direction,JSONObject navigation) {
         JSONObject live = schedule.optJSONObject("liveLocation");
         if (live != null && !live.optBoolean("enabled", true)) return;
         long now = System.currentTimeMillis(), minimum = Math.max(15, live == null ? 20 : live.optInt("minimumIntervalSeconds", 20)) * 1000L;
@@ -434,6 +435,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     .put("speedKmh", location.hasSpeed() ? Math.max(0, location.getSpeed() * 3.6) : JSONObject.NULL)
                     .put("heading", location.hasBearing() ? location.getBearing() : JSONObject.NULL)
                     .put("direction", direction).put("observedAt", location.getTime());
+            if(navigation!=null&&navigation.optBoolean("configured")&&trip.optJSONObject("course")!=null){JSONArray stops=trip.getJSONObject("course").optJSONArray("stops");int index=navigation.optInt("matchedIndex",-1);if(stops!=null&&index>=0&&index<stops.length())body.put("matchedStopOrder",stops.getJSONObject(index).optInt("order"));}
         } catch (Exception error) {
             liveLocationInFlight = false;
             return;
@@ -524,6 +526,7 @@ public class DriverLocationService extends Service implements LocationListener {
     @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
 
     @Override public void onDestroy() {
+        running=false;
         try { if (locationManager != null) locationManager.removeUpdates(this); } catch (SecurityException ignored) {}
         store.locationTracking(false);
         main.removeCallbacksAndMessages(null);
