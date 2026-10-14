@@ -26,7 +26,7 @@ final class TripOrder {
             return day.atStartOfDay(ZoneId.of("Asia/Seoul")).plusHours(hour).plusMinutes(minute).toInstant().toEpochMilli();
         } catch(Exception ignored){return 0;}
     }
-    private static long observedMoment(String date,String value){
+    static long observedMoment(String date,String value){
         try {
             if(value.matches("\\d{1,2}:\\d{2}(:\\d{2})?"))return moment(date,value.split(":")[0]+":"+value.split(":")[1]);
             String iso=value.replace(' ','T');

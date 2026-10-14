@@ -4,6 +4,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EventOutboxTest {
+    @Test public void earlyGpsEventIsVoidedAndDoesNotBlockReplacement()throws Exception {
+        JSONObject s=schedule("D1","V1"),trip=s.getJSONArray("trips").getJSONObject(0);trip.put("startTime","14:41").put("actualStart","2099-01-08T14:20:00+09:00");
+        long planned=TripOrder.moment("2099-01-08","14:41");JSONArray q=new JSONArray();
+        EventOutbox.add(q,s,event("DEPART",planned-21*60000).put("source","GPS_AUTO"));q.getJSONObject(0).put("delivered",true);
+        EventOutbox.overlay(q,s);assertTrue(q.getJSONObject(0).optBoolean("voided"));assertEquals("",trip.optString("actualStart"));assertTrue(trip.optBoolean("departureReset"));assertNull(EventOutbox.next(q,"D1",planned));
+        assertTrue(EventOutbox.add(q,s,event("DEPART",planned+4000).put("source","GPS_AUTO")));assertEquals(2,q.length());assertNotEquals(q.getJSONObject(0).getString("key"),q.getJSONObject(1).getString("key"));
+        EventOutbox.overlay(q,s);assertEquals(java.time.Instant.ofEpochMilli(planned+4000).toString(),trip.optString("actualStart"));
+        q=new JSONArray(q.toString());assertEquals(planned+4000,EventOutbox.next(q,"D1",planned+5000).getJSONObject("body").getLong("observedAt"));
+    }
     private JSONObject schedule(String driver,String vehicle) throws Exception {
         return new JSONObject().put("driverId",driver).put("vehicleId",vehicle).put("dispatchId","SYN-D1").put("date","2099-01-08").put("apiUrl","https://example.invalid/test")
             .put("trips",new JSONArray().put(new JSONObject().put("trip",2)));

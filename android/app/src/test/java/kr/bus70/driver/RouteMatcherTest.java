@@ -5,6 +5,19 @@ import org.json.*;
 import java.nio.charset.StandardCharsets;
 
 public class RouteMatcherTest {
+    @Test public void walkingPhoneNeedsActualVehicleProgress()throws Exception {
+        JSONArray stops=new JSONArray(new String(getClass().getResourceAsStream("/route5-public-stops.json").readAllBytes(),StandardCharsets.UTF_8));
+        JSONObject course=new JSONObject().put("stops",stops).put("turnIndex",55).put("pivotIndex",57),state=new JSONObject();long planned=100000000L;
+        JSONObject stop=stops.getJSONObject(1),hint=new JSONObject().put("available",true).put("source","GYEONGGI_BUS_LOCATION_V2").put("stationSeq",stop.optInt("order")).put("stationId",stop.optString("id")).put("fetchedAt",planned);
+        JSONObject nav=new JSONObject().put("configured",true).put("fraction",1).put("timestamp",planned);
+        assertFalse(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),1.2,planned,planned,hint));
+        assertFalse(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),6,planned,planned,null));
+        assertTrue(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),6,planned,planned,hint));
+        assertFalse(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),6,planned,planned+1000,hint));
+        stop=stops.getJSONObject(2);hint.put("stationSeq",stop.optInt("order")).put("stationId",stop.optString("id")).put("fetchedAt",planned+10000);nav.put("fraction",2).put("timestamp",planned+10000);
+        assertTrue(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),1,planned+10000,planned,hint));
+        hint.put("fetchedAt",planned-60000);assertFalse(RouteMatcher.vehicleDeparture(state,course,nav,stop.getDouble("lat"),stop.getDouble("lng"),6,planned+10000,planned,hint));
+    }
     @Test public void nextTripWaitsAtSharedDepotUntilDeparture()throws Exception {
         JSONArray stops=new JSONArray(new String(getClass().getResourceAsStream("/route5-public-stops.json").readAllBytes(),StandardCharsets.UTF_8));
         JSONObject course=new JSONObject().put("stops",stops).put("turnIndex",55).put("pivotIndex",57),trip=new JSONObject().put("course",course).put("startLocation",stops.getJSONObject(0));
@@ -13,9 +26,9 @@ public class RouteMatcherTest {
         JSONObject waiting=RouteMatcher.matchTrip(trip,planned,polluted,end.getDouble("lat"),end.getDouble("lng"),8,4/3.6,RouteMatcher.bearing(stops.getJSONObject(112),end),now,null);
         assertTrue(waiting.optBoolean("waiting"));assertFalse(waiting.optBoolean("configured"));assertFalse(waiting.optBoolean("returnConfirmed"));assertFalse(waiting.optBoolean("turnPassed"));assertFalse(waiting.has("matchedMeters"));assertEquals(0,waiting.getJSONArray("returnEvidence").length());
         assertTrue(RouteMatcher.matchTrip(trip,planned,waiting,end.getDouble("lat"),end.getDouble("lng"),8,0,Double.NaN,planned+60000,null).optBoolean("waiting"));
-        // An observed early departure is authoritative, before the timetable.
+        // A confirmed manager-adjusted schedule permits an observed departure.
         trip.put("actualStart","observed");
-        JSONObject departed=RouteMatcher.matchTrip(trip,planned,waiting,next.getDouble("lat"),next.getDouble("lng"),8,6,RouteMatcher.bearing(stops.getJSONObject(0),next),planned-300000,null);
+        JSONObject departed=RouteMatcher.matchTrip(trip,planned-360000,waiting,next.getDouble("lat"),next.getDouble("lng"),8,6,RouteMatcher.bearing(stops.getJSONObject(0),next),planned-300000,null);
         assertTrue(departed.optBoolean("configured"));assertFalse(departed.optBoolean("waiting"));assertFalse(departed.optBoolean("returnConfirmed"));assertEquals(1,departed.optDouble("fraction"),.05);
         trip.remove("actualStart");polluted.put("timestamp",planned+3600000);
         assertFalse(RouteMatcher.matchTrip(trip,planned,polluted,end.getDouble("lat"),end.getDouble("lng"),8,0,Double.NaN,planned+3603000,null).optBoolean("waiting"));

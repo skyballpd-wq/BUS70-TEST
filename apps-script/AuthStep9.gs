@@ -632,6 +632,13 @@ function bus70RunLogPointRoles_(trips, trip) {
   return {startRole:startRole,turnRole:turnRole,endRole:endRole,serviceEndPlace:serviceEndPlace,deadheadDestination:upboundEnd&&!bus70RunLogSameStop_(deadheadDestination,serviceEndPlace)?deadheadDestination:''};
 }
 
+function bus70RunLogPlannedAt_(serviceDate,plannedTime){
+  if(plannedTime instanceof Date)plannedTime=Utilities.formatDate(plannedTime,'Asia/Seoul','HH:mm');
+  const day=String(serviceDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/),time=String(plannedTime||'').match(/^(\d{1,2}):(\d{2})$/);
+  if(!day||!time||Number(time[1])>47||Number(time[2])>59)return NaN;
+  const h=Number(time[1]),m=Number(time[2]);return Date.UTC(Number(day[1]),Number(day[2])-1,Number(day[3])+(h<24&&h*60+m<210?1:0),h-9,m);
+}
+function bus70RunLogDepartureAllowed_(date,trip,observedAt){const planned=bus70RunLogPlannedAt_(date,trip.startTime);return Number.isFinite(planned)&&new Date(observedAt).getTime()>=planned;}
 function bus70RunLogDeviationMinutes_(serviceDate, plannedTime, actualAt) {
   if(plannedTime instanceof Date)plannedTime=Utilities.formatDate(plannedTime,'Asia/Seoul','HH:mm');
   const dateMatch=String(serviceDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/),timeMatch=String(plannedTime||'').match(/^(\d{1,2}):(\d{2})$/),actual=actualAt instanceof Date?actualAt:new Date(actualAt);
@@ -771,6 +778,9 @@ function bus70DriverRunLogSave_(body, driverId) {
   function applyLocation_(eventName){const columns=locationColumns[eventName];if(!columns)return;row[c[columns[0]]]=locationMode;if(latitude!==null&&longitude!==null){row[c[columns[1]]]=latitude;row[c[columns[2]]]=longitude;if(accuracy!==null)row[c[columns[3]]]=Math.round(accuracy);}}
   let alreadyRecorded=false,actualAt=now;
   if(event==='DEPART'){
+    // scheduledTrip already includes the manager's confirmed time adjustment.
+    // Never accept a client-supplied earlier plannedStart as authorization.
+    if(!bus70RunLogDepartureAllowed_(date,scheduledTrip,now))return {ok:false,error:'DEPART_BEFORE_SCHEDULE',message:'확정 발차시각 이전에는 출발 기록할 수 없습니다. 소장 지시 시 변경된 발차시각을 먼저 반영하세요.'};
     if(row[c['발차실제']]){alreadyRecorded=true;actualAt=row[c['발차실제']];}
     else {row[c['발차실제']]=now;row[c['발차편차분']]=bus70RunLogDeviationMinutes_(date,row[c['발차예정']],now);row[c['상태']]='운행중';applyLocation_(event);}
   }

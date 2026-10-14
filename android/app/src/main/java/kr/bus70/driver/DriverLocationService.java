@@ -140,7 +140,7 @@ public class DriverLocationService extends Service implements LocationListener {
             if (raw.equals(scheduleRaw) && schedule != null) return true;
             schedule = new JSONObject(raw);
             schedule.put("trips", TripOrder.actual(schedule.optJSONArray("trips")));
-            EventOutbox.overlay(new JSONArray(store.eventOutbox()),schedule);
+            JSONArray queued=new JSONArray(store.eventOutbox());EventOutbox.overlay(queued,schedule);store.eventOutbox(queued.toString());
             scheduleRaw = raw;
             String nextKey = schedule.optString("driverId") + "|" + schedule.optString("dispatchId") + "|" + schedule.optString("vehicleId") + "|" + schedule.optString("date");
             JSONObject saved = new JSONObject(store.locationState());
@@ -148,6 +148,7 @@ public class DriverLocationService extends Service implements LocationListener {
                 saved = new JSONObject().put("scheduleKey", nextKey).put("trips", new JSONObject());
             }
             states = saved;
+            JSONArray ordered=schedule.optJSONArray("trips");for(int i=0;i<ordered.length();i++){JSONObject t=ordered.getJSONObject(i);if(t.optBoolean("departureReset")){states.getJSONObject("trips").remove(String.valueOf(t.optInt("trip")));t.remove("departureReset");}}
             scheduleKey = nextKey;
             store.locationState(states.toString());
             return !schedule.optString("apiUrl").isEmpty() && !schedule.optString("token").isEmpty()
@@ -228,7 +229,8 @@ public class DriverLocationService extends Service implements LocationListener {
         try{if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         JSONObject navigation=state.optJSONObject("navigation");
-        try{JSONObject hint=routeReference;
+        JSONObject hint=routeReference;
+        try{
             if(hint!=null&&(!hint.optString("date").equals(schedule.optString("date"))||!hint.optString("dispatchId").equals(schedule.optString("dispatchId"))||!hint.optString("vehicleId").equals(schedule.optString("vehicleId"))))hint=null;
             navigation=RouteMatcher.matchTrip(trip,scheduleMoment(trip.optString("startTime")),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,hint);state.put("navigation",navigation);}catch(Exception ignored){}
         boolean inbound=navigation!=null&&navigation.optBoolean("returnConfirmed");
@@ -237,17 +239,17 @@ public class DriverLocationService extends Service implements LocationListener {
         setStatus(navigation!=null&&navigation.optBoolean("waiting")?tripNo+"탕 출발 대기 · "+trip.optString("startTime"):nearestText);
         try {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
-            if (actualStart.isEmpty() && start != null && reliable(location, start) && (plannedStart == 0 || now >= plannedStart - 1800000L && now <= plannedStart + 7200000L)) {
+            if (actualStart.isEmpty() && start != null && reliable(location, start) && plannedStart>0 && now<=plannedStart+7200000L) {
                 double distance = distance(location, start);
                 if (distance <= radius(start) && matchesDirection(location,start,"approachBearing")) {
                     state.put("startInside", state.optInt("startInside") + 1).put("startOutside", 0);
                     if (state.optInt("startInside") >= 2) state.put("seenStart", true);
-                } else if (state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy()) && matchesDirection(location,start,"departureBearing")) {
+                } else if (fix>=plannedStart && state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy()) && matchesDirection(location,start,"departureBearing") && RouteMatcher.vehicleDeparture(state,trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.hasSpeed()?location.getSpeed():-1,fix,plannedStart,hint)) {
                     state.put("startOutside", state.optInt("startOutside") + 1);
                     rememberFix(state,"departure",location,state.optInt("startOutside")==1);
                     if (state.optInt("startOutside") >= 2) postEvent(trip, "DEPART", rememberedFix(state,"departure",location));
                     state.put("startInside", 0);
-                } else { state.put("startInside", 0).put("startOutside", 0); }
+                } else { state.put("startInside", 0).put("startOutside", 0);state.remove("departureFix"); }
             }
             if (actualEnd.isEmpty() && !actualStart.isEmpty() && actualTurn.isEmpty() && turn != null && reliable(location, turn)) {
                 boolean near=distance(location,turn)<=radius(turn);
@@ -435,7 +437,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     .put("sequence", schedule.optInt("sequence"))
                     .put("trip", trip.optInt("trip")).put("latitude", location.getLatitude())
                     .put("longitude", location.getLongitude()).put("accuracy", location.hasAccuracy() ? location.getAccuracy() : JSONObject.NULL)
-                    .put("speedKmh", location.hasSpeed() ? Math.max(0, location.getSpeed() * 3.6) : JSONObject.NULL)
+                    .put("speedKmh", (navigation==null||!navigation.optBoolean("waiting")) && location.hasSpeed() ? Math.max(0, location.getSpeed() * 3.6) : JSONObject.NULL)
                     .put("heading", location.hasBearing() ? location.getBearing() : JSONObject.NULL)
                     .put("direction", direction).put("observedAt", location.getTime());
             if(navigation!=null&&navigation.optBoolean("configured")&&trip.optJSONObject("course")!=null){JSONArray stops=trip.getJSONObject("course").optJSONArray("stops");int index=navigation.optInt("matchedIndex",-1);if(stops!=null&&index>=0&&index<stops.length())body.put("matchedStopOrder",stops.getJSONObject(index).optInt("order"));}
