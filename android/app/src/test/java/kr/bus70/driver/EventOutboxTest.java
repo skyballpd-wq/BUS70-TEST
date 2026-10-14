@@ -4,6 +4,29 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EventOutboxTest {
+    @Test public void responsePersistsOriginalTimeAndPreservesEventsQueuedDuringRequest()throws Exception {
+        JSONArray q=new JSONArray();JSONObject s=schedule("D1","V1");
+        EventOutbox.add(q,s,event("TURN",100000));String key=q.getJSONObject(0).getString("key");
+        // Arrival is captured while an earlier network request is in flight.
+        EventOutbox.add(q,s,event("ARRIVE",200000));
+        EventOutbox.applyResponse(q,key,new JSONObject().put("ok",true).put("recordedAt","2099-01-08 22:15:19"),300000);
+        assertEquals(2,q.length());assertTrue(q.getJSONObject(0).getBoolean("delivered"));assertFalse(q.getJSONObject(1).getBoolean("delivered"));
+        q=new JSONArray(q.toString());JSONObject arrival=EventOutbox.next(q,"D1",90000000);
+        assertEquals(200000,arrival.getJSONObject("body").getLong("observedAt"));
+        EventOutbox.applyResponse(q,arrival.getString("key"),new JSONObject(),90000000);
+        assertFalse(arrival.getBoolean("delivered"));assertTrue(arrival.getString("error").contains("기기에 보관"));
+        EventOutbox.applyResponse(q,arrival.getString("key"),new JSONObject().put("ok",true).put("recordedAt","2099-01-08 23:18:07"),90100000);
+        assertEquals(0,EventOutbox.pending(q,"D1"));assertFalse(arrival.has("error"));
+        assertEquals("2099-01-08 23:18:07",arrival.getString("recordedAt"));
+    }
+    @Test public void rejectedArrivalRemainsVisibleAndCannotBlockAnotherDate()throws Exception {
+        JSONArray q=new JSONArray();JSONObject s=schedule("D1","V1");EventOutbox.add(q,s,event("ARRIVE",100000));
+        EventOutbox.applyResponse(q,q.getJSONObject(0).getString("key"),new JSONObject().put("ok",false).put("error","GPS_EVENT_STALE").put("message","기점 시각 확인 필요"),90000000);
+        assertTrue(q.getJSONObject(0).getBoolean("blocked"));assertEquals(1,EventOutbox.pending(q,"D1"));
+        s.put("date","2099-01-09");EventOutbox.add(q,s,event("DEPART",90000100));
+        assertEquals("DEPART",EventOutbox.next(q,"D1",90010000).getJSONObject("body").getString("event"));
+        assertEquals(2,EventOutbox.prune(q,999999999).length());
+    }
     @Test public void earlyGpsEventIsVoidedAndDoesNotBlockReplacement()throws Exception {
         JSONObject s=schedule("D1","V1"),trip=s.getJSONArray("trips").getJSONObject(0);trip.put("startTime","14:41").put("actualStart","2099-01-08T14:20:00+09:00");
         long planned=TripOrder.moment("2099-01-08","14:41");JSONArray q=new JSONArray();

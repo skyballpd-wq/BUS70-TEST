@@ -63,7 +63,6 @@ public class DriverLocationService extends Service implements LocationListener {
     private Location lastLiveLocation;
     private long lastAcceptedFix;
     private long lastGpsElapsed;
-    private boolean eventSending;
     private final Runnable retryEvents = new Runnable() {
         @Override public void run() { if(loadSchedule())flushEvents();if(store.locationTracking()&&System.currentTimeMillis()-store.locationTimestamp()>45000L)setStatus("GPS 재수신 대기 · 위치를 수신하지 못한 구간은 기록할 수 없습니다.");main.postDelayed(this,15000L); }
     };
@@ -360,6 +359,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     .put("token", schedule.optString("token")).put("date", schedule.optString("date"))
                     .put("dispatchId", schedule.optString("dispatchId")).put("vehicleId", schedule.optString("vehicleId"))
                     .put("sequence", schedule.optInt("sequence")).put("trip", tripNo).put("event", event)
+                    .put("route",schedule.optString("route")).put("startPlace",trip.optString("startPlace")).put("turnPlace",trip.optString("turnPlace")).put("endPlace",trip.optString("endPlace"))
                     .put("plannedStart", trip.optString("startTime")).put("plannedTurn", trip.optString("turnTime"))
                     .put("plannedEnd", trip.optString("endTime")).put("plannedFrontGap", trip.opt("plannedFrontGap"))
                     .put("plannedRearGap", trip.opt("plannedRearGap")).put("source", "GPS_AUTO")
@@ -382,42 +382,18 @@ public class DriverLocationService extends Service implements LocationListener {
     }
 
     private void flushEvents() {
-        if(eventSending||schedule==null||schedule.optString("token").isEmpty())return;
-        try {
-            JSONObject item=EventOutbox.next(new JSONArray(store.eventOutbox()),schedule.optString("driverId"),System.currentTimeMillis());
-            if(item==null)return;
-            JSONObject body=new JSONObject(item.getJSONObject("body").toString());
-            final String owner=schedule.optString("driverId"),token=schedule.optString("token"),key=item.getString("key"),endpoint=item.getString("apiUrl");
-            body.put("token",token).put("deferredGPS",true);eventSending=true;
-            network.execute(()->{
-                JSONObject response;
-                try { response=postJson(endpoint,body); }
-                catch(Exception error){response=new JSONObject();}
-                final JSONObject result=response;
-                main.post(()->{
-                    eventSending=false;
-                    try {
-                        JSONArray items=new JSONArray(store.eventOutbox());
-                        for(int i=0;i<items.length();i++) {
-                            JSONObject entry=items.getJSONObject(i);if(!key.equals(entry.optString("key")))continue;
-                            if(result.optBoolean("ok")) {
-                                entry.put("delivered",true).put("recordedAt",result.optString("recordedAt",java.time.Instant.ofEpochMilli(body.getLong("observedAt")).toString()));
-                                store.eventSyncError("");
-                            } else {
-                                int attempts=entry.optInt("attempts")+1;
-                                entry.put("attempts",attempts).put("retryAt",System.currentTimeMillis()+Math.min(60000L,5000L*(1L<<Math.min(attempts,3))));
-                                store.eventSyncError(result.optString("message","통신 대기 · 기점 시각은 기기에 보관 중"));
-                                String code=result.optString("error");if("GPS_EVENT_STALE".equals(code)||"GPS_EVENT_DATE_MISMATCH".equals(code)||"DISPATCH_MISMATCH".equals(code)||"VEHICLE_MISMATCH".equals(code)||"TRIP_NOT_SCHEDULED".equals(code))entry.put("blocked",true);
-                            }
-                        }
-                        if(!store.eventOutbox(items.toString())){setStatus("서버 전송 상태의 기기 저장 실패 · 재시도 대기");return;}
-                        if(schedule!=null&&owner.equals(schedule.optString("driverId"))){EventOutbox.overlay(items,schedule);store.trackingSchedule(schedule.toString());scheduleRaw=schedule.toString();}
-                        if(result.optBoolean("ok"))flushEvents();
-                        else if(bindingError(result.optString("error"))&&schedule!=null&&token.equals(schedule.optString("token")))setStatus("기록 전송 확인 필요 · "+store.eventSyncError());
-                    }catch(Exception error){setStatus("기점 기록 전송 재시도 대기");}
-                });
-            });
-        }catch(Exception error){setStatus("기기 보관 기록 확인 필요");}
+        if(schedule==null)return;
+        final String owner=schedule.optString("driverId");
+        EventSync.flush(this,owner,schedule.optString("token"),result->{
+            try {
+                if(running&&loadSchedule()&&owner.equals(schedule.optString("driverId"))){
+                    EventOutbox.overlay(new JSONArray(store.eventOutbox()),schedule);
+                    store.trackingSchedule(schedule.toString());scheduleRaw=schedule.toString();
+                }
+                if(result.optBoolean("ok")&&running)flushEvents();
+                else if(!result.optBoolean("ok")&&running)setStatus("기록 전송 확인 필요 · "+store.eventSyncError());
+            }catch(Exception error){setStatus("기점 기록 전송 재시도 대기");}
+        });
     }
 
     private void postLiveLocation(JSONObject trip, Location location, String direction,JSONObject navigation) {
@@ -463,7 +439,7 @@ public class DriverLocationService extends Service implements LocationListener {
         });
     }
 
-    private JSONObject postJson(String endpoint, JSONObject body) throws Exception {
+    static JSONObject postJson(String endpoint, JSONObject body) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
         connection.setInstanceFollowRedirects(true);
         connection.setRequestMethod("POST");
