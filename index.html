@@ -278,6 +278,9 @@
     @media(max-width:380px) { .content { padding: 20px 14px; } .schedule-panel { padding: 14px; } .schedule-panel .trip { padding: 10px; } }
 
     .schedule-panel .notice { padding: 12px; border-radius: 9px; background: #f1f5f9; margin-top: 12px; }
+    .schedule-empty { text-align:center; padding:32px 16px; border:1px solid #dbe3ec; border-radius:14px; background:#f8fafc; }
+    .schedule-empty .empty-mark { display:block; font-size:80px; line-height:1.2; color:#183f69; }
+    .schedule-empty p { color:#64748b; margin:10px 0 0; }
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
     .schedule-panel .confirm-button { background: #166534; }
     .schedule-panel .confirm-button[hidden] { display: none; }
@@ -751,7 +754,7 @@
         <div><label for="workDate">조회 날짜</label><input id="workDate" type="date"></div>
         <div><label for="timeMode">시간 표시</label><select id="timeMode"><option value="24H">24시간</option><option value="BOTH">동시 표시</option><option value="12H">오전·오후</option></select></div>
       </div>
-      <button id="loadSchedule" type="button">운행정보 조회</button></details>
+      <button id="loadSchedule" type="button">운행정보 조회</button><button id="loadTodaySchedule" type="button">오늘 스케줄</button></details>
       <div id="scheduleResult" class="result"></div><p id="scheduleFreshness" class="compact-help"></p>
       <button id="confirmScheduleButton" class="confirm-button" type="button" hidden>이 배차 확인하기</button>
       <div id="confirmResult" class="result" aria-live="polite"></div>
@@ -1180,8 +1183,10 @@
   const LEGACY_REMEMBER_KEY = "BUS70_TEST_REMEMBER_V2";
   let authToken = "";
   let scheduleRequestId = 0;
+  let scheduleFollowToday = true;
   let scheduleRefreshInFlight = false;
   let scheduleRefreshedAt = 0;
+  let scheduleRefreshError = "";
   let scheduleRefreshAttemptAt = 0;
   let followCurrentTrip = true;
   let locationResumeKey = "";
@@ -1247,7 +1252,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v66.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v72.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1258,6 +1263,52 @@
       .format(new Date(now - 210 * 60000));
   }
   const todayLocal = () => serviceDateInSeoul();
+
+  // 기본 조회 날짜는 달력상의 오늘. 야간 운행의 03:30 경계와 구분합니다.
+  function calendarDateInSeoul(now = Date.now()) {
+    return new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(now));
+  }
+
+  function scheduleForRequestedDate(data, date) {
+    if (!data || typeof data !== "object") return {ok:false,message:"스케줄 응답을 확인하지 못했습니다. 다시 조회하세요."};
+    if (!data.ok) return data;
+    const returnedDate=data.date?.value||data.date, dispatchDate=data.dispatch?.date;
+    if ((returnedDate&&returnedDate!==date)||(dispatchDate&&dispatchDate!==date)||(!returnedDate&&data.type==="WORK")) {
+      return {ok:false,error:"SCHEDULE_DATE_MISMATCH",date,message:"요청 날짜와 스케줄 날짜가 다릅니다. 다시 조회하세요."};
+    }
+    return {...data,date:data.date||date};
+  }
+
+  function resetScheduleView() {
+    scheduleRequestId++;
+    clearDriverAlarms();
+    if(!hasNativeLocationBridge())stopDriverLocationTracking(true);
+    stopDriverFleetTimer();
+    lastSchedule=null;activeTripIndex=0;followCurrentTrip=true;
+    geofenceVisitState.clear();navigationMemory.clear();currentNavigation=null;
+    liveFleet={positions:[],front:null,rear:null,own:null,updatedAt:0,error:""};
+    scheduleRefreshedAt=0;scheduleRefreshError="";scheduleRefreshInFlight=false;
+    document.getElementById("loadSchedule").disabled=false;
+    document.getElementById("scheduleFreshness").textContent="";
+    resetConfirmation();
+    document.getElementById("scheduleResult").replaceChildren();
+  }
+
+  function refreshScheduleDate() {
+    if(document.hidden||!authToken||currentRole)return false;
+    const today=calendarDateInSeoul();
+    if(!scheduleFollowToday||document.getElementById("workDate").value===today)return false;
+    document.getElementById("workDate").value=today;
+    resetScheduleView();
+    loadMySchedule();
+    return true;
+  }
+
+  function refreshScheduleOnResume() {
+    if(document.hidden||!authToken||currentRole)return;
+    if(!refreshScheduleDate()&&scheduleFollowToday&&!scheduleRefreshInFlight)loadMySchedule(true);
+  }
+
 
   function openDriverScreen(driver, automatic = false, isManager = false, role = "") {
     currentDriverId = String(driver.driverId || "");
@@ -1311,13 +1362,14 @@
     resetDriverWorkMenu();
     if(isStaff)stopDriverLiveTimer();else startDriverLiveTimer();
     resetConfirmation();
-    document.getElementById("workDate").value = todayLocal();
-    document.getElementById("boardDate").value = todayLocal();
-    document.getElementById("managerDate").value = todayLocal();
+    scheduleFollowToday=true;
+    document.getElementById("workDate").value = calendarDateInSeoul();
+    document.getElementById("boardDate").value = calendarDateInSeoul();
+    document.getElementById("managerDate").value = calendarDateInSeoul();
     syncManagerShiftToDate();
-    document.getElementById("workChangeDate").value = todayLocal();
-    document.getElementById("incidentDate").value = todayLocal();
-    document.getElementById("adjustmentDate").value = todayLocal();
+    document.getElementById("workChangeDate").value = calendarDateInSeoul();
+    document.getElementById("incidentDate").value = calendarDateInSeoul();
+    document.getElementById("adjustmentDate").value = calendarDateInSeoul();
     initManagerWorkspace();
     loadDepotContacts();
     if(currentIsManager){loadMasterAdmin();loadAdjustmentScheduleOptions(true);showManagerPage("HOME",false);}
@@ -1489,15 +1541,16 @@
         );
       }
       try {
-        const result = await apiPost({action:"session", token:saved.token, date:todayLocal()});
+        const requestedDate=calendarDateInSeoul();
+        const result = await apiPost({action:"session", token:saved.token, date:requestedDate});
         if (requestId !== authRequestId) return;
         if (result.ok && result.driver) {
           authToken = saved.token;
           if (result.alertSettings) fillAlertSettings(result.alertSettings);
           saveLegacyDriver(result.driver, result.role || "");
           openDriverScreen(result.driver, false, result.manager, result.role);
-          if (!result.role && result.schedule) {
-            lastSchedule = result.schedule;
+          if (!result.role && result.schedule && requestedDate===calendarDateInSeoul()) {
+            lastSchedule = scheduleForRequestedDate(result.schedule,requestedDate);
             renderSchedule();
           } else if (!result.role) {
             loadMySchedule();
@@ -1543,7 +1596,8 @@
       // 배포된 서버는 loginSecure를 지원합니다. 통신 실패 때 구형 GET 로그인을
       // 다시 호출하면 대기시간이 두 배가 되고 오래된 사번 판정이 섞일 수 있어
       // 보안 로그인 한 번의 결과만 사용합니다.
-      const data = await apiPost({action:"loginSecure", name, empId, date:todayLocal()});
+      const requestedDate=calendarDateInSeoul();
+      const data = await apiPost({action:"loginSecure", name, empId, date:requestedDate});
       if (requestId !== authRequestId) return;
       if (!data.ok || !data.driver) {
         showMessage(data.message || "로그인 정보를 확인하세요.", "error");
@@ -1563,8 +1617,8 @@
         localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
       openDriverScreen(data.driver, false, data.manager, data.role);
-      if (!data.role && data.schedule) {
-        lastSchedule = data.schedule;
+      if (!data.role && data.schedule && requestedDate===calendarDateInSeoul()) {
+        lastSchedule = scheduleForRequestedDate(data.schedule,requestedDate);
         renderSchedule();
       } else if (!data.role) {
         loadMySchedule();
@@ -2040,10 +2094,11 @@
     // 화면을 다시 열면 현장 상태와 오늘 배차를 갱신합니다. 화면이 꺼진 동안의
     // 알람은 Android 네이티브 예약이 담당합니다.
     loadOperationData(true);
-    if(!currentRole&&document.getElementById("workDate").value===todayLocal())loadMySchedule(true);
+    refreshScheduleOnResume();
     if(!currentRole&&document.getElementById("workDate").value===todayLocal())loadDriverLiveLocations(true);
     if(hasNativeLocationBridge()&&typeof window.Bus70Android.locationStatus==="function")window.Bus70Android.locationStatus();
   });
+  window.addEventListener("pageshow",refreshScheduleOnResume);
   populateOperationalTimeOptions();
 
 
@@ -2504,11 +2559,16 @@
 
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
-    driverLiveTimer=setInterval(()=>{flushGpsOutbox();pollNativeLocation();resumeDriverLocationIfAllowed();updateDriverLiveDashboard();if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&lastSchedule&&Date.now()-scheduleRefreshAttemptAt>60000){scheduleRefreshInFlight=true;scheduleRefreshAttemptAt=Date.now();loadMySchedule(true).finally(()=>{scheduleRefreshInFlight=false;});}},1000);
+    driverLiveTimer=setInterval(()=>{
+      if(refreshScheduleDate())return;
+      flushGpsOutbox();pollNativeLocation();resumeDriverLocationIfAllowed();updateDriverLiveDashboard();
+      if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&Date.now()-scheduleRefreshAttemptAt>60000)loadMySchedule(true);
+    },1000);
     updateDriverLiveDashboard();
   }
 
   function updateDriverLiveDashboard(){
+    if(!lastSchedule?.trips?.length||lastSchedule.ok===false)return;
     if(lastSchedule&&followCurrentTrip&&activeTripIndex!==firstActiveTripIndex(lastSchedule)){activeTripIndex=firstActiveTripIndex(lastSchedule);renderSchedule(false);return;}
     const context=lastSchedule?driverDisplayedContext(lastSchedule):null,displayLive=isDisplayedTripLive(lastSchedule);
     const clock=document.getElementById("driverLiveClock"),clockSub=document.getElementById("driverLiveClockSub");
@@ -2553,7 +2613,7 @@
     if(displayLive){const status=document.getElementById("locationStatus");if(status){status.textContent=(localStorage.getItem(driverLocationPreference())==="N"?"자동기록 일시중지 · 상세 설정에서 재개":locationTrackingActive?"자동 운행기록 중 · "+telemetry.label:locationPermissionState==="denied"?"자동기록 대기 · 위치 권한 필요":nativeLocationEnabled===false?"자동기록 대기 · 휴대폰 위치 꺼짐":locationStatusType==="error"?locationStatusText:"자동기록 연결 준비 중")+(gpsPendingCount()?" · 기록 "+gpsPendingCount()+"건 전송 대기":"")+(!navigation.configured?" · "+(navigation.reason||"위치 확인 중"):"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(telemetry.fresh?" ok":"");}}
     const maintenance=document.getElementById("driverLiveMaintenance");
     if(maintenance&&lastSchedule){const incidents=matchingOpenIncidents(lastSchedule);maintenance.className="driver-live-maintenance"+(operationDataLoaded?(incidents.length?" alert":" ok"):"");maintenance.textContent=!operationDataLoaded?"정비 공유 상태 확인 중...":incidents.length?("미해결 정비·사고 "+incidents.length+"건 · "+(incidents[0].type||"요청")+" "+(incidents[0].maintenanceStatus||incidents[0].status||"접수")):"공유된 미해결 정비·사고 없음";}
-    const refreshed=document.getElementById("scheduleFreshness");if(refreshed&&scheduleRefreshedAt)refreshed.textContent="일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{hour12:false,hour:"2-digit",minute:"2-digit"})+" · 자동 확인 중";
+    const refreshed=document.getElementById("scheduleFreshness");if(refreshed&&scheduleRefreshedAt)refreshed.textContent=scheduleRefreshError||("일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour12:false,hour:"2-digit",minute:"2-digit"})+" · 자동 확인 중");
     const crossCheck=document.getElementById("driverCrossCheckStatus");if(crossCheck)crossCheck.textContent=displayLive?Bus70Recording.crossCheckLabel(liveFleet.crossCheck,Date.now()):"";
     const liveButton=document.getElementById("driverLiveLocationToggle");if(liveButton){liveButton.hidden=!displayLive||!(locationPermissionState==="denied"||nativeLocationEnabled===false);liveButton.textContent=locationPermissionState==="denied"?"위치 권한 설정":"휴대폰 위치 켜기";}
   }
@@ -2782,17 +2842,22 @@
   function renderSchedule(rearmAlarms=true) {
     const root = document.getElementById("scheduleResult");
     root.replaceChildren();
-    const data = lastSchedule;
+    const data = lastSchedule ? scheduleForRequestedDate(lastSchedule,document.getElementById("workDate").value) : null;
+    lastSchedule=data;
     resetConfirmation();
     if (!data) return;
     if (!data.ok) {
-      root.append(el("div", data.message || "조회에 실패했습니다.", "notice error"));
+      stopDriverFleetTimer();clearDriverAlarms();
+      root.append(el("div", "스케줄 확인 실패 · "+(data.message || "다시 조회하세요."), "notice error"));
       return;
     }
     const serviceDate=data.date?.value||data.date||document.getElementById("workDate").value;
-    if(data.type!=="WORK")root.append(el("h3",data.date?.label||serviceDate));
-    if (data.type === "NO_DISPATCH") {
-      root.append(el("div", "확정된 배차가 없습니다. 휴무 여부는 아직 확인되지 않았습니다.", "notice"));
+    const missing=["NO_DISPATCH","NO_SCHEDULE","REST"].includes(data.type)||(data.type==="WORK"&&!normalizeScheduleTrips(data.trips).length);
+    if (missing) {
+      stopDriverFleetTimer();clearDriverAlarms();
+      const box=el("section",undefined,"schedule-empty");box.setAttribute("role","status");
+      box.append(el("p",serviceDate+" · 한국시간 기준"),el("strong","?","empty-mark"),el("h3",serviceDate===calendarDateInSeoul()?"오늘 스케줄 없음":"선택한 날짜의 스케줄 없음"),el("p","확정된 운행 스케줄이 없습니다. 휴무 여부는 별도 확인이 필요합니다."));
+      const retry=el("button","다시 조회");retry.type="button";retry.addEventListener("click",()=>loadMySchedule());box.append(retry);root.append(box);
       return;
     }
     if (data.type !== "WORK" || !data.dispatch || !data.vehicle) {
@@ -2906,10 +2971,12 @@
     const button = document.getElementById("loadSchedule");
     const root = document.getElementById("scheduleResult");
     if (!date) { root.replaceChildren(el("div", "날짜를 선택하세요.", "notice error")); return; }
+    scheduleRefreshAttemptAt=Date.now();scheduleRefreshInFlight=true;
     const requestId = ++scheduleRequestId;
     const token = authToken, driverId = currentDriverId;
     const isCurrentRequest = () => requestId === scheduleRequestId && authToken === token &&
-      currentDriverId === driverId && document.getElementById("workDate").value === date;
+      currentDriverId === driverId && document.getElementById("workDate").value === date &&
+      (!scheduleFollowToday||date===calendarDateInSeoul());
     if(!silent){
       followCurrentTrip=true;
       lastSchedule = null;
@@ -2939,19 +3006,29 @@
       }
       // 날짜를 바꾼 뒤 이전 응답이 도착한 경우 오래된 결과를 표시하지 않습니다.
       if (!isCurrentRequest()) return;
-      const previousSignature=silent&&lastSchedule?JSON.stringify([lastSchedule.dispatch,lastSchedule.trips,lastSchedule.runLogs,lastSchedule.timeAdjustments]):"";
+      data=scheduleForRequestedDate(data,date);
+      const previousSignature=silent&&lastSchedule?JSON.stringify([lastSchedule.ok,lastSchedule.type,lastSchedule.date,lastSchedule.error,lastSchedule.message,lastSchedule.dispatch,lastSchedule.trips,lastSchedule.runLogs,lastSchedule.timeAdjustments]):"";
       prepareDriverLocationPoints(data);
-      const nextSignature=JSON.stringify([data.dispatch,data.trips,data.runLogs,data.timeAdjustments]);
+      const nextSignature=JSON.stringify([data.ok,data.type,data.date,data.error,data.message,data.dispatch,data.trips,data.runLogs,data.timeAdjustments]);
       const priorBinding=driverAssignmentBinding(lastSchedule),nextBinding=driverAssignmentBinding(data);
       if(!hasNativeLocationBridge()&&locationTrackingActive&&priorBinding.ready&&document.getElementById("workDate").value===todayLocal()&&(priorBinding.dispatchId!==nextBinding.dispatchId||priorBinding.vehicleId!==nextBinding.vehicleId))stopDriverLocationTracking(true);
       if(silent&&!followCurrentTrip&&lastSchedule?.trips?.[activeTripIndex]){const selectedNumber=Number(lastSchedule.trips[activeTripIndex].trip),selected=(data.trips||[]).findIndex(trip=>Number(trip.trip)===selectedNumber);if(selected>=0){activeTripIndex=selected;data._viewInitialized=true;}}
-      overlayGpsEvents(data);lastSchedule = data;scheduleRefreshedAt=Date.now();if(hasNativeLocationBridge()&&locationTrackingActive&&date===todayLocal()){if(typeof window.Bus70Android.syncTrackingSchedule==="function")window.Bus70Android.syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(data)));else syncNativeSchedule(data);}
+      overlayGpsEvents(data);lastSchedule = data;scheduleRefreshedAt=Date.now();scheduleRefreshError="";
+      document.getElementById("scheduleFreshness").textContent=date+" · 일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour12:false});
+      if(data.ok&&hasNativeLocationBridge()&&locationTrackingActive&&date===todayLocal()){if(typeof window.Bus70Android.syncTrackingSchedule==="function")window.Bus70Android.syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(data)));else syncNativeSchedule(data);}
       if(!silent||previousSignature!==nextSignature)renderSchedule();
     } catch (error) {
       console.error(error);
-      if (requestId === scheduleRequestId&&!silent) root.replaceChildren(el("div", apiErrorMessage(error,"서버 조회에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요."), "notice error"));
+      if (isCurrentRequest()) {
+        scheduleRefreshError="스케줄 확인 실패 · 연결 상태를 확인하고 다시 조회하세요.";
+        document.getElementById("scheduleFreshness").textContent=scheduleRefreshError;
+        if(!silent||!lastSchedule||lastSchedule.type!=="WORK"){
+          lastSchedule=null;
+          root.replaceChildren(el("div", apiErrorMessage(error,"서버 조회에 실패했습니다. 연결 상태를 확인하고 다시 시도하세요."), "notice error"));
+        }
+      }
     } finally {
-      button.disabled = false;
+      if(requestId===scheduleRequestId){button.disabled=false;scheduleRefreshInFlight=false;}
     }
   }
 
@@ -2966,16 +3043,15 @@
   document.querySelectorAll("[data-driver-menu]").forEach(button=>button.addEventListener("click",()=>toggleDriverWorkMenu(button.dataset.driverMenu)));
   document.getElementById("timeMode").addEventListener("change",()=>renderSchedule(false));
   document.getElementById("workDate").addEventListener("change", () => {
-    scheduleRequestId++;
-    clearDriverAlarms();
-    if(!hasNativeLocationBridge())stopDriverLocationTracking(true);
-    stopDriverFleetTimer();
-    lastSchedule = null;
-    activeTripIndex = 0;
-    geofenceVisitState.clear();
-    currentNavigation=null;liveFleet={positions:[],front:null,rear:null,own:null,updatedAt:0,error:""};
-    resetConfirmation();
-    document.getElementById("scheduleResult").replaceChildren();
+    scheduleFollowToday=document.getElementById("workDate").value===calendarDateInSeoul();
+    resetScheduleView();
+    loadMySchedule();
+  });
+  document.getElementById("loadTodaySchedule").addEventListener("click", () => {
+    scheduleFollowToday=true;
+    document.getElementById("workDate").value=calendarDateInSeoul();
+    resetScheduleView();
+    loadMySchedule();
   });
 
   function resetBoardReview(keepStatus = false) {
@@ -3060,7 +3136,8 @@
       status.replaceChildren(el("div", result.message || "배차가 등록되었습니다.", "notice"));
       if (result.schedule) {
         document.getElementById("workDate").value = date;
-        lastSchedule = result.schedule;
+        scheduleFollowToday=date===calendarDateInSeoul();
+        lastSchedule = scheduleForRequestedDate(result.schedule,date);
         renderSchedule();
         document.getElementById("schedulePanel").scrollIntoView({behavior:"smooth", block:"start"});
       }

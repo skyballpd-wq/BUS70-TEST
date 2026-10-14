@@ -37,7 +37,7 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
   const node = id => nodes[id] ||= {value:id === 'workDate' ? date : '', disabled:false, contents:[], replaceChildren(...values){this.contents = values;}};
   const front = vm.createContext({
     console:{error(){}}, currentDriverId:driver.driverId, authToken:'SYNTHETIC-TOKEN',
-    scheduleRequestId:0, lastSchedule:null, locationTrackingActive:false,
+    scheduleRequestId:0, lastSchedule:null, locationTrackingActive:false, scheduleFollowToday:true, calendarDateInSeoul:()=>date,
     prepareDriverLocationPoints(){}, overlayGpsEvents(){}, hasNativeLocationBridge:()=>false, driverAssignmentBinding:data=>({dispatchId:data?.dispatch?.id||"",vehicleId:""}), document:{getElementById:node},
     el:(tag,text,type) => ({tag,text,type}), resetConfirmation(){},
     apiErrorMessage:(error,fallback) => fallback,
@@ -45,7 +45,7 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
     renderSchedule:() => rendered.push(front.lastSchedule),
     showLoginScreen:message => {logins.push(message);front.authToken='';front.currentDriverId='';front.lastSchedule=null;front.scheduleRequestId++;}
   });
-  vm.runInContext(extract('loadMySchedule'), front);
+  vm.runInContext(extract('scheduleForRequestedDate')+'\n'+extract('loadMySchedule'), front);
   return {front, server, calls, rendered, logins, revoked, node};
 }
 
