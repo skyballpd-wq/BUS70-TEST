@@ -55,6 +55,7 @@ public class DriverLocationService extends Service implements LocationListener {
     private NativeStore store;
     private JSONObject schedule;
     private JSONObject states;
+    private JSONObject routeReference;
     private String scheduleRaw = "";
     private String scheduleKey = "";
     private volatile boolean liveLocationInFlight;
@@ -227,7 +228,9 @@ public class DriverLocationService extends Service implements LocationListener {
         try{if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         JSONObject navigation=state.optJSONObject("navigation");
-        try{navigation=RouteMatcher.match(trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,!actualTurn.isEmpty());state.put("navigation",navigation);}catch(Exception ignored){}
+        try{JSONObject hint=routeReference;
+            if(hint!=null&&(!hint.optString("date").equals(schedule.optString("date"))||!hint.optString("dispatchId").equals(schedule.optString("dispatchId"))||!hint.optString("vehicleId").equals(schedule.optString("vehicleId"))))hint=null;
+            navigation=RouteMatcher.match(trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,!actualTurn.isEmpty(),hint);state.put("navigation",navigation);}catch(Exception ignored){}
         boolean inbound=navigation!=null&&navigation.optBoolean("returnConfirmed");
         postLiveLocation(trip, location, inbound?"RETURN":"OUTBOUND",navigation);
         String nearestText = nearestText(location, tripNo, start, turn, end);
@@ -443,6 +446,10 @@ public class DriverLocationService extends Service implements LocationListener {
         network.execute(() -> {
             try {
                 JSONObject result = postJson(schedule.optString("apiUrl"), body);
+                if(result.optBoolean("ok")&&result.optJSONObject("crossCheck")!=null){
+                    JSONObject reference=result.getJSONObject("crossCheck");
+                    main.post(()->{routeReference=reference;});
+                }
                 if (!result.optBoolean("ok") && bindingError(result.optString("error"))) {
                     main.post(() -> failAndStop(result.optString("message", "확정 배차 또는 배정 차량이 변경되어 위치 추적을 중지했습니다.")));
                 }
