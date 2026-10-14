@@ -33,7 +33,7 @@ assert.match(alarm, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
 assert.match(calendar, /TripOrder\.actual\(payload\.optJSONArray\("trips"\)\)/);
 assert.match(service, /server cache expires it instead of building a location history/);
 assert.match(fs.readFileSync('android/app/src/main/java/kr/bus70/driver/NativeStore.java', 'utf8'), /remove\("locationTimestamp"\)/);
-assert.match(build, /versionCode 66/);
-assert.match(build, /versionName "0\.66-route-continuity"/);
+assert.match(build, /versionCode 67/);
+assert.match(build, /versionName "0\.67-active-trip"/);
 
 console.log('Android location integration tests passed');
