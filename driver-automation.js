@@ -52,14 +52,37 @@
     if(h>47||min>59)return NaN;
     return Date.UTC(y,m-1,d+(h<24&&h*60+min<210?1:0),h-9,min);
   }
+  function observedMoment(date, value) {
+    const text=String(value||"");
+    if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(text))return moment(date,text.match(/^\d{1,2}:\d{2}/)[0]);
+    if(!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(text))return NaN;
+    const iso=text.replace(" ","T");
+    return Date.parse(/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso)?iso:iso+"+09:00");
+  }
   function activeIndex(trips, logs, date, now) {
-    const returning=trips.findIndex((t,i)=>t.deadheadDestination&&t.deadheadDestination!==t.endPlace&&logs[i]?.actualEnd&&!logs[i]?.deadheadReturnedAt);
-    if(returning>=0)return returning;
-    const running=trips.findIndex((t,i)=>logs[i]?.actualStart&&!logs[i]?.actualEnd);
-    if(running>=0)return running;
-    // Earlier unrecorded trips stay unrecorded. Opening the app mid-shift must
-    // not leave the dashboard and geofence detector stuck on the first trip.
-    const pending=trips.findIndex((t,i)=>!logs[i]?.actualEnd&&(!Number.isFinite(moment(date,t.endTime))||moment(date,t.endTime)>=now));
+    const complete=i=>Boolean(logs[i]?.actualEnd&&(!(trips[i].deadheadDestination&&trips[i].deadheadDestination!==trips[i].endPlace)||logs[i]?.deadheadReturnedAt));
+    let lastComplete=-1,running=-1;
+    for(let i=0;i<trips.length;i++)if(complete(i))lastComplete=i;
+    // A later observed trip supersedes older incomplete history.
+    for(let i=lastComplete+1;i<trips.length;i++)if(logs[i]?.actualStart||logs[i]?.actualEnd)running=i;
+    if(running>=0){
+      const trip=trips[running],log=logs[running]||{},end=moment(date,trip.endTime);
+      let delay=0;
+      for(const [planned,actual] of [[trip.startTime,log.actualStart],[trip.turnTime,log.actualTurn]]){
+        const scheduled=moment(date,planned),observed=observedMoment(date,actual);
+        if(Number.isFinite(scheduled)&&Number.isFinite(observed))delay=Math.max(delay,observed-scheduled);
+      }
+      // Scheduling selects the live tracking window only. Never fill missing
+      // historical timestamps or mark a trip complete from clock time.
+      if(Number.isFinite(end)&&now>=end+delay){
+        for(let i=trips.length-1;i>running;i--){
+          const start=moment(date,trips[i].startTime);
+          if(!complete(i)&&Number.isFinite(start)&&start<=now)return i;
+        }
+      }
+      return running;
+    }
+    const pending=trips.findIndex((t,i)=>i>lastComplete&&!complete(i)&&(!Number.isFinite(moment(date,t.endTime))||moment(date,t.endTime)>=now));
     return pending>=0?pending:Math.max(0,trips.length-1);
   }
   function step(previous, input) {
@@ -161,11 +184,11 @@
     if(!best)return hold("노선 위치 확인 중");
     if(!continuous){const other=candidates.find(v=>Math.abs(v.meters-best.meters)>500);if(other&&other.score-best.score<30)return hold("상하행 확인 중");}
     const fraction=Math.max(continuous?Number(retained.fraction||0):0,best.i+best.t),index=Math.min(stops.length-1,Math.floor(fraction));
-    const nearCurrent=distance(here,stops[index])<=Math.max(25,Number(c.accuracy)),seen=log.actualEnd?stops.length:log.actualStart?index+1:0;
+    const nearCurrent=distance(here,stops[index])<=Math.max(25,Number(c.accuracy)),seen=log.actualEnd?stops.length:(log.actualStart||log.trackingActive)?index+1:0;
     const pivot=path.pivotIndex>=0?path.pivotIndex:path.turnIndex;
     const returnConfirmed=(retained?.returnConfirmed||false)||(pivot>=0&&fraction>pivot+.15);
     const turnPassed=path.turnIndex>=0&&fraction>path.turnIndex+.15;
-    const pct=log.actualEnd?100:log.actualStart?Math.min(99.9,fraction/(stops.length-1)*100):0;
+    const pct=log.actualEnd?100:(log.actualStart||log.trackingActive)?Math.min(99.9,fraction/(stops.length-1)*100):0;
     const evidence=(retained?.returnEvidence||[]).slice();
     if(returnConfirmed&&index<stops.length-1&&nearCurrent&&evidence.at(-1)?.stopId!==stops[index].id)evidence.push({stopId:stops[index].id,order:stops[index].order,observedAt:ts,latitude:here.lat,longitude:here.lng,accuracy:Number(c.accuracy)});
     return {configured:true,retained:false,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};

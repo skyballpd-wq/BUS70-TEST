@@ -21,6 +21,6 @@ state={};clock=base;sample(37);sample(37);assert.equal(sample(37.002,127,{}, {co
 state={};clock=base-3600000;sample(37);sample(37);sample(37.002);assert.equal(sample(37.002),null,'no automatic departure an hour before schedule');
 const trips=[{trip:1,startTime:'06:00',endTime:'08:00'},{trip:2,startTime:'09:00',endTime:'11:00'},{trip:3,startTime:'12:00',endTime:'14:00'}];
 assert.equal(gps.activeIndex(trips,[{},{},{}],date,gps.moment(date,'10:00')),1,'mid-shift starts at current planned trip without fabricating old logs');
-assert.equal(gps.activeIndex(trips,[{actualStart:'06:05'},{},{}],date,gps.moment(date,'10:00')),0,'recorded unfinished trip takes precedence');
+assert.equal(gps.activeIndex(trips,[{actualStart:'06:05'},{},{}],date,gps.moment(date,'10:00')),1,'missing old arrival cannot pin current tracking to a previous trip');
 assert.equal(gps.moment(date,'00:30')-gps.moment(date,'23:30'),3600000);
 console.log('GPS occurrence matching, departure/turn/arrival trajectory, stale/poor fixes, order, startup and overnight tests passed');

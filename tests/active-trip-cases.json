@@ -1,0 +1,534 @@
+[
+  {
+    "name": "missed arrival switches to second live window",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:05"
+      },
+      {},
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "full local timestamp after upgrade",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "2099-01-10 06:00:59"
+      },
+      {},
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "UTC observed departure after upgrade",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "2099-01-09T21:00:59.000Z"
+      },
+      {},
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "do not switch before next departure",
+    "date": "2099-01-10",
+    "now": "08:59",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:05"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "delayed first departure preserves real delayed trip",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "08:30"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "delayed turnaround preserves real delayed trip",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00",
+        "actualTurn": "09:30"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "later observed trip supersedes stale first",
+    "date": "2099-01-10",
+    "now": "09:05",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00"
+      },
+      {
+        "actualStart": "09:01"
+      },
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "completed second supersedes older incomplete first",
+    "date": "2099-01-10",
+    "now": "11:30",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00"
+      },
+      {
+        "actualStart": "09:01",
+        "actualEnd": "11:05"
+      },
+      {}
+    ],
+    "expected": 2
+  },
+  {
+    "name": "start mid-shift with no logs",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {},
+      {},
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "all completed",
+    "date": "2099-01-10",
+    "now": "15:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualEnd": "08:00"
+      },
+      {
+        "actualEnd": "11:00"
+      },
+      {
+        "actualEnd": "14:00"
+      }
+    ],
+    "expected": 2
+  },
+  {
+    "name": "empty schedule",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [],
+    "logs": [],
+    "expected": 0
+  },
+  {
+    "name": "sequence starts at trip two",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "return pending until next trip window",
+    "date": "2099-01-10",
+    "now": "08:30",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00",
+        "deadheadDestination": "synthetic garage",
+        "endPlace": "synthetic stop"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00",
+        "actualEnd": "08:00"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "missed deadhead return cannot wedge tracking",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00",
+        "deadheadDestination": "synthetic garage",
+        "endPlace": "synthetic stop"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00",
+        "actualEnd": "08:00"
+      },
+      {},
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "unknown end cannot invent a window boundary",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": ""
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "06:00"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  },
+  {
+    "name": "overnight service day transition",
+    "date": "2099-01-10",
+    "now": "01:00",
+    "trips": [
+      {
+        "trip": 4,
+        "startTime": "22:00",
+        "endTime": "23:30"
+      },
+      {
+        "trip": 5,
+        "startTime": "00:15",
+        "endTime": "02:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "22:00"
+      },
+      {}
+    ],
+    "expected": 1
+  },
+  {
+    "name": "single digit actual hour",
+    "date": "2099-01-10",
+    "now": "10:00",
+    "trips": [
+      {
+        "trip": 1,
+        "startTime": "06:00",
+        "turnTime": "07:00",
+        "endTime": "08:00"
+      },
+      {
+        "trip": 2,
+        "startTime": "09:00",
+        "turnTime": "10:00",
+        "endTime": "11:00"
+      },
+      {
+        "trip": 3,
+        "startTime": "12:00",
+        "turnTime": "13:00",
+        "endTime": "14:00"
+      }
+    ],
+    "logs": [
+      {
+        "actualStart": "8:30:00"
+      },
+      {},
+      {}
+    ],
+    "expected": 0
+  }
+]

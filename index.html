@@ -1041,7 +1041,7 @@
 
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
-<script src="./driver-automation.js?v=66"></script>
+<script src="./driver-automation.js?v=67"></script>
 <script src="./driver-cockpit.js?v=66"></script>
 <script src="./driver-outbox.js?v=65"></script>
 <script>
@@ -2256,17 +2256,20 @@
 
   function firstActiveTripIndex(data){
     if(!Array.isArray(data&&data.trips)||!data.trips.length)return 0;
+    if(typeof Bus70Automation!=="undefined" && data.temporalState!=="PAST" && data.temporalState!=="FUTURE")return Bus70Automation.activeIndex(data.trips,data.trips.map(v=>runLogForTrip(data,v)||{}),document.getElementById("workDate").value,Date.now());
     const running=data.trips.findIndex(v=>{const log=runLogForTrip(data,v);return log&&log.actualStart&&!log.actualEnd;});
     if(running>=0)return running;
-    if(typeof Bus70Automation!=="undefined" && data.temporalState!=="PAST" && data.temporalState!=="FUTURE")return Bus70Automation.activeIndex(data.trips,data.trips.map(v=>runLogForTrip(data,v)||{}),document.getElementById("workDate").value,Date.now());
     const pending=data.trips.findIndex(v=>!tripCompleted(data,v));
     return pending>=0?pending:data.trips.length-1;
   }
 
   function tripOperationalState(data,trip,index){
     const log=runLogForTrip(data,trip)||{};
-    if(log.actualEnd)return tripCompleted(data,trip)?{key:"completed",label:"완료"}:{key:"running",label:"차고지 복귀 중"};
+    if(log.actualEnd&&tripCompleted(data,trip))return {key:"completed",label:"완료"};
+    if(data.temporalState!=="PAST"&&data.temporalState!=="FUTURE"&&index<firstActiveTripIndex(data))return {key:"upcoming",label:"기록 미완료"};
+    if(log.actualEnd)return {key:"running",label:"차고지 복귀 중"};
     if(log.actualStart)return {key:"running",label:"운행 중"};
+    if(data.temporalState!=="PAST"&&data.temporalState!=="FUTURE"&&typeof Bus70Automation!=="undefined"&&index===firstActiveTripIndex(data)&&Bus70Automation.moment(document.getElementById("workDate").value,trip.startTime)<=Date.now())return {key:"next",label:"현재 탕 · 출발시각 미기록"};
     if(data.temporalState==="PAST")return {key:"upcoming",label:"기록 없음"};
     if(index===firstActiveTripIndex(data))return {key:"next",label:data.temporalState==="FUTURE"?"첫 예정":"출발 대기"};
     return {key:"upcoming",label:"예정"};
@@ -2289,11 +2292,13 @@
     if(allComplete)return {index,trip,log,state:"운행 완료",stateClass:"finished",action:"모든 탕 완료",place:trip.endPlace||"차고지",time:"",segment:"운행 완료"};
     if(tripCompleted(data,trip))return {index,trip,log,state:"운행 완료",stateClass:"finished",action:trip.trip+"탕 완료",place:trip.endPlace||"도착지",time:"",segment:"운행 완료"};
     if(data.temporalState==="FUTURE")return {index,trip,log,state:"운행 예정",stateClass:"future",action:trip.trip+"탕 발차",place:trip.startPlace||"발차지",time:trip.startTime||"",segment:"예정 · "+(trip.startPlace||"발차지")};
+    if(data.temporalState!=="PAST"&&index<firstActiveTripIndex(data))return {index,trip,log,state:"기록 미완료",stateClass:"finished",action:trip.trip+"탕 기록 확인",place:trip.endPlace||"도착지",time:"",segment:"이전 탕 · 실제시각 미기록"};
     if(log.actualEnd&&trip.deadheadDestination&&!log.deadheadReturnedAt)return {index,trip,log,state:"차고지 복귀 중",stateClass:"",action:"차고지 복귀",place:trip.deadheadDestination,time:trip.returnTime||"",segment:(trip.endPlace||"영업종료지")+" → "+trip.deadheadDestination};
     if(log.actualStart){
       if(hasTurn&&!log.actualTurn)return {index,trip,log,state:"운행 중",stateClass:"",action:trip.trip+"탕 회차",place:trip.turnPlace||"회차지",time:trip.turnTime||"",segment:(trip.startPlace||"발차지")+" → "+(trip.turnPlace||"회차지")};
       return {index,trip,log,state:"운행 중",stateClass:"",action:trip.trip+"탕 도착",place:trip.endPlace||"도착지",time:trip.endTime||"",segment:(hasTurn?trip.turnPlace:trip.startPlace||"운행 구간")+" → "+(trip.endPlace||"도착지")};
     }
+    if(data.temporalState!=="PAST"&&typeof Bus70Automation!=="undefined"&&index===firstActiveTripIndex(data)&&Bus70Automation.moment(document.getElementById("workDate").value,trip.startTime)<=Date.now())return {index,trip,log,state:"출발시각 미기록",stateClass:"",action:trip.trip+(hasTurn?"탕 회차":"탕 도착"),place:hasTurn?trip.turnPlace:trip.endPlace,time:hasTurn?trip.turnTime:trip.endTime,segment:"시간표 기준 현재 탕 · GPS 위치 확인"};
     return {index,trip,log,state:data.temporalState==="PAST"?"과거 기록":"출발 대기",stateClass:data.temporalState==="PAST"?"finished":"waiting",action:trip.trip+"탕 발차",place:trip.startPlace||"발차지",time:trip.startTime||"",segment:"출발 대기 · "+(trip.startPlace||"발차지")};
   }
 
@@ -2368,7 +2373,8 @@
       if(path){
         const key=String(data.date?.value||data.date||document.getElementById("workDate").value)+"|"+String(data.dispatch?.dispatchId||"")+"|"+trip.trip;
         const memory=typeof navigationMemory!=="undefined"?navigationMemory.get(key):null;
-        const result=Bus70Automation.navigate(path,position,log,memory,Date.now());result.trip=Number(trip.trip);result.path=path;
+        const trackingActive=data.temporalState!=="PAST"&&data.temporalState!=="FUTURE"&&Bus70Automation.moment(document.getElementById("workDate").value,trip.startTime)<=Date.now();
+        const result=Bus70Automation.navigate(path,position,{...log,trackingActive},memory,Date.now());result.trip=Number(trip.trip);result.path=path;
         const start=serviceOperationalMinutes(trip.startTime),end=serviceOperationalMinutes(trip.endTime);result.segmentDurationMinutes=start!==null&&end!==null?Math.max(0,end-start):0;
         if(result.configured&&typeof navigationMemory!=="undefined")navigationMemory.set(key,result);
         return result;
@@ -2484,6 +2490,7 @@
   }
 
   function updateDriverLiveDashboard(){
+    if(lastSchedule&&followCurrentTrip&&activeTripIndex!==firstActiveTripIndex(lastSchedule)){activeTripIndex=firstActiveTripIndex(lastSchedule);renderSchedule(false);return;}
     const context=lastSchedule?driverDisplayedContext(lastSchedule):null,displayLive=isDisplayedTripLive(lastSchedule);
     const clock=document.getElementById("driverLiveClock"),clockSub=document.getElementById("driverLiveClockSub");
     if(clock){const now=new Date();clock.textContent=now.toLocaleTimeString("ko-KR",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"});if(clockSub)clockSub.textContent=now.toLocaleTimeString("ko-KR",{hour12:true,hour:"numeric",minute:"2-digit"});}
@@ -2500,7 +2507,7 @@
     if(direction)direction.textContent=navigation.configured?navigation.direction+" · "+navigation.stopIndex+"/"+navigation.stopCount:"내비게이션 준비";
     if(progressBar)progressBar.style.width=tripProgress+"%";
     if(progressLabel)progressLabel.textContent=(navigation.configured||navigation.retained)?"정류장 "+navigation.tripPassedStops+" / "+navigation.tripStopCount+" · "+tripProgress+"%":"정류장 통과 정보 대기";
-    if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(context&&context.state==="운행 중"&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 위치":navigation.direction):tripProgress===100?"100% · 운행 완료":displayLive?"위치 대기":"선택한 탕의 계획·기록";}
+    if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(displayLive&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 위치":navigation.direction):tripProgress===100?"100% · 운행 완료":displayLive?"위치 대기":"선택한 탕의 계획·기록";}
     if(ring&&typeof Bus70Cockpit!=="undefined"){const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained));}
     const weather=document.getElementById("driverWeather"),weatherTime=document.getElementById("driverWeatherTime"),map=document.getElementById("driverRouteDiagram");
     if(weather)weather.textContent=(cockpitWeather.available?"부천 현재 · ":"")+Bus70Cockpit.weatherLabel(cockpitWeather,Date.now());
@@ -2518,7 +2525,7 @@
       const passed=displayLive&&(navigation.configured||navigation.retained)&&navigation.turnPassed;
       const missing=passed&&!context.log.actualTurn;
       if(target)target.textContent=missing?(context.trip.trip+"탕 · "+(navigation.returnConfirmed?(context.trip.endPlace||"도착지")+" 방면 운행":"회차 구간 통과")):context.action+(context.time?" · "+displayTime(context.time):"");
-      countdown.textContent=missing?"회차 시각 미기록 · 위치 기준 진행 중":driverCountdownLabel(lastSchedule,context.time||"");
+      countdown.textContent=displayLive&&!context.log.actualStart&&context.state==="출발시각 미기록"?"출발시각 미기록 · 시간표 기준 현재 탕":missing?"회차 시각 미기록 · 위치 기준 진행 중":driverCountdownLabel(lastSchedule,context.time||"");
     }
     if(displayLive){const status=document.getElementById("locationStatus");if(status){status.textContent=telemetry.label+(gpsPendingCount()?" · 기록 "+gpsPendingCount()+"건 전송 대기":"")+(!navigation.configured?" · "+(navigation.reason||"위치 확인 중"):"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(telemetry.fresh?" ok":"");}}
     const maintenance=document.getElementById("driverLiveMaintenance");

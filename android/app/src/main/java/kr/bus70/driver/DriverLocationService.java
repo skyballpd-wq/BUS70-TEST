@@ -296,16 +296,7 @@ public class DriverLocationService extends Service implements LocationListener {
     }
 
     private int activeTripIndex(JSONArray trips) {
-        for(int i=0;i<trips.length();i++) { JSONObject t=trips.optJSONObject(i); if(t!=null && needsReturn(t) && !t.optString("actualEnd").isEmpty() && t.optString("deadheadReturnedAt").isEmpty())return i; }
-        for (int i = 0; i < trips.length(); i++) {
-            JSONObject trip = trips.optJSONObject(i);
-            if (trip != null && !trip.optString("actualStart").isEmpty() && trip.optString("actualEnd").isEmpty()) return i;
-        }
-        for (int i = 0; i < trips.length(); i++) {
-            JSONObject trip = trips.optJSONObject(i);
-            if (trip != null && trip.optString("actualEnd").isEmpty() && (scheduleMoment(trip.optString("endTime")) == 0 || scheduleMoment(trip.optString("endTime")) >= System.currentTimeMillis())) return i;
-        }
-        return Math.max(0, trips.length() - 1);
+        return TripOrder.active(trips, schedule.optString("date"), System.currentTimeMillis());
     }
 
     private long scheduleMoment(String time) {
