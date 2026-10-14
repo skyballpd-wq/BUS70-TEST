@@ -154,17 +154,30 @@
   }
   // Match occurrences in the complete ordered circuit. A missing timestamp is
   // a log problem, not proof that the vehicle is still on the outward leg.
-  function navigate(path,position,log,previous,now){
+  function referenceIndex(path,hint,here,now){
+    if(!hint?.available||hint.source!=="GYEONGGI_BUS_LOCATION_V2"||!number(hint.fetchedAt)||now-hint.fetchedAt>60000||hint.fetchedAt>now+5000)return -1;
+    const index=path.stops.findIndex(s=>Number(s.order)===Number(hint.stationSeq));
+    if(index<0||distance(here,path.stops[index])>500)return -1;
+    const stop=path.stops[index],id=String(hint.stationId||"");
+    if(id&&String(stop.stationId||stop.id)!==id&&!String(stop.id).endsWith("-"+id))return -1;
+    return index;
+  }
+  function navigate(path,position,log,previous,now,hint){
     const c=position?.coords||{},ts=Number(position?.timestamp),stops=path?.stops||[];
     const retained=previous&&number(previous.routeProgressPercent)?previous:null;
-    const hold=reason=>Object.assign({},retained||{},{configured:false,retained:Boolean(retained),reason});
+    let motion=previous?.motion;
+    const hold=reason=>Object.assign({},previous||{},{configured:false,retained:Boolean(retained),reason,motion});
     if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||c.accuracy<0||c.accuracy>60||!ts||now-ts>10000||ts>now+5000||stops.length<2)return hold("GPS 재수신 대기");
-    if(retained&&ts<=retained.timestamp)return now-ts<=10000?Object.assign({},retained,{configured:true,retained:false}):hold("GPS 재수신 대기");
+    if(retained&&ts<=retained.timestamp&&previous.configured)return Object.assign({},retained,{configured:true,retained:false});
     const here={lat:Number(c.latitude),lng:Number(c.longitude)},cumulative=[0];
     for(let i=1;i<stops.length;i++)cumulative.push(cumulative[i-1]+distance(stops[i-1],stops[i]));
     const total=cumulative.at(-1),dt=retained?Math.max(0,(ts-retained.timestamp)/1000):0;
     const continuous=retained&&dt<=120,oldMeters=Number(retained?.matchedMeters||0);
-    const moving=number(c.speed)&&c.speed>2&&number(c.heading);
+    let headingValue=number(c.speed)&&c.speed>2&&number(c.heading)?Number(c.heading):null;
+    const elapsed=motion?(ts-motion.timestamp)/1000:0,travel=motion?distance(motion,here):0;
+    if(headingValue===null&&elapsed>=3&&elapsed<=120&&travel>=Math.max(25,(Number(motion.accuracy)+Number(c.accuracy))*1.5)&&travel/elapsed<40)headingValue=bearing(motion,here);
+    if(!motion||elapsed>120||travel>=Math.max(25,(Number(motion.accuracy)+Number(c.accuracy))*1.5))motion={...here,accuracy:Number(c.accuracy),timestamp:ts};
+    const moving=headingValue!==null,reference=referenceIndex(path,hint,here,now);
     const candidates=[];
     for(let i=0;i<stops.length-1;i++){
       // A verified turnaround log provides a lower bound, never an upper bound.
@@ -173,7 +186,7 @@
       const den=dx*dx+dy*dy,t=den?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/den)):0,d=Math.hypot(ax+t*dx,ay+t*dy),heading=bearing(a,b),meters=cumulative[i]+(cumulative[i+1]-cumulative[i])*t;
       if(d>160)continue;
       if(continuous&&(meters<oldMeters-100||meters>oldMeters+Math.max(160,dt*40)))continue;
-      const diff=moving?Math.abs((Number(c.heading)-heading+540)%360-180):0;
+      const diff=moving?Math.abs((headingValue-heading+540)%360-180):0;
       // At corners, the chord between bus stops differs from the road bearing.
       // Keep heading as a score inside a continuous track; reject reversals only
       // when reacquiring a track, where no sequence evidence exists.
@@ -181,18 +194,24 @@
       const score=d+diff*.65+(continuous?Math.abs(meters-oldMeters)*.025:0);
       candidates.push({i,t,d,score,heading,meters});
     }
-    candidates.sort((a,b)=>a.score-b.score);const best=candidates[0];
+    candidates.sort((a,b)=>a.score-b.score);
+    let eligible=candidates,source="GPS";
+    if(!continuous&&reference>=0&&candidates.length){
+      const corroborated=candidates.filter(v=>Math.abs(v.i+v.t-reference)<=2&&v.d<=candidates[0].d+40);
+      if(corroborated.length){eligible=corroborated;source="GPS_GBIS";}
+    }
+    const best=eligible[0];
     if(!best)return hold("노선 위치 확인 중");
-    if(!continuous){const other=candidates.find(v=>Math.abs(v.meters-best.meters)>500);if(other&&other.score-best.score<30)return hold("상하행 확인 중");}
+    if(!continuous){const other=eligible.find(v=>Math.abs(v.meters-best.meters)>500);if(other&&other.score-best.score<30)return hold("상하행 확인 중");}
     const fraction=Math.max(continuous?Number(retained.fraction||0):0,best.i+best.t),index=Math.min(stops.length-1,Math.floor(fraction));
     const nearCurrent=distance(here,stops[index])<=Math.max(25,Number(c.accuracy)),seen=log.actualEnd?stops.length:(log.actualStart||log.trackingActive)?index+1:0;
     const pivot=path.pivotIndex>=0?path.pivotIndex:path.turnIndex;
-    const returnConfirmed=(retained?.returnConfirmed||false)||(pivot>=0&&fraction>pivot+.15);
+    const returnConfirmed=Boolean(continuous&&retained?.returnConfirmed)||(pivot>=0&&fraction>pivot+.15);
     const turnPassed=path.turnIndex>=0&&fraction>path.turnIndex+.15;
     const pct=log.actualEnd?100:(log.actualStart||log.trackingActive)?Math.min(99.9,fraction/(stops.length-1)*100):0;
-    const evidence=(retained?.returnEvidence||[]).slice();
+    const evidence=(continuous&&retained?.returnEvidence||[]).slice();
     if(returnConfirmed&&index<stops.length-1&&nearCurrent&&evidence.at(-1)?.stopId!==stops[index].id)evidence.push({stopId:stops[index].id,order:stops[index].order,observedAt:ts,latitude:here.lat,longitude:here.lng,accuracy:Number(c.accuracy)});
-    return {configured:true,retained:false,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
+    return {configured:true,retained:false,motion,matchSource:source,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
   }
-  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,navigate};
+  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,referenceIndex,navigate};
 });

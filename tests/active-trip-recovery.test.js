@@ -22,7 +22,7 @@ c.activeTripIndex=0;let renders=0;c.renderSchedule=()=>renders++;c.updateDriverL
 assert.equal(c.activeTripIndex,1);assert.equal(renders,1,'live tick immediately moves the visible card with automatic tracking');
 const stops=require('./route5-public-stops'),trip={startPlace:stops[0].name,endPlace:stops.at(-1).name,turnPlace:'삼정동복지회관',turnLocation:{...stops[55],referenceId:'OPS-SAMJEONG'}},path=gps.course(trip,stops),a=stops[82],b=stops[83];
 const position={timestamp:now,coords:{latitude:(a.lat+b.lat)/2,longitude:(a.lng+b.lng)/2,accuracy:5,speed:9,heading:gps.bearing(a,b)}};
-['serviceOperationalMinutes','routeNavigationState'].forEach(n=>vm.runInContext(extract(n),c));
+['driverAssignmentBinding','serviceOperationalMinutes','routeNavigationState'].forEach(n=>vm.runInContext(extract(n),c));
 data.routeProfile={stops};Object.assign(data.trips[1],trip);
 const nav=c.routeNavigationState(data,position);
 assert.equal(nav.trip,2,'dashboard navigation uses the recovered current trip');

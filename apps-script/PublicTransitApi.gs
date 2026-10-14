@@ -411,7 +411,7 @@ function bus70GyeonggiCrossCheck_(assignment,own){
   const vehicle=bus70GyeonggiSelectVehicle_(fetched.items,plate);
   if(!vehicle)return {available:false,message:'경기도 배정 차량정보 수신 대기',fetchedAt:fetched.fetchedAt};
   const result=bus70GyeonggiCompare_(vehicle,bus70RouteStopsFromDb_(assignment.route,assignment.date).stops||[],own,Date.now());
-  result.fetchedAt=fetched.fetchedAt;result.source=fetched.source;return result;
+  result.fetchedAt=fetched.fetchedAt;result.source=fetched.source;result.vehicleId=String(assignment.vehicleId);result.dispatchId=String(assignment.dispatchId);result.date=assignment.date;return result;
 }
 function BUS70_checkGyeonggiLiveConnection(){
   const result=bus70GyeonggiLiveFetch_('5');

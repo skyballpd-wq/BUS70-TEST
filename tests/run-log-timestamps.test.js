@@ -33,3 +33,7 @@ const one=cockpit.nativePosition({latitude:37,longitude:127,accuracy:4,speed:0,t
 const two=cockpit.nativePosition({latitude:37.0001,longitude:127,accuracy:4,speed:null,timestamp:12000},one);assert.equal(two.coords.heading,0);assert.equal(two.coords.speed,null,'missing speed is not fabricated');
 assert.equal(cockpit.nativePosition({latitude:37.0001,longitude:127,accuracy:100,speed:-1,timestamp:12000},one).coords.heading,null);
 console.log('Typed timestamps, Korean AM/PM, date-only uncertainty, midnight, native refresh and course tests passed');
+assert.equal(front.scheduleComparison('2099-01-08','11:33','2099-01-08 11:33:59').label,'+59초 지연');
+assert.equal(front.scheduleComparison('2099-01-08','11:33','2099-01-08 11:34:00').label,'+1분 지연');
+assert.equal(front.scheduleComparison('2099-01-08','11:33','2099-01-08 11:32:59').label,'−1초 빠름');
+assert.equal(front.scheduleComparison('2099-01-08','21:30','2099. 1. 8 오후 9:31:52').label,'+1분 52초 지연');
