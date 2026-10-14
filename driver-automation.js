@@ -100,7 +100,8 @@
       if(input.hasReturn&&!log.deadheadReturnedAt&&validPoint(points.return)&&count("returnInside",inside("return"))>=2)return {state,event:"DEADHEAD_RETURN"};
       return {state,event:null};
     }
-    const recoveredArrival=input.navigation?.configured&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2;
+    const plannedStart=moment(input.date,input.startTime);
+    const recoveredArrival=input.navigation?.configured&&!input.navigation.waiting&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2&&(!Number.isFinite(plannedStart)||now>=plannedStart);
     if(!log.actualStart&&!recoveredArrival){
       const planned=moment(input.date,input.startTime);
       if(Number.isFinite(planned)&&(now<planned-30*60000||now>planned+120*60000))return {state,event:null};
@@ -162,8 +163,21 @@
     if(id&&String(stop.stationId||stop.id)!==id&&!String(stop.id).endsWith("-"+id))return -1;
     return index;
   }
+  function waitingForDeparture(path,position,log,previous,now){
+    if(log.actualStart||log.actualTurn||log.actualEnd)return false;
+    const planned=moment(log.date,log.startTime);
+    if(Number.isFinite(planned)&&now<planned)return true;
+    // A timetable boundary cannot turn the shared depot into the return leg.
+    // Preserve genuine missing-departure recovery after observed return stops.
+    if(previous?.returnConfirmed&&previous.returnEvidence?.length===2&&now-Number(previous.timestamp)>=0&&now-Number(previous.timestamp)<=120000)return false;
+    const c=position?.coords||{},ts=Number(position?.timestamp),start=log.startLocation||path?.stops?.[0];
+    if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||c.accuracy<0||c.accuracy>60||!ts||now-ts>10000||ts>now+5000)return Boolean(previous?.waiting);
+    return Number.isFinite(planned)&&validPoint(start)&&distance({lat:Number(c.latitude),lng:Number(c.longitude)},start)<=Number(start.radiusM||80)+Math.max(30,Number(c.accuracy));
+  }
   function navigate(path,position,log,previous,now,hint){
     const c=position?.coords||{},ts=Number(position?.timestamp),stops=path?.stops||[];
+    if(waitingForDeparture(path,position,log,previous,now))return {configured:false,retained:false,waiting:true,reason:"출발 대기",returnConfirmed:false,turnPassed:false,returnEvidence:[],tripProgressPercent:0,routeProgressPercent:0,tripPassedStops:0,tripStopCount:stops.length};
+    if(previous?.waiting)previous=null;
     const retained=previous&&number(previous.routeProgressPercent)?previous:null;
     let motion=previous?.motion;
     const hold=reason=>Object.assign({},previous||{},{configured:false,retained:Boolean(retained),reason,motion});
@@ -213,5 +227,5 @@
     if(returnConfirmed&&index<stops.length-1&&nearCurrent&&evidence.at(-1)?.stopId!==stops[index].id)evidence.push({stopId:stops[index].id,order:stops[index].order,observedAt:ts,latitude:here.lat,longitude:here.lng,accuracy:Number(c.accuracy)});
     return {configured:true,retained:false,motion,matchSource:source,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
   }
-  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,referenceIndex,navigate};
+  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,referenceIndex,waitingForDeparture,navigate};
 });

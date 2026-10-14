@@ -5,6 +5,21 @@ import org.json.*;
 import java.nio.charset.StandardCharsets;
 
 public class RouteMatcherTest {
+    @Test public void nextTripWaitsAtSharedDepotUntilDeparture()throws Exception {
+        JSONArray stops=new JSONArray(new String(getClass().getResourceAsStream("/route5-public-stops.json").readAllBytes(),StandardCharsets.UTF_8));
+        JSONObject course=new JSONObject().put("stops",stops).put("turnIndex",55).put("pivotIndex",57),trip=new JSONObject().put("course",course).put("startLocation",stops.getJSONObject(0));
+        JSONObject end=stops.getJSONObject(113),next=stops.getJSONObject(1);long now=100000000L,planned=now+39*60000;
+        JSONObject polluted=new JSONObject().put("configured",true).put("fraction",113).put("matchedMeters",35000).put("returnConfirmed",true).put("turnPassed",true).put("timestamp",now).put("returnEvidence",new JSONArray().put(new JSONObject().put("stopId","old-1")).put(new JSONObject().put("stopId","old-2")));
+        JSONObject waiting=RouteMatcher.matchTrip(trip,planned,polluted,end.getDouble("lat"),end.getDouble("lng"),8,4/3.6,RouteMatcher.bearing(stops.getJSONObject(112),end),now,null);
+        assertTrue(waiting.optBoolean("waiting"));assertFalse(waiting.optBoolean("configured"));assertFalse(waiting.optBoolean("returnConfirmed"));assertFalse(waiting.optBoolean("turnPassed"));assertFalse(waiting.has("matchedMeters"));assertEquals(0,waiting.getJSONArray("returnEvidence").length());
+        assertTrue(RouteMatcher.matchTrip(trip,planned,waiting,end.getDouble("lat"),end.getDouble("lng"),8,0,Double.NaN,planned+60000,null).optBoolean("waiting"));
+        // An observed early departure is authoritative, before the timetable.
+        trip.put("actualStart","observed");
+        JSONObject departed=RouteMatcher.matchTrip(trip,planned,waiting,next.getDouble("lat"),next.getDouble("lng"),8,6,RouteMatcher.bearing(stops.getJSONObject(0),next),planned-300000,null);
+        assertTrue(departed.optBoolean("configured"));assertFalse(departed.optBoolean("waiting"));assertFalse(departed.optBoolean("returnConfirmed"));assertEquals(1,departed.optDouble("fraction"),.05);
+        trip.remove("actualStart");polluted.put("timestamp",planned+3600000);
+        assertFalse(RouteMatcher.matchTrip(trip,planned,polluted,end.getDouble("lat"),end.getDouble("lng"),8,0,Double.NaN,planned+3603000,null).optBoolean("waiting"));
+    }
     @Test public void priorityAndFreshness(){
         assertTrue(LocationFixPolicy.accept(1000,2000,1000,true,1000,5));
         assertFalse(LocationFixPolicy.accept(1000,2000,1000,false,1000,5));

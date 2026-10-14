@@ -1041,7 +1041,7 @@
 
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
-<script src="./driver-automation.js?v=69"></script>
+<script src="./driver-automation.js?v=70"></script>
 <script src="./driver-recording.js?v=69"></script>
 <script src="./driver-cockpit.js?v=66"></script>
 <script src="./driver-outbox.js?v=65"></script>
@@ -2369,11 +2369,13 @@
   }
 
   function restoreNativeNavigation(result){
-    const nav=result.navigation;if(!lastSchedule||Number(result.versionCode)<69||!nav||!Number.isFinite(Number(nav.fraction))||!Number.isFinite(Number(nav.matchedMeters)))return;
+    const nav=result.navigation;if(!lastSchedule||Number(result.versionCode)<70||!nav||nav.waiting||!Number.isFinite(Number(nav.fraction))||!Number.isFinite(Number(nav.matchedMeters)))return;
     const binding=driverAssignmentBinding(lastSchedule),date=document.getElementById("workDate").value;
     if(nav.date!==date||nav.dispatchId!==binding.dispatchId||nav.vehicleId!==binding.vehicleId)return;
     const trip=lastSchedule.trips.find(t=>Number(t.trip)===Number(nav.trip)),path=trip&&Bus70Automation.course(trip,lastSchedule.routeProfile?.stops||[]);
     if(!path||nav.fraction<0||nav.fraction>path.stops.length-1)return;
+    const log=runLogForTrip(lastSchedule,trip)||{};
+    if(Bus70Automation.waitingForDeparture(path,null,{...log,date,startTime:trip.startTime},null,Date.now()))return;
     const key=date+"|"+binding.dispatchId+"|"+nav.trip,old=navigationMemory.get(key);
     if(old&&Number(old.timestamp)>=Number(nav.timestamp))return;
     const percent=Math.round(nav.fraction/(path.stops.length-1)*1000)/10;
@@ -2391,7 +2393,7 @@
         const trackingActive=data.temporalState!=="PAST"&&data.temporalState!=="FUTURE"&&Bus70Automation.moment(document.getElementById("workDate").value,trip.startTime)<=Date.now();
         const binding=driverAssignmentBinding(data),candidate=typeof liveFleet!=="undefined"?liveFleet.crossCheck:null;
         const hint=candidate&&candidate.vehicleId===binding.vehicleId&&candidate.dispatchId===binding.dispatchId&&candidate.date===document.getElementById("workDate").value?candidate:null;
-        const result=Bus70Automation.navigate(path,position,{...log,trackingActive},memory,Date.now(),hint);result.trip=Number(trip.trip);result.path=path;
+        const result=Bus70Automation.navigate(path,position,{...log,trackingActive,date:document.getElementById("workDate").value,startTime:trip.startTime,startLocation:trip.startLocation},memory,Date.now(),hint);result.trip=Number(trip.trip);result.path=path;
         const start=serviceOperationalMinutes(trip.startTime),end=serviceOperationalMinutes(trip.endTime);result.segmentDurationMinutes=start!==null&&end!==null?Math.max(0,end-start):0;
         if(typeof navigationMemory!=="undefined")navigationMemory.set(key,result);
         return result;
@@ -2517,14 +2519,15 @@
     if(gps)gps.textContent=displayLive?telemetry.label:"선택한 탕의 기록";
     if(lastSchedule&&lastDriverPosition)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);
     const navigation=displayLive?(currentNavigation||{}):{},previous=document.getElementById("driverNavPrevious"),current=document.getElementById("driverNavCurrent"),nextStop=document.getElementById("driverNavNext"),distance=document.getElementById("driverNavDistance"),direction=document.getElementById("driverNavDirection"),progressBar=document.getElementById("driverTripProgressBar"),progressLabel=document.getElementById("driverTripProgressLabel"),ring=document.getElementById("driverTripProgressRing"),ringLabel=document.getElementById("driverTripProgressValue"),tripProgress=context?tripProgressValue(lastSchedule,context.trip,context.index,navigation):0;
-    if(previous)previous.textContent=navigation.configured?(navigation.previousStop||"—"):"—";
+    const waiting=Boolean(displayLive&&!context.log.actualStart&&(navigation.waiting||context.state==="출발 대기"));
+    if(previous)previous.textContent=!waiting&&navigation.configured?(navigation.previousStop||"—"):"—";
     if(current)current.textContent=navigation.configured?(navigation.currentStop||"정류장 사이 운행 중"):"현재 위치 확인 중";
-    if(nextStop)nextStop.textContent=navigation.configured?(navigation.nextStop||"종점"):displayLive?(navigation.reason||"GPS 대기"):"—";
+    if(nextStop)nextStop.textContent=waiting?"출발 대기":navigation.configured?(navigation.nextStop||"종점"):displayLive?(navigation.reason||"GPS 대기"):"—";
     if(distance)distance.textContent=navigation.configured?("다음 정류장 직선거리 "+liveDistanceLabel(navigation.distanceToNextM)):"노선별 정류장 위치를 등록하면 자동 표시";
     if(direction)direction.textContent=navigation.configured?navigation.direction+" · "+navigation.stopIndex+"/"+navigation.stopCount:"내비게이션 준비";
     if(progressBar)progressBar.style.width=tripProgress+"%";
     if(progressLabel)progressLabel.textContent=(navigation.configured||navigation.retained)?"정류장 "+navigation.tripPassedStops+" / "+navigation.tripStopCount+" · "+tripProgress+"%":"정류장 통과 정보 대기";
-    if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(displayLive&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 · "+Math.max(0,Math.floor((Date.now()-Number(navigation.timestamp||0))/1000))+"초 전":navigation.direction):tripProgress===100?"100% · 운행 완료":displayLive?"위치 대기":"선택한 탕의 계획·기록";}
+    if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(displayLive&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=waiting?"0% · 출발 대기":(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 · "+Math.max(0,Math.floor((Date.now()-Number(navigation.timestamp||0))/1000))+"초 전":navigation.direction):tripProgress===100?"100% · 운행 완료":displayLive?"위치 대기":"선택한 탕의 계획·기록";}
     if(ring&&typeof Bus70Cockpit!=="undefined"){const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained));}
     const weather=document.getElementById("driverWeather"),weatherTime=document.getElementById("driverWeatherTime"),map=document.getElementById("driverRouteDiagram");
     if(weather)weather.textContent=(cockpitWeather.available?"부천 현재 · ":"")+Bus70Cockpit.weatherLabel(cockpitWeather,Date.now());
@@ -2539,10 +2542,10 @@
     [["driverFleetFront",liveFleet.front,"앞차"],["driverFleetOwn",liveFleet.own,"내 차량"],["driverFleetRear",liveFleet.rear,"뒷차"]].forEach(item=>{const node=document.getElementById(item[0]);if(!node)return;const value=item[1];node.replaceChildren(el("span",item[2]),el("strong",value?(value.sequence+"순차 · "+(value.nextStop||"위치 수신")):(item[2]==="내 차량"?(lastSchedule?(scheduleSequence(lastSchedule)+"순차"):"-"):"수신 대기")),el("small",value?(liveDistanceLabel(value.distanceToNextM)+" · "+Math.round(Number(value.freshnessSeconds||0))+"초 전"):(item[2]==="내 차량"&&locationTrackingActive?"GPS 수집 중":"최신 위치 없음")));});
     const countdown=document.getElementById("driverLiveCountdown"),target=document.getElementById("driverLiveTarget");
     if(countdown&&context){
-      const passed=displayLive&&(navigation.configured||navigation.retained)&&navigation.turnPassed;
+      const passed=displayLive&&!waiting&&(navigation.configured||navigation.retained)&&navigation.turnPassed;
       const missing=passed&&!context.log.actualTurn;
-      if(target)target.textContent=missing?(context.trip.trip+"탕 · "+(navigation.returnConfirmed?(context.trip.endPlace||"도착지")+" 방면 운행":"회차 구간 통과")):context.action+(context.time?" · "+displayTime(context.time):"");
-      countdown.textContent=displayLive&&!context.log.actualStart&&context.state==="출발시각 미기록"?"출발시각 미기록 · 시간표 기준 현재 탕":missing?"회차 시각 미기록 · 위치 기준 진행 중":driverCountdownLabel(lastSchedule,context.time||"");
+      if(target)target.textContent=waiting?(context.trip.trip+"탕 발차"+(context.trip.startTime?" · "+displayTime(context.trip.startTime):"")):missing?(context.trip.trip+"탕 · "+(navigation.returnConfirmed?(context.trip.endPlace||"도착지")+" 방면 운행":"회차 구간 통과")):context.action+(context.time?" · "+displayTime(context.time):"");
+      countdown.textContent=context.state==="운행 완료"?"실제 도착 기록 완료":waiting?(Bus70Automation.moment(document.getElementById("workDate").value,context.trip.startTime)>Date.now()?driverCountdownLabel(lastSchedule,context.trip.startTime):"출발 대기 · 실제 출발 확인 중"):displayLive&&!context.log.actualStart&&context.state==="출발시각 미기록"?"출발시각 미기록 · 시간표 기준 현재 탕":missing?"회차 시각 미기록 · 위치 기준 진행 중":driverCountdownLabel(lastSchedule,context.time||"");
       const departed=displayLive?actualMoment(document.getElementById("workDate").value,context.log.actualStart):null;
       if(departed&&!context.log.actualEnd&&Date.now()>=departed.getTime())countdown.textContent="출발 후 "+Math.floor((Date.now()-departed.getTime())/60000)+"분 · "+countdown.textContent;
     }
@@ -2596,7 +2599,7 @@
       const row=el("tr"),point=el("td"),compare=scheduleComparison(document.getElementById("workDate").value,phase.planned,phase.actual);
       point.append(el("strong",phase.label),el("small",phase.place||"지점 확인 필요"));
       const observed=actualMoment(document.getElementById("workDate").value,phase.actual);
-      const planned=el("td",phase.planned?displayTime(phase.planned):"—"),actual=el("td",(actualClock(phase.actual)?(observed&&/\d{1,2}:\d{2}:\d{2}/.test(String(phase.actual)) ? observed.toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour12:false}) : actualClock(phase.actual)):"")|| (phase.actual?"시각 확인 필요":"미기록")),diff=el("td",phase.actual&&phase.planned?compare.label:"—",phase.actual&&phase.planned?"time-deviation "+compare.state:"");
+      const planned=el("td",phase.planned?displayTime(phase.planned):"—"),actual=el("td",(actualClock(phase.actual)?(observed&&/\d{1,2}:\d{2}:\d{2}/.test(String(phase.actual)) ? observed.toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour12:false}) : actualClock(phase.actual)):"")|| (phase.actual?"시각 확인 필요":"미기록")),diff=el("td",phase.actual&&phase.planned?compare.label:"—",phase.actual&&phase.planned?"time-deviation "+compare.state:"");
       if(phase.actual&&!compact)actual.append(el("small",phase.mode||"기록"));row.append(point,planned,actual,diff);body.append(row);
     });table.append(body);return table;
   }

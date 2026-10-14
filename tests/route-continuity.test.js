@@ -39,7 +39,7 @@ console.log(`${observations} route-coordinate replay samples passed; missing TUR
 // A missed departure must not suppress a newly observed arrival after two verified return stops.
 let recoveryState={};const recoveryLog={},endPoint={lat:finalStop.lat,lng:finalStop.lng,radiusM:80};
 for(let k=0;k<2;k++){
- const at=time+4000*(k+1),out=gps.step(recoveryState,{now:at,date:'2099-01-01',startTime:'05:00',log:recoveryLog,hasTurn:true,points:{end:endPoint},navigation:{configured:true,returnConfirmed:true,returnEvidence:evidence},position:{timestamp:at,coords:{latitude:endPoint.lat,longitude:endPoint.lng,accuracy:5}}});
+ const at=time+4000*(k+1),out=gps.step(recoveryState,{now:at,date:'2000-01-01',startTime:'05:00',log:recoveryLog,hasTurn:true,points:{end:endPoint},navigation:{configured:true,returnConfirmed:true,returnEvidence:evidence},position:{timestamp:at,coords:{latitude:endPoint.lat,longitude:endPoint.lng,accuracy:5}}});
  recoveryState=out.state;assert.equal(out.event,k===1?'ARRIVE':null);
 }
 assert.deepEqual(recoveryLog,{},'recovery cannot fill an unobserved departure');

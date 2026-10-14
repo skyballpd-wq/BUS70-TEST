@@ -16,6 +16,18 @@ final class RouteMatcher {
         double r=Math.PI/180,dl=(b.optDouble("lng")-a.optDouble("lng"))*r,y=Math.sin(dl)*Math.cos(b.optDouble("lat")*r),x=Math.cos(a.optDouble("lat")*r)*Math.sin(b.optDouble("lat")*r)-Math.sin(a.optDouble("lat")*r)*Math.cos(b.optDouble("lat")*r)*Math.cos(dl);
         return (Math.atan2(y,x)/r+360)%360;
     }
+    static JSONObject matchTrip(JSONObject trip,long plannedStart,JSONObject previous,double lat,double lng,double accuracy,double speed,double heading,long timestamp,JSONObject hint) throws Exception {
+        JSONObject course=trip.optJSONObject("course"),start=trip.optJSONObject("startLocation");
+        JSONArray stops=course==null?null:course.optJSONArray("stops");
+        if(start==null&&stops!=null)start=stops.optJSONObject(0);
+        boolean observed=!trip.optString("actualStart").isEmpty()||!trip.optString("actualTurn").isEmpty()||!trip.optString("actualEnd").isEmpty();
+        JSONArray evidence=previous==null?null:previous.optJSONArray("returnEvidence");
+        boolean recovering=previous!=null&&previous.optBoolean("returnConfirmed")&&evidence!=null&&evidence.length()==2&&timestamp>=previous.optLong("timestamp")&&timestamp-previous.optLong("timestamp")<=120000;
+        boolean atStart=start!=null&&distance(lat,lng,start)<=start.optDouble("radiusM",80)+Math.max(30,accuracy);
+        if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
+        if(previous!=null&&previous.optBoolean("waiting"))previous=null;
+        return match(course,previous,lat,lng,accuracy,speed,heading,timestamp,!trip.optString("actualTurn").isEmpty(),hint);
+    }
     static JSONObject match(JSONObject course,JSONObject previous,double lat,double lng,double accuracy,double speed,double heading,long timestamp,boolean turnRecorded) throws Exception {
         return match(course,previous,lat,lng,accuracy,speed,heading,timestamp,turnRecorded,null);
     }
