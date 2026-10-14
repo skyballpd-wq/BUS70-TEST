@@ -16,6 +16,16 @@ final class RouteMatcher {
         double r=Math.PI/180,dl=(b.optDouble("lng")-a.optDouble("lng"))*r,y=Math.sin(dl)*Math.cos(b.optDouble("lat")*r),x=Math.cos(a.optDouble("lat")*r)*Math.sin(b.optDouble("lat")*r)-Math.sin(a.optDouble("lat")*r)*Math.cos(b.optDouble("lat")*r)*Math.cos(dl);
         return (Math.atan2(y,x)/r+360)%360;
     }
+    static boolean vehicleDeparture(JSONObject state,JSONObject course,JSONObject nav,double lat,double lng,double speed,long timestamp,long planned,JSONObject hint)throws Exception {
+        if(planned<=0||timestamp<planned)return false;
+        if(nav==null||!nav.optBoolean("configured")||nav.optBoolean("returnConfirmed")||nav.optLong("timestamp")!=timestamp||hint==null||!hint.optBoolean("available")||!"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))||hint.optLong("fetchedAt")<planned||timestamp-hint.optLong("fetchedAt")>60000||hint.optLong("fetchedAt")>timestamp+5000)return false;
+        JSONArray stops=course==null?null:course.optJSONArray("stops");if(stops==null)return false;
+        int index=-1;for(int i=1;i<Math.min(5,stops.length());i++){JSONObject stop=stops.getJSONObject(i);String id=hint.optString("stationId");if(stop.optInt("order")==hint.optInt("stationSeq")&&distance(lat,lng,stop)<=120&&(id.isEmpty()||id.equals(stop.optString("stationId",stop.optString("id")))||stop.optString("id").endsWith("-"+id)))index=i;}
+        int turn=course.optInt("turnIndex",-1);if(index<1||turn>0&&index>=turn||Math.abs(nav.optDouble("fraction")-index)>1.5)return false;
+        JSONObject prior=state.optJSONObject("departureVehicle");boolean advanced=prior!=null&&timestamp-prior.optLong("at")<=90000&&index>prior.optInt("index");
+        if(prior==null||timestamp-prior.optLong("at")>90000)state.put("departureVehicle",new JSONObject().put("index",index).put("at",timestamp));
+        return speed>=2.8||advanced;
+    }
     static JSONObject matchTrip(JSONObject trip,long plannedStart,JSONObject previous,double lat,double lng,double accuracy,double speed,double heading,long timestamp,JSONObject hint) throws Exception {
         JSONObject course=trip.optJSONObject("course"),start=trip.optJSONObject("startLocation");
         JSONArray stops=course==null?null:course.optJSONArray("stops");
@@ -24,7 +34,9 @@ final class RouteMatcher {
         JSONArray evidence=previous==null?null:previous.optJSONArray("returnEvidence");
         boolean recovering=previous!=null&&previous.optBoolean("returnConfirmed")&&evidence!=null&&evidence.length()==2&&timestamp>=previous.optLong("timestamp")&&timestamp-previous.optLong("timestamp")<=120000;
         boolean atStart=start!=null&&distance(lat,lng,start)<=start.optDouble("radiusM",80)+Math.max(30,accuracy);
-        if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
+        boolean vehicleMatched=false;
+        if(hint!=null&&hint.optBoolean("available")&&"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))&&timestamp-hint.optLong("fetchedAt")<=60000&&hint.optLong("fetchedAt")<=timestamp+5000&&stops!=null){for(int i=1;i<stops.length()-1;i++){JSONObject stop=stops.getJSONObject(i);String id=hint.optString("stationId");if(stop.optInt("order")==hint.optInt("stationSeq")&&distance(lat,lng,stop)<=120&&(id.isEmpty()||id.equals(stop.optString("stationId",stop.optString("id")))||stop.optString("id").endsWith("-"+id)))vehicleMatched=true;}}
+        if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering||!recovering&&!vehicleMatched))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
         if(previous!=null&&previous.optBoolean("waiting"))previous=null;
         return match(course,previous,lat,lng,accuracy,speed,heading,timestamp,!trip.optString("actualTurn").isEmpty(),hint);
     }

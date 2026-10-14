@@ -104,10 +104,14 @@
     const recoveredArrival=input.navigation?.configured&&!input.navigation.waiting&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2&&(!Number.isFinite(plannedStart)||now>=plannedStart);
     if(!log.actualStart&&!recoveredArrival){
       const planned=moment(input.date,input.startTime);
-      if(Number.isFinite(planned)&&(now<planned-30*60000||now>planned+120*60000))return {state,event:null};
+      if(!Number.isFinite(planned)||ts<planned||now>planned+120*60000){if(inside("start")&&count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;delete state.departureFix;return {state,event:null};}
       if(!validPoint(points.start))return {state,event:null};
       if(inside("start")){if(count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;}
-      else {state.startInside=0;const outside=direction(points.start,"departureBearing")&&distance(here,points.start)>Number(points.start.radiusM||80)+Math.max(30,Number(c.accuracy));if(state.seenStart&&count("startOutside",outside)>=2)return {state,event:"DEPART"};}
+      else {state.startInside=0;const outside=direction(points.start,"departureBearing")&&distance(here,points.start)>Number(points.start.radiusM||80)+Math.max(30,Number(c.accuracy));
+        const verified=outside&&vehicleDeparture(state,input.course,input.navigation,p,input.vehicleReference,planned,now);
+        if(state.seenStart&&verified){if(!state.startOutside)state.departureFix=p;if(count("startOutside",true)>=2)return {state,event:"DEPART",position:state.departureFix};}
+        else {state.startOutside=0;delete state.departureFix;}
+      }
       return {state,event:null};
     }
     if(input.hasControl&&!log.actualControl&&validPoint(points.control)&&count("controlInside",inside("control"))>=2)return {state,event:"CONTROL"};
@@ -163,6 +167,15 @@
     if(id&&String(stop.stationId||stop.id)!==id&&!String(stop.id).endsWith("-"+id))return -1;
     return index;
   }
+  function vehicleDeparture(state,path,nav,position,hint,planned,now){
+    const c=position?.coords||{},here={lat:Number(c.latitude),lng:Number(c.longitude)},index=referenceIndex(path||{stops:[]},hint,here,now);
+    if(!nav?.configured||nav.returnConfirmed||nav.timestamp!==position.timestamp||index<1||index>=Math.min(5,path?.turnIndex>0?path.turnIndex:5)||Number(hint.fetchedAt)<planned||Math.abs(Number(nav.fraction)-index)>1.5||distance(here,path.stops[index])>120)return false;
+    const prior=state.departureVehicle;
+    const advanced=prior&&now-prior.at<=90000&&index>prior.index;
+    if(!prior||now-prior.at>90000)state.departureVehicle={index,at:now};
+    // Walking-speed phone movement alone is never vehicle departure evidence.
+    return (number(c.speed)&&Number(c.speed)>=2.8)||Boolean(advanced);
+  }
   function waitingForDeparture(path,position,log,previous,now){
     if(log.actualStart||log.actualTurn||log.actualEnd)return false;
     const planned=moment(log.date,log.startTime);
@@ -177,6 +190,7 @@
   function navigate(path,position,log,previous,now,hint){
     const c=position?.coords||{},ts=Number(position?.timestamp),stops=path?.stops||[];
     if(waitingForDeparture(path,position,log,previous,now))return {configured:false,retained:false,waiting:true,reason:"출발 대기",returnConfirmed:false,turnPassed:false,returnEvidence:[],tripProgressPercent:0,routeProgressPercent:0,tripPassedStops:0,tripStopCount:stops.length};
+    if(log.requireVehicleConfirmation&&!log.actualStart&&!log.actualTurn&&!log.actualEnd){const ref=referenceIndex(path||{stops:[]},hint,{lat:Number(c.latitude),lng:Number(c.longitude)},now);if(ref<1||ref>=stops.length-1||distance({lat:Number(c.latitude),lng:Number(c.longitude)},stops[ref])>120)return {configured:false,retained:false,waiting:true,reason:"차량 출발 확인 중",returnConfirmed:false,turnPassed:false,returnEvidence:[],tripProgressPercent:0,routeProgressPercent:0,tripPassedStops:0,tripStopCount:stops.length};}
     if(previous?.waiting)previous=null;
     const retained=previous&&number(previous.routeProgressPercent)?previous:null;
     let motion=previous?.motion;

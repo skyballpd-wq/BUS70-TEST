@@ -11,7 +11,7 @@ const date='2099-01-10',base=gps.moment(date,'06:00');let state={},clock=base;
 function sample(lat,lng=127,log={},extra={}){clock+=4000;const result=gps.step(state,{points,log,date,startTime:'06:00',hasTurn:true,now:clock,position:{timestamp:clock,coords:{latitude:lat,longitude:lng,accuracy:8},...extra}});state=result.state;return result.event;}
 assert.equal(sample(37),null);assert.equal(sample(37),null);
 assert.equal(sample(37.0005),null,'GPS drift inside exit buffer');
-assert.equal(sample(37.002),null);assert.equal(sample(37.002),'DEPART');
+assert.equal(sample(37.002),null);assert.equal(sample(37.002),null,'phone geofence alone cannot confirm vehicle departure');
 assert.equal(sample(37.02,127,{actualStart:'recorded'}),null);assert.equal(sample(37.02,127,{actualStart:'recorded'}),'TURN');
 assert.equal(sample(37.0001,127,{actualStart:'recorded'}),null,'cannot arrive before a required turn');
 assert.equal(sample(37.0001,127,{actualStart:'recorded',actualTurn:'recorded'}),null);assert.equal(sample(37.0001,127,{actualStart:'recorded',actualTurn:'recorded'}),'ARRIVE');

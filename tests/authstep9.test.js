@@ -208,6 +208,14 @@ dispatch.rows.push(['DSP-SYNTHETIC-SEQ2','2099-01-08','B','2','DRV-1','VEH-9002'
 const nonexistentTripLog=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:2,trip:1,event:'DEPART'});
 assert.equal(nonexistentTripLog.error,'TRIP_NOT_SCHEDULED');assert.match(nonexistentTripLog.message,/2탕부터 운행/);
 
+// Neither a handset's earlier planned time nor GPS coordinates authorize early departure.
+const countBeforeEarly=runLogs.rows.length;
+for(const source of ['MANUAL','GPS_AUTO']){
+  const early=context.bus70AuthAction_({action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:15,trip:6,event:'DEPART',plannedStart:'00:00',source,observedAt:Date.now(),latitude:0.11,longitude:0.21,accuracy:5});
+  assert.equal(early.error,'DEPART_BEFORE_SCHEDULE');
+  assert.equal(runLogs.rows.length,countBeforeEarly,'rejected departures must not create a log');
+}
+
 const finishBase={action:'driverRunLogSave',token:session.token,date:'2099-01-08',sequence:15,trip:6,plannedStart:'22:35',plannedEnd:'23:36'};
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'SERVICE_END',serviceEndType:'UPBOUND_ONLY',serviceEndPlace:'가상종점',deadheadDestination:'가상차고지'})).ok,true);
 assert.equal(context.bus70AuthAction_(Object.assign({},finishBase,{event:'DEADHEAD_RETURN'})).ok,true);

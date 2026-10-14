@@ -20,8 +20,8 @@ final class EventOutbox {
         return s.optString("driverId")+"|"+s.optString("date")+"|"+s.optString("dispatchId")+"|"+s.optString("vehicleId");
     }
     static boolean add(JSONArray items, JSONObject schedule, JSONObject body) throws Exception {
-        String key=binding(schedule)+"|"+body.optInt("trip")+"|"+body.optString("event");
-        for(int i=0;i<items.length();i++)if(key.equals(items.getJSONObject(i).optString("key")))return false;
+        String key=binding(schedule)+"|"+body.optInt("trip")+"|"+body.optString("event")+"|"+body.optLong("observedAt");
+        for(int i=0;i<items.length();i++){JSONObject item=items.getJSONObject(i),old=item.getJSONObject("body");if(!item.optBoolean("voided")&&binding(schedule).equals(item.optString("binding"))&&old.optInt("trip")==body.optInt("trip")&&old.optString("event").equals(body.optString("event")))return false;}
         JSONObject copy=new JSONObject(body.toString());copy.remove("token");
         items.put(new JSONObject().put("key",key).put("binding",binding(schedule))
             .put("driverId",schedule.optString("driverId")).put("apiUrl",schedule.optString("apiUrl"))
@@ -31,10 +31,17 @@ final class EventOutbox {
     static void overlay(JSONArray items,JSONObject schedule) throws Exception {
         JSONArray trips=schedule.optJSONArray("trips");if(trips==null)return;
         for(int i=0;i<items.length();i++) {
-            JSONObject item=items.getJSONObject(i);if(!binding(schedule).equals(item.optString("binding")))continue;
+            JSONObject item=items.getJSONObject(i);if(!binding(schedule).equals(item.optString("binding"))||item.optBoolean("voided"))continue;
             JSONObject body=item.getJSONObject("body");String field=field(body.optString("event"));
             for(int j=0;j<trips.length();j++) {
                 JSONObject trip=trips.getJSONObject(j);if(trip.optInt("trip")!=body.optInt("trip"))continue;
+                long planned=TripOrder.moment(schedule.optString("date"),trip.optString("startTime"));
+                if("DEPART".equals(body.optString("event"))&&"GPS_AUTO".equals(body.optString("source"))&&planned>0&&body.optLong("observedAt")<planned){
+                    item.put("voided",true).put("delivered",true).put("error","예정 발차시각 이전 GPS 오출발 제외");trip.put("departureReset",true);
+                    long recorded=TripOrder.observedMoment(schedule.optString("date"),trip.optString("actualStart"));
+                    if(recorded>0&&recorded<planned&&trip.optString("actualTurn").isEmpty()&&trip.optString("actualEnd").isEmpty()&&!"수동".equals(trip.optString("startRecordMode")))trip.put("actualStart","");
+                    continue;
+                }
                 if(trip.optString(field).isEmpty())trip.put(field,item.optString("recordedAt",Instant.ofEpochMilli(body.getLong("observedAt")).toString()));
             }
         }
