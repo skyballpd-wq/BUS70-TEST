@@ -13,7 +13,10 @@ public class TripOrderTest {
         JSONArray samples=new JSONArray(text);
         for(int i=0;i<samples.length();i++){
             JSONObject sample=samples.getJSONObject(i);JSONArray trips=sample.getJSONArray("trips"),logs=sample.getJSONArray("logs");
-            for(int j=0;j<trips.length();j++)for(String key:logs.getJSONObject(j).keySet())trips.getJSONObject(j).put(key,logs.getJSONObject(j).get(key));
+            for(int j=0;j<trips.length();j++){
+                JSONObject log=logs.getJSONObject(j);java.util.Iterator<String> keys=log.keys();
+                while(keys.hasNext()){String key=keys.next();trips.getJSONObject(j).put(key,log.get(key));}
+            }
             String before=trips.toString();
             assertEquals(sample.getString("name"),sample.getInt("expected"),TripOrder.active(trips,sample.getString("date"),TripOrder.moment(sample.getString("date"),sample.getString("now"))));
             assertEquals("Do not fabricate event timestamps",before,trips.toString());
