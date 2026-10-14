@@ -230,11 +230,11 @@ public class DriverLocationService extends Service implements LocationListener {
         JSONObject navigation=state.optJSONObject("navigation");
         try{JSONObject hint=routeReference;
             if(hint!=null&&(!hint.optString("date").equals(schedule.optString("date"))||!hint.optString("dispatchId").equals(schedule.optString("dispatchId"))||!hint.optString("vehicleId").equals(schedule.optString("vehicleId"))))hint=null;
-            navigation=RouteMatcher.match(trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,!actualTurn.isEmpty(),hint);state.put("navigation",navigation);}catch(Exception ignored){}
+            navigation=RouteMatcher.matchTrip(trip,scheduleMoment(trip.optString("startTime")),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,hint);state.put("navigation",navigation);}catch(Exception ignored){}
         boolean inbound=navigation!=null&&navigation.optBoolean("returnConfirmed");
-        postLiveLocation(trip, location, inbound?"RETURN":"OUTBOUND",navigation);
+        postLiveLocation(trip, location, navigation!=null&&navigation.optBoolean("waiting")?"":inbound?"RETURN":"OUTBOUND",navigation);
         String nearestText = nearestText(location, tripNo, start, turn, end);
-        setStatus(nearestText);
+        setStatus(navigation!=null&&navigation.optBoolean("waiting")?tripNo+"탕 출발 대기 · "+trip.optString("startTime"):nearestText);
         try {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
             if (actualStart.isEmpty() && start != null && reliable(location, start) && (plannedStart == 0 || now >= plannedStart - 1800000L && now <= plannedStart + 7200000L)) {
