@@ -545,9 +545,16 @@
     .manager-menu-grid button { margin:0; min-height:102px; text-align:left; background:#fff; color:#173d65; border:1px solid #d4e0ec; padding:18px; border-radius:14px; box-shadow:0 3px 10px #173d6508; }
     .manager-menu-grid strong { display:block; font-size:17px; margin-bottom:8px; }
     .manager-menu-grid small { display:block; font-size:12px; font-weight:400; color:#58718a; }
-    .depot-contact { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:14px 0; border-bottom:1px solid #dde5ee; }
+    .depot-contact { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; border-bottom:1px solid #dde5ee; }
+    .depot-contact-info { flex:1 1 150px; }
+    .depot-contact-info strong,.depot-contact-info span { display:block; }
+    .depot-contact-info small { display:block; margin-top:6px; color:#52677d; }
+    .depot-contact-phones { display:flex; flex-direction:column; gap:8px; }
     .depot-contact a { color:#173d65; background:#e8f0f9; padding:10px; border-radius:8px; font-weight:700; text-decoration:none; }
-    #managerContactFields { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; align-items:center; gap:10px; }
+    #managerContactFields { display:grid; gap:16px; }
+    #managerContactFields fieldset { min-width:0; border:1px solid #d4e0ec; border-radius:10px; padding:14px; }
+    #managerContactFields legend { font-weight:700; }
+    #managerContactFields textarea { width:100%; box-sizing:border-box; min-height:88px; font:inherit; padding:12px; border:1px solid #cbd5df; border-radius:8px; }
     #managerContactFields label { margin:0; }
     [hidden] { display:none !important; }
     @media(max-width:620px) { .manager-menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .manager-menu-grid button { padding:14px; } .workspace-heading { align-items:flex-start; } }
@@ -774,7 +781,7 @@
       <div id="driverEmergencyPanel" class="settings-box" hidden>
         <h3>긴급 연락</h3>
         <p class="hint">사고나 인명 위험이 있으면 안전한 곳에 정차한 뒤 전화하세요. 회사 사무실·소장 연락처는 관리자가 등록한 번호만 별도로 표시합니다.</p>
-        <div id="driverDepotContacts" class="depot-contacts"></div><div class="driver-emergency-actions"><a href="tel:112">112 경찰</a><a href="tel:119">119 소방·구급</a></div>
+        <div id="driverContactStatus" role="status"></div><div id="driverDepotContacts" class="depot-contacts"></div><div class="driver-emergency-actions"><a href="tel:112">112 경찰</a><a href="tel:119">119 소방·구급</a></div>
       </div>
 
       <div id="alertSettings" class="settings-box" hidden>
@@ -836,12 +843,12 @@
         <button type="button" data-manager-page="ATTENDANCE"><strong>근태·대체</strong><small>휴무 · 병가 · 예비기사</small></button>
         <button type="button" data-manager-page="ROSTER"><strong>기사 관리</strong><small>등록 · 조회 · 노선 이동</small></button>
         <button type="button" data-manager-page="FLEET"><strong>차량·정비</strong><small>차량 상태 · 고장 접수</small></button>
-        <button type="button" data-manager-page="CONTACTS"><strong>긴급연락망</strong><small>사무실 · 소장 · 안전 · 정비</small></button>
+        <button type="button" data-manager-page="CONTACTS"><strong>긴급연락망</strong><small>영업소 · 소장 · 사고 · 정비</small></button>
         <button type="button" data-manager-page="SETTINGS"><strong>계정 설정</strong><small>운영계정 · 비밀번호</small></button>
       </div>
     </section>
     <section id="managerContactsPanel" class="manager-panel" hidden>
-      <h2>고강차고지 긴급연락망</h2><p class="hint">등록한 번호는 로그인한 기사에게 전화 버튼으로 표시됩니다.</p>
+      <h2>소신여객 긴급연락망</h2><p class="hint">등록한 번호는 로그인한 기사에게 전화 버튼으로 표시됩니다.</p>
       <div id="managerContactFields"></div><button id="managerContactsSave" type="button">연락망 저장</button><div id="managerContactStatus" role="status"></div>
     </section>
     <section id="managerPanel" class="manager-panel" hidden>
@@ -1253,7 +1260,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v74.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v74.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1406,6 +1413,7 @@
     target.scrollTop=0;
     button.classList.add("active");
     button.setAttribute("aria-expanded","true");
+    if(key==="EMERGENCY")loadDepotContacts();
     if(key==="LOG"){
       const date=document.getElementById("workDate").value||todayLocal();
       if(!document.getElementById("runLogFrom").value)document.getElementById("runLogFrom").value=date;
@@ -3556,7 +3564,8 @@
   document.getElementById("managerDate").addEventListener("change",()=>{invalidateManagerRequest();syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
   let managerPage = "HOME";
-  const DEPOT_CONTACT_ROLES = ["고강차고지 사무실","주간소장","야간소장","안전관리자","정비소"];
+  let depotContacts = [], depotContactsVersion = 0;
+  let depotContactRequestId = 0;
   function initManagerWorkspace(){
     const workspace=document.getElementById("managerWorkspace");
     workspace.hidden=!currentIsManager;document.body.classList.toggle("manager-layout",currentIsManager);
@@ -3579,6 +3588,7 @@
     document.getElementById("managerPageTitle").textContent=titles[managerPage];
     if(managerPage==="DISPATCH"&&!managerData)loadManagerData();
     if(managerPage==="FLEET")renderVehicleStatusList();
+    if(managerPage==="CONTACTS")loadDepotContacts();
     if(focus){document.getElementById("managerPageTitle").focus();document.getElementById("managerWorkspace").scrollIntoView({block:"start"});}
   }
   function managerPeopleAtDate(drivers,date){
@@ -3617,21 +3627,46 @@
     refreshManagerRoster();refreshWorkChangeDrivers();renderVehicleStatusList();renderOperationList();fillOperationVehicles();
     if(managerPage==="DISPATCH")loadManagerData();
   }
+  function depotContactPhones(contact){
+    const phones=Array.isArray(contact.phones)?contact.phones:String(contact.phone||"").split(/\r?\n/);
+    return phones.map(phone=>String(phone||"").trim()).filter(phone=>/^\+?[0-9 ()-]{8,24}$/.test(phone)&&phone.replace(/\D/g,"").length>=8&&phone.replace(/\D/g,"").length<=15);
+  }
   function renderDepotContacts(contacts){
+    depotContacts=Array.isArray(contacts)?contacts:[];
     const root=document.getElementById("driverDepotContacts"),fields=document.getElementById("managerContactFields");root.replaceChildren();fields.replaceChildren();
-    DEPOT_CONTACT_ROLES.forEach((role,index)=>{
-      const contact=(contacts||[]).find(c=>c.role===role)||{},phone=String(contact.phone||""),card=el("div",undefined,"depot-contact");card.append(el("strong",role));
-      if(/^\+?[0-9 ()-]{8,24}$/.test(phone)){const link=el("a",phone);link.href="tel:"+phone.replace(/[^+\d]/g,"");link.setAttribute("aria-label",role+" 전화 "+phone);card.append(link);}else card.append(el("span","연락처 등록 대기","muted"));root.append(card);
-      const label=el("label",role),input=el("input");input.id="depotPhone"+index;input.type="tel";input.maxLength=24;input.value=phone;input.placeholder="연락처 등록";label.htmlFor=input.id;fields.append(label,input);
+    depotContacts.forEach((contact,index)=>{
+      const role=String(contact.role||""),phones=depotContactPhones(contact),card=el("div",undefined,"depot-contact"),info=el("div",undefined,"depot-contact-info"),links=el("div",undefined,"depot-contact-phones");
+      info.append(el("strong",role));if(contact.name)info.append(el("span",contact.name));if(contact.note)info.append(el("small",contact.note));card.append(info);
+      phones.forEach(phone=>{const link=el("a",phone);link.href="tel:"+phone.replace(/[^+\d]/g,"");link.setAttribute("aria-label",role+" "+String(contact.name||"")+" 전화 "+phone);links.append(link);});
+      if(!phones.length)links.append(el("span","연락처 등록 대기","muted"));card.append(links);root.append(card);
+      const group=el("fieldset");group.append(el("legend",role));
+      [["Name","담당자 이름","input",String(contact.name||"")],["Phone","전화번호 (한 줄에 하나씩)","textarea",phones.join("\n")],["Note","배차 담당 · 근무시간 안내","input",String(contact.note||"")]].forEach(([key,title,tag,value])=>{
+        const label=el("label",title),input=el(tag);input.id="depot"+key+index;input.value=value;input.maxLength=key==="Name"?80:200;if(tag==="textarea")input.rows=2;else input.type="text";label.htmlFor=input.id;group.append(label,input);
+      });fields.append(group);
     });
   }
+  function depotContactStatus(message){
+    document.getElementById("driverContactStatus").textContent=message;
+    document.getElementById("managerContactStatus").textContent=message;
+  }
   async function loadDepotContacts(){
-    renderDepotContacts([]);
-    try{const result=await apiPost({action:"managerAccountList",operation:"depotContactsGet",token:authToken});if(result.ok)renderDepotContacts(result.contacts);else document.getElementById("managerContactStatus").textContent=result.message||"연락망 서버 업데이트가 필요합니다.";}catch(error){document.getElementById("managerContactStatus").textContent="연락망을 불러오지 못했습니다.";}
+    const requestId=++depotContactRequestId,token=authToken;depotContactsVersion=0;
+    document.getElementById("managerContactsSave").disabled=true;renderDepotContacts([]);depotContactStatus("연락망 불러오는 중…");
+    try{
+      const result=await apiPost({action:"managerAccountList",operation:"depotContactsGet",token});
+      if(requestId!==depotContactRequestId||token!==authToken)return;
+      if(result.ok){depotContactsVersion=Number(result.contactsVersion||1);renderDepotContacts(result.contacts);depotContactStatus(depotContacts.length?"":"등록된 연락처가 없습니다.");document.getElementById("managerContactsSave").disabled=depotContactsVersion<2||!depotContacts.length;}
+      else depotContactStatus(result.message||"연락망을 불러오지 못했습니다.");
+    }catch(error){if(requestId===depotContactRequestId&&token===authToken)depotContactStatus("연락망을 불러오지 못했습니다. 긴급 연락 화면을 다시 열어 주세요.");}
   }
   async function saveDepotContacts(){
-    const button=document.getElementById("managerContactsSave"),status=document.getElementById("managerContactStatus");button.disabled=true;
-    try{const contacts=DEPOT_CONTACT_ROLES.map((role,index)=>({role,phone:document.getElementById("depotPhone"+index).value.trim()}));const result=await apiPost({action:"managerAccountUpsert",operation:"depotContactsSave",token:authToken,contacts});status.textContent=result.message||"저장하지 못했습니다.";if(result.ok)renderDepotContacts(result.contacts);}catch(error){status.textContent="연락망 저장 연결에 실패했습니다.";}finally{button.disabled=false;}
+    if(depotContactsVersion<2||!depotContacts.length)return;
+    const button=document.getElementById("managerContactsSave"),token=authToken;button.disabled=true;
+    try{
+      const contacts=depotContacts.map((contact,index)=>({id:contact.id,role:contact.role,name:document.getElementById("depotName"+index).value.trim(),phones:document.getElementById("depotPhone"+index).value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),note:document.getElementById("depotNote"+index).value.trim()}));
+      const result=await apiPost({action:"managerAccountUpsert",operation:"depotContactsSave",token,contacts});
+      if(token!==authToken)return;depotContactStatus(result.message||"저장하지 못했습니다.");if(result.ok)renderDepotContacts(result.contacts);
+    }catch(error){if(token===authToken)depotContactStatus("연락망 저장 연결에 실패했습니다.");}finally{if(token===authToken)button.disabled=depotContactsVersion<2;}
   }
   document.querySelectorAll("[data-manager-page]").forEach(button=>button.addEventListener("click",()=>showManagerPage(button.dataset.managerPage)));
   document.getElementById("managerHome").addEventListener("click",()=>showManagerPage("HOME"));

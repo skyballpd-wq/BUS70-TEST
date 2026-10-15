@@ -1022,21 +1022,52 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
   } finally { lock.releaseLock(); }
 }
 
-// 연락처는 공개 웹 파일이 아닌 인증된 서버 설정에서만 보관합니다.
-function bus70DepotContactRoles_(){return ['고강차고지 사무실','주간소장','야간소장','안전관리자','정비소'];}
-function bus70DepotContactsGet_(requesterId){
-  if(!bus70CanOperate_(requesterId)&&!bus70IsKnownDriver_(requesterId))return {ok:false,error:'LOGIN_REQUIRED',message:'로그인이 필요합니다.'};
-  let saved=[];try{saved=JSON.parse(PropertiesService.getScriptProperties().getProperty('BUS70_DEPOT_CONTACTS_JSON')||'[]');}catch(error){}
-  const contacts=bus70DepotContactRoles_().map(function(role){const value=Array.isArray(saved)?saved.find(function(v){return v.role===role;}):null;return {role:role,phone:value?String(value.phone||''):''};});
-  return {ok:true,contacts:contacts};
+// 연락처는 인증 후 비공개 연락망DB에서만 읽습니다. 공개 웹 파일에는 넣지 않습니다.
+function bus70DepotContactPhones_(value) {
+  return (Array.isArray(value)?value:String(value||'').split(/\r?\n/)).map(function(v){return String(v||'').trim();}).filter(function(v){return v;});
 }
-function bus70DepotContactsSave_(body,requesterId){
+function bus70DepotContactDb_() {
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('연락망DB');
+  if(!sheet||sheet.getLastRow()<2)return null;
+  const rows=sheet.getDataRange().getDisplayValues(),columns=makeHeaderMap_(rows[0]);
+  const headers=['contactId','직책','성명','전화번호','표시순서','사용여부','비고'];
+  if(headers.some(function(h){return columns[h]===undefined;}))throw new Error('연락망DB 열 구성을 확인하세요.');
+  const contacts=rows.slice(1).map(function(row,index){
+    return {id:String(row[columns.contactId]||''),role:String(row[columns['직책']]||''),name:String(row[columns['성명']]||''),phones:bus70DepotContactPhones_(row[columns['전화번호']]),note:String(row[columns['비고']]||''),order:Number(row[columns['표시순서']]||0),enabled:String(row[columns['사용여부']]||'').toUpperCase()==='Y',row:index+2};
+  }).filter(function(c){return c.id&&c.enabled;}).sort(function(a,b){return a.order-b.order||a.row-b.row;});
+  return {sheet:sheet,columns:columns,contacts:contacts};
+}
+function bus70DepotContactPublic_(contact) {
+  return {id:contact.id,role:contact.role,name:contact.name||'',phones:contact.phones,phone:contact.phones[0]||'',note:contact.note||''};
+}
+function bus70DepotContactsGet_(requesterId) {
+  if(!bus70CanOperate_(requesterId)&&!bus70IsKnownDriver_(requesterId))return {ok:false,error:'LOGIN_REQUIRED',message:'로그인이 필요합니다.'};
+  const db=bus70DepotContactDb_();
+  if(db)return {ok:true,contactsVersion:2,contacts:db.contacts.map(bus70DepotContactPublic_)};
+  // 구버전 설정은 읽기만 지원하며, 새 DB가 비어 있을 때만 표시합니다.
+  let saved=[];try{saved=JSON.parse(PropertiesService.getScriptProperties().getProperty('BUS70_DEPOT_CONTACTS_JSON')||'[]');}catch(error){}
+  return {ok:true,contactsVersion:1,contacts:(Array.isArray(saved)?saved:[]).map(function(c){return bus70DepotContactPublic_({id:'',role:String(c.role||''),name:String(c.name||''),phones:bus70DepotContactPhones_(c.phones||c.phone),note:String(c.note||'')});})};
+}
+function bus70DepotContactsSave_(body,requesterId) {
   if(!bus70IsManager_(requesterId))return {ok:false,error:'MANAGER_REQUIRED',message:'연락망 변경은 소장 이상만 가능합니다.'};
-  const roles=bus70DepotContactRoles_(),input=body.contacts;
-  if(!Array.isArray(input)||input.length!==roles.length||roles.some(function(role){return input.filter(function(v){return v&&v.role===role;}).length!==1;}))return {ok:false,error:'CONTACTS_INVALID',message:'연락망 5개 항목을 확인하세요.'};
-  const contacts=roles.map(function(role){const entry=input.find(function(v){return v.role===role;});return {role:role,phone:String(entry.phone||'').trim()};});
-  if(contacts.some(function(v){const digits=v.phone.replace(/\D/g,'');return v.phone&&(!/^\+?[0-9 ()-]{8,24}$/.test(v.phone)||digits.length<8||digits.length>15);}))return {ok:false,error:'PHONE_INVALID',message:'전화번호는 숫자와 +, 괄호, 하이픈으로 입력하세요.'};
-  PropertiesService.getScriptProperties().setProperty('BUS70_DEPOT_CONTACTS_JSON',JSON.stringify(contacts));
-  writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','긴급연락망','고강차고지','수정',{}, {registered:contacts.filter(function(v){return v.phone;}).length},'긴급연락망 수정');
-  return {ok:true,contacts:contacts,message:'고강차고지 긴급연락망을 저장했습니다.'};
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const db=bus70DepotContactDb_(),input=body.contacts;
+    if(!db)return {ok:false,error:'CONTACT_DB_REQUIRED',message:'연락망DB를 먼저 등록하세요.'};
+    if(!Array.isArray(input)||input.length!==db.contacts.length||db.contacts.some(function(c){return input.filter(function(v){return v&&v.id===c.id&&v.role===c.role;}).length!==1;}))return {ok:false,error:'CONTACTS_INVALID',message:'연락망을 다시 불러온 뒤 저장하세요.'};
+    const contacts=db.contacts.map(function(c){
+      const v=input.find(function(v){return v.id===c.id;});
+      return {id:c.id,role:c.role,row:c.row,name:String(v.name||'').trim(),phones:bus70DepotContactPhones_(v.phones===undefined?v.phone:v.phones),note:String(v.note||'').trim()};
+    });
+    if(contacts.some(function(c){return c.name.length>80||c.note.length>200;}))return {ok:false,error:'CONTACTS_INVALID',message:'담당자 이름과 안내 내용을 확인하세요.'};
+    if(contacts.some(function(c){return c.phones.length>4||c.phones.some(function(phone){const digits=phone.replace(/\D/g,'');return !/^\+?[0-9 ()-]{8,24}$/.test(phone)||digits.length<8||digits.length>15;});}))return {ok:false,error:'PHONE_INVALID',message:'전화번호를 한 줄에 하나씩 입력하세요. 숫자와 +, 괄호, 하이픈만 사용할 수 있습니다.'};
+    contacts.forEach(function(c){
+      [['성명',c.name],['전화번호',c.phones.join('\n')],['비고',c.note]].forEach(function(pair){
+        // setValue는 =로 시작하는 사용자 입력을 수식으로 해석하므로 문자로 보존합니다.
+        const value=pair[1];db.sheet.getRange(c.row,db.columns[pair[0]]+1).setValue(value.charAt(0)==='='?"'"+value:value);
+      });
+    });
+    writeAudit_(requesterId,bus70IsMaster_(requesterId)?'마스터':'소장','연락망DB','긴급연락망','수정',{}, {contacts:contacts.length,phones:contacts.reduce(function(n,c){return n+c.phones.length;},0)},'긴급연락망 수정');
+    return {ok:true,contactsVersion:2,contacts:contacts.map(bus70DepotContactPublic_),message:'긴급연락망을 저장했습니다.'};
+  } finally {lock.releaseLock();}
 }
