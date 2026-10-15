@@ -39,7 +39,7 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
     console:{error(){}}, currentDriverId:driver.driverId, authToken:'SYNTHETIC-TOKEN',
     scheduleRequestId:0, lastSchedule:null, locationTrackingActive:false, scheduleFollowToday:true, calendarDateInSeoul:()=>date,
     prepareDriverLocationPoints(){}, overlayGpsEvents(){}, hasNativeLocationBridge:()=>false, driverAssignmentBinding:data=>({dispatchId:data?.dispatch?.id||"",vehicleId:""}), document:{getElementById:node},
-    el:(tag,text,type) => ({tag,text,type}), resetConfirmation(){},
+    el:(tag,text,type) => ({tag,text,type,addEventListener(event,fn){this[event]=fn;}}), resetConfirmation(){},
     apiErrorMessage:(error,fallback) => fallback,
     apiPost:async body => {calls.push(body);return respond ? respond(body,server,driver) : server.bus70AuthAction_(body);},
     renderSchedule:() => rendered.push(front.lastSchedule),
@@ -90,6 +90,8 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
   assert.equal(network.logins.length, 0);
   assert.equal(network.front.authToken, 'SYNTHETIC-TOKEN', 'network errors do not erase login');
   assert.match(network.node('scheduleResult').contents[0].text, /서버 조회에 실패/);
+  assert.equal(network.node('scheduleResult').contents[1].text,'다시 시도');
+  assert.equal(typeof network.node('scheduleResult').contents[1].click,'function');
 
   for (const change of ['date','login']) {
     let resolve;
@@ -102,6 +104,5 @@ function fixture({inactive = false, schedule = work, respond} = {}) {
     assert.equal(late.logins.length, 0, 'ignore stale errors after '+change+' changes');
     assert.equal(late.rendered.length, 0);
   }
-  assert.match(html, /getElementById\("loadSchedule"\)\.addEventListener\("click", \(\) => loadMySchedule\(\)\)/);
   console.log('Schedule session recovery: ended ID, active schedule, no dispatch, legacy server, identity change, network failure and stale responses passed');
 })().catch(error => {console.error(error);process.exitCode=1;});

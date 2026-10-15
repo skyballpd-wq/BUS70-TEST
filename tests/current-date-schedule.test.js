@@ -49,6 +49,7 @@ function fixture() {
   });
   const names=['calendarDateInSeoul','serviceDateInSeoul','scheduleForRequestedDate','resetScheduleView','refreshScheduleDate','refreshScheduleOnResume','normalizeScheduleTrips','renderSchedule','loadMySchedule','startDriverLiveTimer'];
   vm.runInContext(names.map(extract).join('\n'),c);
+  vm.runInContext(html.slice(html.indexOf('  document.getElementById("timeMode").addEventListener'),html.indexOf('  function resetBoardReview(')),c);
   handlers.respond=body=>({ok:true,driver:{driverId:c.currentDriverId,status:'재직'},schedule:{ok:true,type:'NO_DISPATCH',date:body.date}});
   const text=entry=>[entry.text||'',...(entry.children||[]).map(text)].join(' ');
   return {c,node,calls,handlers,intervals,errors,screen:()=>text(node('scheduleResult')),setTime:iso=>{now=Date.parse(iso);}};
@@ -98,13 +99,20 @@ function fixture() {
   resume.c.refreshScheduleOnResume();
   assert.equal(resume.calls[0].date,'2099-01-11');
   await new Promise(resolve=>setImmediate(resolve));
-  // Explicit history selection remains possible; today's button restores follow mode.
-  resume.c.scheduleFollowToday=false;resume.node('workDate').value='2099-01-09';
+  // Date selection loads that day immediately; selecting today restores follow mode.
+  resume.node('workDate').value='2099-01-09';resume.node('workDate').change();
+  assert.equal(resume.calls.at(-1).date,'2099-01-09');
+  assert.equal(resume.c.scheduleFollowToday,false);
+  await new Promise(resolve=>setImmediate(resolve));
   resume.c.refreshScheduleOnResume();assert.equal(resume.node('workDate').value,'2099-01-09');
   const before=resume.calls.length;
-  resume.c.scheduleFollowToday=true;resume.c.refreshScheduleDate();
+  resume.node('workDate').value='2099-01-11';resume.node('workDate').change();
+  assert.equal(resume.c.scheduleFollowToday,true);
   assert.equal(resume.calls.length,before+1);assert.equal(resume.node('workDate').value,'2099-01-11');
   await new Promise(resolve=>setImmediate(resolve));
+  const afterDateChange=resume.calls.length;
+  resume.node('timeMode').value='12H';resume.node('timeMode').change();
+  assert.equal(resume.calls.length,afterDateChange,'changing clock format must not request the schedule again');
 
   // Reject a wrong-day WORK response (including a conflicting dispatch date).
   for(const response of [
@@ -144,6 +152,10 @@ function fixture() {
   await offline.c.loadMySchedule(true);
   assert.match(offline.screen(),/서버 조회에 실패/);assert.doesNotMatch(offline.screen(),/스케줄 없음/);
   assert.equal(offline.c.scheduleRefreshInFlight,false);
+  offline.handlers.respond=body=>({ok:true,driver:{driverId:offline.c.currentDriverId},schedule:{ok:true,type:'NO_DISPATCH',date:body.date}});
+  const retry=offline.node('scheduleResult').children.find(v=>v.tag==='button');
+  await retry.click();
+  assert.match(offline.screen(),/\? 오늘 스케줄 없음/);
   assert.equal(f.errors.length,0);assert.equal(late.errors.length,0);assert.equal(resume.errors.length,0);
   console.log('Calendar-today schedule: KST midnight, rollover, resume, history, absent schedule, wrong-date responses, request races and offline state passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,10 +1,13 @@
-name: Emergency contacts mobile layout
+name: Driver mobile layout
 
 on:
   pull_request:
     paths:
       - "index.html"
       - "tests/contact-layout.browser.cjs"
+      - "tests/schedule-controls.browser.cjs"
+      - "tests/current-date-schedule.test.js"
+      - "tests/schedule-session-recovery.test.js"
       - ".github/workflows/contact-layout.yml"
   workflow_dispatch:
 
@@ -35,6 +38,9 @@ jobs:
           node tests/contact-layout.browser.cjs --before
           node tests/contact-layout.browser.cjs
           node tests/emergency-contacts.test.js
+          node tests/schedule-controls.browser.cjs
+          node tests/current-date-schedule.test.js
+          node tests/schedule-session-recovery.test.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:
