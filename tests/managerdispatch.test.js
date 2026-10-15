@@ -247,12 +247,28 @@ console.log('ManagerDispatch tests passed');
 
 const contactProperties={};const originalProperties=context.PropertiesService;
 context.PropertiesService={getScriptProperties:()=>({getProperty:k=>contactProperties[k]||'',setProperty:(k,v)=>contactProperties[k]=v})};
-const contacts=context.bus70DepotContactRoles_().map(role=>({role,phone:''}));
+contactProperties.BUS70_DEPOT_CONTACTS_JSON=JSON.stringify([{role:'이전 연락처',phone:'010-0000-0001'}]);
 assert.equal(context.bus70DepotContactsGet_('UNKNOWN').error,'LOGIN_REQUIRED');
+assert.equal(context.bus70DepotContactsGet_('D3').contactsVersion,1,'empty DB keeps legacy data readable');
+const contactSheet=sheet([['contactId','구분','직책','성명','전화번호','표시순서','사용여부','비고'],
+  ['C2','정비','가상정비소','','032-000-0002\n070-0000-0002',2,'Y','24시간 근무'],
+  ['C1','소장','가상소장','시험담당자','010-0000-0001',1,'Y','B조 아침 배차'],
+  ['C3','소장','퇴임담당','비활성','010-0000-0003',3,'N','보존']],'연락망DB');
+sheets['연락망DB']=contactSheet;
+const contacts=context.bus70DepotContactsGet_('D3').contacts;
+assert.equal(contacts.length,2);assert.equal(contacts[0].id,'C1');assert.equal(contacts[0].name,'시험담당자');assert.equal(contacts[0].note,'B조 아침 배차');assert.equal(contacts[1].phones.length,2);
+const beforeContacts=JSON.stringify(contactSheet.rows);
 assert.equal(context.bus70DepotContactsSave_({contacts},'D3').error,'MANAGER_REQUIRED');
-assert.equal(context.bus70DepotContactsSave_({contacts:[...contacts.slice(1),contacts[1]]},'D1').error,'CONTACTS_INVALID');
-assert.equal(context.bus70DepotContactsSave_({contacts:contacts.map((c,i)=>({...c,phone:i===0?'javascript:alert(1)':''}))},'D1').error,'PHONE_INVALID');
-assert.equal(Object.keys(contactProperties).length,0);
-assert.equal(context.bus70DepotContactsSave_({contacts},'D1').ok,true);
-assert.equal(context.bus70DepotContactsGet_('D3').contacts.length,5);
+assert.equal(context.bus70DepotContactsSave_({contacts:[contacts[0],contacts[0]]},'D1').error,'CONTACTS_INVALID');
+assert.equal(context.bus70DepotContactsSave_({contacts:contacts.map(c=>({role:c.role,phone:c.phone}))},'D1').error,'CONTACTS_INVALID','old client cannot overwrite richer records');
+assert.equal(context.bus70DepotContactsSave_({contacts:contacts.map((c,i)=>({...c,phones:i===0?['010-0000-0001','javascript:alert(1)']:c.phones}))},'D1').error,'PHONE_INVALID');
+assert.equal(JSON.stringify(contactSheet.rows),beforeContacts,'unauthorized or invalid writes leave all data intact');
+const edited=contacts.map(c=>({...c,name:c.id==='C1'?'새 담당자':c.name,note:c.id==='C2'?'17시까지 근무':c.note}));
+assert.equal(context.bus70DepotContactsSave_({contacts:edited},'D1').ok,true);
+const loaded=context.bus70DepotContactsGet_('D3');assert.equal(loaded.contactsVersion,2);
+assert.equal(loaded.contacts[0].name,'새 담당자');assert.equal(loaded.contacts[1].note,'17시까지 근무');assert.equal(loaded.contacts[1].phones.length,2);
+assert.equal(contactSheet.rows[1][4],'032-000-0002\n070-0000-0002');assert.equal(contactSheet.rows[3][7],'보존');assert.equal(contactSheet.rows[1][1],'정비');
+contactSheet.rows[1][6]='N';contactSheet.rows[2][6]='N';
+assert.equal(context.bus70DepotContactsGet_('D3').contacts.length,0,'disabled DB does not resurrect stale legacy phones');
 context.PropertiesService=originalProperties;
+console.log('Authenticated emergency contact DB, multiple phones, metadata and safe updates passed');
