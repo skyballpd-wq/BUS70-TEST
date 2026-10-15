@@ -1,0 +1,43 @@
+name: Emergency contacts mobile layout
+
+on:
+  pull_request:
+    paths:
+      - "index.html"
+      - "tests/contact-layout.browser.cjs"
+      - ".github/workflows/contact-layout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated browser test dependency
+        run: npm install --prefix "$RUNNER_TEMP/contact-layout" --no-package-lock --ignore-scripts playwright@1.62.1
+      - name: Check five viewport sizes with synthetic contacts
+        env:
+          CONTACT_LAYOUT_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+          CONTACT_LAYOUT_OUTPUT: ${{ runner.temp }}/contact-layout-output
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/contact-layout/node_modules"
+          export CHROME_BIN="$(command -v google-chrome)"
+          test -n "$CHROME_BIN"
+          node tests/contact-layout.browser.cjs --before
+          node tests/contact-layout.browser.cjs
+          node tests/emergency-contacts.test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-layout-synthetic-evidence
+          path: ${{ runner.temp }}/contact-layout-output
+          if-no-files-found: ignore
