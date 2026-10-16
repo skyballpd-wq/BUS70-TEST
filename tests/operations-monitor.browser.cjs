@@ -31,7 +31,7 @@ ${code}
       assert.match(await page.locator('#operationsMonitorStatus').innerText(),/현재 접속 상태 확인 불가/);
       assert.equal(await page.locator('.monitor-driver').count(),0,'failure clears misleading stale list');
       assert.equal(await page.locator('.monitor-stat').count(),0,'failure clears stale counts');
-      await page.evaluate(()=>loadOperationsMonitor());await page.evaluate(data=>pending.shift().resolve(data),data);
+      await page.evaluate(()=>{loadOperationsMonitor();});await page.evaluate(data=>pending.shift().resolve(data),data);
       assert.equal(await page.locator('.monitor-driver').count(),2,'manual retry recovers');
       await page.evaluate(()=>{loadOperationsMonitor();authToken='NEW-SYNTHETIC';stopPresenceMonitor();});await page.evaluate(data=>pending.shift().resolve(data),data);
       assert.equal(await page.locator('.monitor-driver').count(),0,'late response cannot leak previous account data');
