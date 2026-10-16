@@ -5,6 +5,8 @@
 function bus70ManagerAction_(body, driverId) {
   // 기존 Code.js 최상위 허용 action을 유지하면서 새 관리 작업을 operation으로 전달한다.
   const action = String(body.operation || body.action || '').trim();
+  if (action === 'presenceHeartbeat') return {ok:true,serverTime:new Date().toISOString()};
+  if (action === 'operationsMonitor') return bus70OperationsMonitor_(driverId);
   // 구형 Code.js의 허용 action을 그대로 통과시키기 위한 기사 기능 호환 경로.
   if (action === 'depotContactsGet') return bus70DepotContactsGet_(driverId);
   if (action === 'depotContactsSave') return bus70DepotContactsSave_(body,driverId);
