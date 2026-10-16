@@ -8,6 +8,10 @@ on:
       - "tests/schedule-controls.browser.cjs"
       - "tests/current-date-schedule.test.js"
       - "tests/schedule-session-recovery.test.js"
+      - "apps-script/AuthStep9.gs"
+      - "apps-script/ManagerDispatch.gs"
+      - "tests/operations-monitor.test.js"
+      - "tests/operations-monitor.browser.cjs"
       - ".github/workflows/contact-layout.yml"
   workflow_dispatch:
 
@@ -41,6 +45,8 @@ jobs:
           node tests/schedule-controls.browser.cjs
           node tests/current-date-schedule.test.js
           node tests/schedule-session-recovery.test.js
+          node tests/operations-monitor.test.js
+          node tests/operations-monitor.browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

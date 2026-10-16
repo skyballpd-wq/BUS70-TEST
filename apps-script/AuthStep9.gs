@@ -13,7 +13,7 @@ function bus70IssueSession_(driverId) {
   const expiresAt = Date.now() + BUS70_AUTH_TTL_MS;
   PropertiesService.getScriptProperties().setProperty(
     'BUS70_AUTH_' + bus70TokenHash_(token),
-    JSON.stringify({driverId: driverId, expiresAt: expiresAt})
+    JSON.stringify({driverId: driverId, expiresAt: expiresAt, createdAt: Date.now()})
   );
   return {token: token, expiresAt: new Date(expiresAt).toISOString()};
 }
@@ -42,6 +42,19 @@ function bus70RevokeSession_(token) {
 }
 
 function bus70AuthAction_(body) {
+  const startedAt=Date.now(), observation={};
+  let result,failed=false;
+  try { result=bus70AuthActionCore_(body,observation); return result; }
+  catch(error) { failed=true; throw error; }
+  finally {
+    // Monitoring must never prevent login, dispatch or GPS records from working.
+    try { bus70ObserveRequest_(body||{},observation,result,failed,startedAt); }
+    catch(ignored) { /* Best-effort telemetry; never log credentials or payloads. */ }
+  }
+}
+
+function bus70AuthActionCore_(body, observation) {
+  observation=observation||{};
   if(typeof BUS70_PARTITION_READS_ !== 'undefined')BUS70_PARTITION_READS_={};
   body = body || {};
   const action = String(body.action || '').trim();
@@ -66,6 +79,8 @@ function bus70AuthAction_(body) {
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(result.driver.driverId) : '';
     if (!role && !bus70DriverLoginActive_(result.driver)) return {ok:false,error:'DRIVER_RETIRED',message:'퇴직 처리된 기사 계정입니다. 재입사 승인 후 로그인할 수 있습니다.'};
     const session = bus70IssueSession_(result.driver.driverId);
+    observation.driverId=result.driver.driverId;
+    observation.token=session.token;
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
     if (body.date && !role) {
@@ -78,6 +93,8 @@ function bus70AuthAction_(body) {
   }
   const driverId = bus70AuthDriver_(body.token);
   if (!driverId) return {ok:false, error:'AUTH_REQUIRED', message:'로그인이 만료되었습니다. 다시 로그인하세요.'};
+  observation.driverId=driverId;
+  observation.token=body.token;
   if (action === 'session') {
     const result = apiGetDriver_(driverId);
     if (!result.ok) {
@@ -143,6 +160,95 @@ function bus70AuthAction_(body) {
     return bus70ChangeStaffPassword_(body, driverId);
   }
   return {ok:false, error:'UNKNOWN_ACTION', message:'지원하지 않는 요청입니다.'};
+}
+
+// Private, bounded operational telemetry. Cache entries may expire early, so
+// counts are explicitly observations, not billing totals or quota estimates.
+function bus70MonitorCategory_(body) {
+  const action=String(body.operation||body.action||'');
+  if(action==='loginSecure'||action==='session'||action==='logout')return 'AUTH';
+  if(action==='presenceHeartbeat')return 'HEARTBEAT';
+  if(action==='operationsMonitor')return 'MONITOR';
+  if(action==='driverLiveLocationSave'||action==='driverLiveLocations')return 'GPS';
+  if(action==='driverRunLogSave'||action==='driverRunLogs')return 'RECORD';
+  if(action==='myScheduleSecure'||action==='confirmSchedule')return 'SCHEDULE';
+  return 'OTHER';
+}
+
+function bus70ObserveRequest_(body, observation, result, failed, startedAt) {
+  const now=Date.now(),cache=CacheService.getScriptCache();
+  if(observation.driverId&&observation.token&&body.action!=='logout') {
+    cache.put('BUS70_SEEN_'+bus70TokenHash_(observation.token),String(now),21600);
+  }
+  // A short, non-blocking lock prevents lost concurrent increments without
+  // queueing operational requests behind monitoring. Contention is disclosed.
+  const minute=Math.floor(now/60000), key='BUS70_METRIC_'+minute;
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(1)) { cache.put('BUS70_METRIC_GAP',String(now),3600); return; }
+  try {
+    let bucket;
+    try { bucket=JSON.parse(cache.get(key)||'null'); } catch(ignored) { bucket=null; }
+    bucket=bucket||{minute:minute,firstAt:now,lastAt:now,requests:0,errors:0,exceptions:0,totalMs:0,maxMs:0,categories:{}};
+    const duration=Math.max(0,now-startedAt),category=bus70MonitorCategory_(body);
+    bucket.requests++; bucket.lastAt=now;
+    if(failed||!result||!result.ok)bucket.errors++;
+    if(failed)bucket.exceptions++;
+    bucket.totalMs+=duration;bucket.maxMs=Math.max(bucket.maxMs,duration);
+    bucket.categories[category]=(bucket.categories[category]||0)+1;
+    cache.put(key,JSON.stringify(bucket),3600);
+  } finally { lock.releaseLock(); }
+}
+
+function bus70MonitorTraffic_(cache, now) {
+  const minute=Math.floor(now/60000), keys=[];
+  for(let i=0;i<60;i++)keys.push('BUS70_METRIC_'+(minute-i));
+  const values=cache.getAll(keys), buckets=[];
+  keys.forEach(function(key){try{const row=JSON.parse(values[key]||'null');if(row&&row.requests>0)buckets.push(row);}catch(ignored){}});
+  function windowSummary(minutes) {
+    const rows=buckets.filter(function(row){return row.minute>minute-minutes&&row.minute<=minute;}), summary={minutes:minutes,available:rows.length>0,requests:0,errors:0,exceptions:0,totalMs:0,maxMs:0,categories:{},observedMinutes:rows.length,firstAt:null,lastAt:null};
+    rows.forEach(function(row){
+      ['requests','errors','exceptions','totalMs'].forEach(function(key){summary[key]+=Number(row[key]||0);});
+      summary.maxMs=Math.max(summary.maxMs,row.maxMs||0);
+      summary.firstAt=summary.firstAt===null?row.firstAt:Math.min(summary.firstAt,row.firstAt);
+      summary.lastAt=Math.max(summary.lastAt||0,row.lastAt);
+      Object.keys(row.categories||{}).forEach(function(key){summary.categories[key]=(summary.categories[key]||0)+row.categories[key];});
+    });
+    summary.averageMs=summary.requests?Math.round(summary.totalMs/summary.requests):null;
+    summary.errorPercent=summary.requests?Math.round(summary.errors*1000/summary.requests)/10:null;
+    delete summary.totalMs;return summary;
+  }
+  return {fiveMinutes:windowSummary(5),hour:windowSummary(60),lastContentionAt:Number(cache.get('BUS70_METRIC_GAP')||0)||null,
+    scope:'AUTH_API',approximate:true};
+}
+
+function bus70OperationsMonitor_(requesterId) {
+  // Check server-side roles before reading ANY sessions or personal records.
+  if(!bus70IsManager_(requesterId))return {ok:false,error:'MANAGER_REQUIRED',message:'소장·마스터만 접속 현황을 조회할 수 있습니다.'};
+  const now=Date.now(),props=PropertiesService.getScriptProperties().getProperties(),cache=CacheService.getScriptCache(),ss=SpreadsheetApp.getActiveSpreadsheet();
+  const ds=ss.getSheetByName('기사DB'),as=ss.getSheetByName('계정DB');
+  if(!ds)return {ok:false,error:'DB_MISSING',message:'기사 원장을 확인할 수 없습니다.'};
+  const dr=ds.getDataRange().getDisplayValues(),dc=makeHeaderMap_(dr[0]),drivers={},staff={};
+  dr.slice(1).forEach(function(row){const id=String(row[dc['driverId']]||'');if(id)drivers[id]={name:String(row[dc['성명']]||''),route:String(row[dc['현재노선']]||''),shift:String(row[dc['근무조']]||''),status:String(row[dc['상태']]||'')};});
+  if(as&&as.getLastRow()>1){const ar=as.getDataRange().getDisplayValues(),ac=makeHeaderMap_(ar[0]);ar.slice(1).forEach(function(row){if(['마스터','소장','관리자','정비소'].indexOf(String(row[ac['권한']]||''))!==-1)staff[String(row[ac['driverId']]||'')]=true;});}
+  String(props.BUS70_MANAGER_DRIVER_IDS||'').split(',').forEach(function(id){if(id.trim())staff[id.trim()]=true;});
+  const driverOnly=typeof bus70PrivateDriverOnlyIds_==='function'?bus70PrivateDriverOnlyIds_():[];
+  driverOnly.forEach(function(id){delete staff[id];});
+  const sessions=[];
+  Object.keys(props).forEach(function(key){
+    if(!/^BUS70_AUTH_[a-f0-9]{64}$/.test(key))return;
+    try {const session=JSON.parse(props[key]);if(session.driverId&&Number.isFinite(session.expiresAt)&&session.expiresAt>now&&drivers[session.driverId]&&!staff[session.driverId]&&bus70DriverLoginActive_(drivers[session.driverId]))sessions.push({key:'BUS70_SEEN_'+key.slice(11),driverId:session.driverId,createdAt:Number(session.createdAt||0)});}catch(ignored){}
+  });
+  const seen=sessions.length?cache.getAll(sessions.map(function(s){return s.key;})):{}, byDriver={};
+  sessions.forEach(function(session){
+    const driver=drivers[session.driverId], row=byDriver[session.driverId]||(byDriver[session.driverId]={driverId:session.driverId,name:driver.name,route:driver.route,shift:driver.shift,sessions:0,lastLoginAt:null,lastSeenAt:null});
+    row.sessions++;
+    if(session.createdAt>0)row.lastLoginAt=Math.max(row.lastLoginAt||0,session.createdAt);
+    const lastSeen=Number(seen[session.key]||0);
+    if(lastSeen>0&&lastSeen<=now)row.lastSeenAt=Math.max(row.lastSeenAt||0,lastSeen);
+  });
+  const rows=Object.keys(byDriver).map(function(id){const row=byDriver[id];row.state=row.lastSeenAt&&now-row.lastSeenAt<=180000?'RECENT':row.lastSeenAt?'IDLE':'UNKNOWN';return row;});
+  rows.sort(function(a,b){return Number(b.state==='RECENT')-Number(a.state==='RECENT')||(b.lastSeenAt||0)-(a.lastSeenAt||0)||a.name.localeCompare(b.name);});
+  return {ok:true,serverTime:new Date(now).toISOString(),recentSeconds:180,drivers:rows,loggedInDrivers:rows.length,recentDrivers:rows.filter(function(row){return row.state==='RECENT';}).length,sessions:sessions.length,traffic:bus70MonitorTraffic_(cache,now)};
 }
 
 function bus70SecureScheduleForDriver_(driverId, date, knownDriver) {
