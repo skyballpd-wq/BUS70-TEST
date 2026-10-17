@@ -162,10 +162,17 @@ function bus70SecureScheduleForDriver_(driverId, date, knownDriver) {
   } else {
     schedule=bus70ReferenceScheduleForDriver_(effectiveDriver,date);
   }
-  if(!schedule&&base&&base.ok&&base.type==='WORK'&&expectedRoute&&baseRoute!==expectedRoute){
+  const leaveContext=bus70DriverLeaveContext_(effectiveDriver,date);
+  if(!schedule&&base&&base.ok&&base.type==='WORK'&&expectedRoute&&baseRoute!==expectedRoute&&!leaveContext.personalLeave&&leaveContext.groupStatus!=='REST'){
     return {ok:false,error:'ROUTE_SCHEDULE_MISMATCH',message:'선택 날짜의 '+expectedRoute+'번 노선 배차가 아직 확정되지 않았습니다. 다른 노선 배차는 표시하지 않습니다.',date:normalizeDate_(date),route:expectedRoute,rejectedRoute:baseRoute,routeStory:effectiveDriver.routeStory||[]};
   }
   schedule=schedule||base;
+  // Leave is a separate, authenticated source of truth, not an inference from
+  // an absent dispatch. A confirmed dispatch is retained and flagged on conflict.
+  if(!confirmed&&leaveContext.available&&(leaveContext.personalLeave||leaveContext.groupStatus==='REST')){
+    schedule={ok:true,type:'REST',date:normalizeDate_(date),driverId:driverId,route:expectedRoute,trips:[]};
+  }
+  if(schedule){schedule.leaveContext=leaveContext;leaveContext.dispatchConflict=Boolean(confirmed&&leaveContext.personalLeave);}
   if(schedule&&expectedRoute){
     schedule.route=expectedRoute;
     if(schedule.dispatch)schedule.dispatch.route=expectedRoute;
@@ -966,4 +973,64 @@ function bus70ConfirmCurrentDispatch_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Read-only leave lookup for the authenticated driver. No roster or private
+// reasons are returned. Existing day rows and explicit date ranges are supported.
+function bus70DriverLeaveContext_(driver, rawDate) {
+  const date=normalizeDate_(rawDate),route=bus70DriverReferenceRoute_(driver),shift=String(driver&&driver.shift||'').replace(/조$/,'');
+  const result={available:false,date:date,shift:shift,operatingShift:'',groupStatus:'UNKNOWN',personalLeave:null,month:{key:date.slice(0,7),groupRestDates:[],leaves:[]}};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!driver||!driver.driverId)return result;
+  try{
+    const ss=SpreadsheetApp.getActiveSpreadsheet(),events=[],dayShifts={};
+    function rows(name){const sheet=ss.getSheetByName(name);return sheet&&sheet.getLastRow()>1?sheet.getDataRange().getDisplayValues():[];}
+    function clean(value){return String(value||'').trim();}
+    function approved(value){return ['확정','승인','승인완료'].indexOf(clean(value))!==-1;}
+    function readLeaves(name,workChange){
+      const data=rows(name);if(!data.length)return;
+      const c=makeHeaderMap_(data[0]),latest={};
+      data.slice(1).forEach(function(row,index){
+        function get(key){return c[key]===undefined?'':clean(row[c[key]]);}
+        const id=get('기사ID'),nameMatch=get('기사명').replace(/\s/g,'')===clean(driver.name).replace(/\s/g,'');
+        if(id?id!==String(driver.driverId):!nameMatch||!get('기사명'))return;
+        if(get('노선')&&get('노선').replace(/\D/g,'')!==route)return;
+        const type=get('유형');if(!/휴무|연차|휴가|병가|휴직/.test(type))return;
+        const start=normalizeDate_(get('시작일')||get('적용일')||get('날짜')),end=normalizeDate_(get('종료일')||start);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start)return;
+        const state=get('상태')||get('승인상태');
+        // Older work-change rows are manager-applied records without a status
+        // column. An explicit pending/rejected/cancelled status never qualifies.
+        const confirmed=state?approved(state):Boolean(workChange&&get('처리자')&&get('처리시간'));
+        const kind=workChange||/신청/.test(type+' '+get('구분')+' '+get('원본근거'))?'APPROVED_REQUEST':'DESIGNATED';
+        const key=get(workChange?'changeId':'계획ID')||[start,end,type].join('|');
+        latest[key]={type:type,kind:kind,startDate:start,endDate:end,confirmed:confirmed,index:index,status:state||'승인',origin:name};
+      });
+      Object.keys(latest).forEach(function(key){if(latest[key].confirmed)events.push(latest[key]);});
+    }
+    readLeaves('기사휴무계획DB',false);readLeaves('근무변경DB',true);
+    const serviceRows=rows('운행일DB');
+    if(serviceRows.length){const c=makeHeaderMap_(serviceRows[0]);serviceRows.slice(1).forEach(function(row){if(String(row[c['노선']]||'')===route&&String(row[c['배차상태']]||'')==='확정')dayShifts[normalizeDate_(row[c['운행일']])]=String(row[c['근무조']]||'').replace(/조$/,'');});}
+    function operating(day){return dayShifts[day]||(typeof bus70OperatingShiftForDate_==='function'?bus70OperatingShiftForDate_(day):'');}
+    function next(day,offset){return new Date(Date.parse(day+'T00:00:00Z')+offset*86400000).toISOString().slice(0,10);}
+    // Merge only adjacent confirmed days of the same kind. A gap is never
+    // converted into leave merely because it is a normal group day off.
+    const periods=[];
+    events.sort(function(a,b){return a.startDate.localeCompare(b.startDate)||a.endDate.localeCompare(b.endDate);});
+    events.forEach(function(event){
+      const previous=periods[periods.length-1];
+      if(previous&&previous.type===event.type&&previous.kind===event.kind&&previous.origin===event.origin&&event.startDate<=next(previous.endDate,1)){
+        if(event.endDate>previous.endDate)previous.endDate=event.endDate;
+      }else periods.push({type:event.type,kind:event.kind,startDate:event.startDate,endDate:event.endDate,status:event.kind==='DESIGNATED'?'확정':'승인',origin:event.origin});
+    });
+    const monthStart=date.slice(0,7)+'-01',monthEnd=new Date(Date.UTC(Number(date.slice(0,4)),Number(date.slice(5,7)),0)).toISOString().slice(0,10);
+    function publicPeriod(p){return {type:p.type,kind:p.kind,startDate:p.startDate,endDate:p.endDate,status:p.status};}
+    const selected=periods.filter(function(p){return p.startDate<=date&&p.endDate>=date;});
+    result.personalLeave=selected.length?publicPeriod(selected[selected.length-1]):null;
+    result.month.leaves=periods.filter(function(p){return p.endDate>=monthStart&&p.startDate<=monthEnd;}).map(publicPeriod);
+    for(let cursor=monthStart;cursor<=monthEnd;cursor=next(cursor,1)){const active=operating(cursor);if(['A','B'].indexOf(shift)!==-1&&active&&active!==shift)result.month.groupRestDates.push(cursor);}
+    result.operatingShift=operating(date);
+    result.groupStatus=['A','B'].indexOf(shift)!==-1&&result.operatingShift?(shift===result.operatingShift?'WORK':'REST'):'UNKNOWN';
+    result.available=true;
+  }catch(error){console.error('Driver leave lookup failed');}
+  return result;
 }

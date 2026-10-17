@@ -21,6 +21,8 @@
     <application
         android:allowBackup="false"
         android:label="소신여객 기사"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.Bus70"
         android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true">
