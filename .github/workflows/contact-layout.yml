@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "driver-recording.js"
+      - "tests/realtime-health.test.js"
+      - "tests/realtime-health.browser.cjs"
       - "tests/contact-layout.browser.cjs"
       - "tests/schedule-controls.browser.cjs"
       - "tests/current-date-schedule.test.js"
@@ -39,6 +42,9 @@ jobs:
           node tests/contact-layout.browser.cjs
           node tests/emergency-contacts.test.js
           node tests/schedule-controls.browser.cjs
+          node tests/realtime-health.test.js
+          node tests/realtime-health.browser.cjs
+          node tests/departure-evidence.test.js
           node tests/current-date-schedule.test.js
           node tests/schedule-session-recovery.test.js
       - uses: actions/upload-artifact@v4
