@@ -1,6 +1,6 @@
 const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 const html=fs.readFileSync('index.html','utf8'),css=html.match(/<style>([\s\S]*?)<\/style>/)[1];
-const functions=html.slice(html.indexOf('  function driverLeaveLabel('),html.indexOf('  async function loadMySchedule('));
+const functions=html.slice(html.indexOf('  function driverLeaveLabel('),html.indexOf('  async function confirmMySchedule('));
 const output=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-leave-preview';fs.mkdirSync(output,{recursive:true});
 function fixture(kind='DESIGNATED') {return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body class="driver-mode"><div class="app"><header><h1>BUS 5</h1></header><main class="content"><div class="row"><strong>테스트 기사님</strong></div><section id="scheduleResult"></section></main></div><input id="workDate" type="hidden" value="2099-01-10"><script>
 let lastSchedule={ok:true,type:'REST',date:'2099-01-10',leaveContext:{available:true,date:'2099-01-10',shift:'B',groupStatus:'WORK',personalLeave:{kind:'${kind}',type:'휴무',startDate:'2099-01-10',endDate:'2099-01-${kind==='DESIGNATED'?'10':'12'}'},month:{key:'2099-01',groupRestDates:['2099-01-01','2099-01-03','2099-01-05','2099-01-07','2099-01-09','2099-01-11','2099-01-13','2099-01-15','2099-01-17','2099-01-19','2099-01-21','2099-01-23','2099-01-25','2099-01-27','2099-01-29','2099-01-31'],leaves:[]}}};
