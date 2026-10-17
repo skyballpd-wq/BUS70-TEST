@@ -47,7 +47,7 @@ function fixture() {
     setInterval:fn=>{intervals.push(fn);return 1;},stopDriverLiveTimer(){},
     flushGpsOutbox(){},pollNativeLocation(){},resumeDriverLocationIfAllowed(){},updateDriverLiveDashboard(){}
   });
-  const names=['calendarDateInSeoul','serviceDateInSeoul','scheduleForRequestedDate','resetScheduleView','refreshScheduleDate','refreshScheduleOnResume','normalizeScheduleTrips','renderSchedule','loadMySchedule','startDriverLiveTimer'];
+  const names=['calendarDateInSeoul','serviceDateInSeoul','scheduleForRequestedDate','resetScheduleView','refreshScheduleDate','refreshScheduleOnResume','normalizeScheduleTrips','driverLeaveLabel','driverLeavePeriod','appendDriverLeaveMonth','renderSchedule','loadMySchedule','startDriverLiveTimer'];
   vm.runInContext(names.map(extract).join('\n'),c);
   vm.runInContext(html.slice(html.indexOf('  document.getElementById("timeMode").addEventListener'),html.indexOf('  function resetBoardReview(')),c);
   handlers.respond=body=>({ok:true,driver:{driverId:c.currentDriverId,status:'재직'},schedule:{ok:true,type:'NO_DISPATCH',date:body.date}});
@@ -78,6 +78,11 @@ function fixture() {
   assert.match(f.screen(),/2099-01-10/);
   assert.equal(f.node('confirmScheduleButton').hidden,true);
   assert.equal(f.c.scheduleRefreshInFlight,false);
+
+  const rest=fixture();
+  rest.handlers.respond=body=>({ok:true,driver:{driverId:rest.c.currentDriverId,status:'재직'},schedule:{ok:true,type:'REST',date:body.date,leaveContext:{available:true,date:body.date,shift:'B',groupStatus:'WORK',personalLeave:{kind:'DESIGNATED',type:'휴무',startDate:body.date,endDate:body.date},month:{key:'2099-01',groupRestDates:['2099-01-11'],leaves:[]}}}});
+  await rest.c.loadMySchedule();assert.match(rest.screen(),/개인 지정휴무/);assert.match(rest.screen(),/B조 근무일 · 개인 휴무/);assert.match(rest.screen(),/2099-01-10 \(1일\)/);assert.doesNotMatch(rest.screen(),/휴무 여부는 별도 확인|다시 조회/);
+  assert.equal(rest.node('confirmScheduleButton').hidden,true);
 
   // A long-lived empty screen must roll over and request today's date, even
   // without an existing trip card to drive its refresh timer.
