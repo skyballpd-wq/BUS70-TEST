@@ -32,6 +32,7 @@ const fs=require('fs'),path=require('path'),assert=require('node:assert/strict')
   await page.locator('.ledger-sheet-view summary').click();
   await page.locator('.run-log-row').last().locator('summary').click();assert.equal(await page.locator('.run-log-row').last().locator('.actual-arrival').count(),1);
   assert.equal(await page.locator('.run-log-row').last().locator('.actual-arrival').evaluate(el=>getComputedStyle(el).color),'rgb(185, 28, 28)');
+  if(out)await page.screenshot({path:path.join(out,`run-ledger-detail-${width}.png`),fullPage:true});
   await page.locator('.run-log-row').last().locator('summary').click();
   await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));assert.equal(await page.locator('.run-log-row[open]').count(),6);
   await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));assert.equal(await page.locator('.run-log-row[open]').count(),1);

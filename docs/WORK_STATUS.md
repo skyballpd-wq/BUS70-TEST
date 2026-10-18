@@ -59,3 +59,6 @@
 - Apps Script 편집 접근 제한은 아직 해소되지 않았다. 서버 의존 기능은 준비 상태를 확인하며 운영 배포·실차 검증 완료로 표현하지 않는다.
 
 - Android 78 고정 서명 빌드 [39102646538](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102646538) 성공, 소스 `4b290cab7576be5ef9167396541a41747431bdd9`. 모바일 검사에서 새 예측 상태를 모르는 기존 격리 테스트 설정을 보완하여 재검사한다. 운영 Apps Script 수정은 이번 커밋에서 제외했다.
+
+- [모바일 검사 39102834959](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102834959) 통과. 320/412px 원장 열·행·빈 실제 시각·빨간 도착·스크롤 범위·기존 사고/휴무/날짜 흐름 확인. [Android 위젯 39102646499](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102646499) 통과. 대기·완료 상태와 대시보드 로컬 회귀 검사도 통과했다.
+- APK78 SHA-256 `764aa4f02ef4ffa5693e60dc9150f2c554938de3774e4ae92ddecdfbc16242b7`, 기존 설치본과 인증서 일치 확인. 설치파일 빌드 소스 이후 변경은 시험·상태 문서뿐이다. 실제 차량 음성과 GPS 예측 정확도는 현장 확인이 남아 있다.
