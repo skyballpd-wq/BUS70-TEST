@@ -3,6 +3,31 @@ const fs = require('fs');
 const vm = require('vm');
 const privateFixture = require('./private-route-fixture');
 
+// Exercise the actual web-to-Android export protocol without a browser install.
+async function testNativeDispatchExport(){
+  const html=fs.readFileSync('index.html','utf8'),source=html.slice(html.indexOf('  function managerImageSignature('),html.indexOf('  document.getElementById("managerLoad").addEventListener'));
+  const values={managerRoute:{value:'5'},managerDate:{value:'2099-01-08'},managerShift:{value:'B'}},calls=[],notices=[];
+  const sandbox={console,Blob,File:class extends Blob{constructor(parts,name,options){super(parts,options);this.name=name;}},Date,Math,JSON,Boolean,String,URL,setTimeout,
+    document:{getElementById:id=>values[id]},normalizedRoute:String,managerAssignments:()=>[{sequence:10,driverId:'SYNTHETIC',vehicleId:'TEST'}],managerNotice:(...args)=>notices.push(args),
+    managerData:{route:'5'},managerImageBlob:new Blob(['synthetic-png'],{type:'image/png'}),managerImageContext:null,managerImageRequest:'',
+    window:{Bus70Android:{exportDispatchImage:(...args)=>calls.push(args)}},navigator:{},
+    FileReader:class{async readAsDataURL(blob){this.result='data:image/png;base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64');this.onload();}}
+  };
+  vm.createContext(sandbox);vm.runInContext(source,sandbox);
+  vm.runInContext('managerImageContext={data:managerData,signature:managerImageSignature()}',sandbox);
+  await sandbox.shareManagerImage();assert.equal(calls.length,1);assert.equal(calls[0][1],'share');assert.equal(calls[0][2],'BUS5-2099-01-08.png');assert.equal(Buffer.from(calls[0][3],'base64').toString(),'synthetic-png');
+  sandbox.window.bus70DispatchImageResult({requestId:calls[0][0],ok:true,state:'opened',message:'공유창 열림'});assert.equal(notices.at(-1)[0],'공유창 열림');
+  sandbox.window.bus70DispatchImageResult({requestId:'stale',ok:true,message:'잘못된 완료'});assert.equal(notices.at(-1)[0],'공유창 열림');
+  await sandbox.downloadManagerImage();assert.equal(calls[1][1],'save');
+  values.managerDate.value='2099-01-10';await sandbox.shareManagerImage();assert.equal(calls.length,2);assert.match(notices.at(-1)[0],/다시 생성/);
+  values.managerDate.value='2099-01-08';sandbox.window.Bus70Android={};await sandbox.shareManagerImage();assert.equal(calls.length,2);assert.match(notices.at(-1)[0],/v81/);
+  delete sandbox.window.Bus70Android;let browserFile;sandbox.navigator.canShare=()=>true;sandbox.navigator.share=async data=>{browserFile=data.files[0];};await sandbox.shareManagerImage();assert.equal(browserFile.name,'BUS5-2099-01-08.png');
+  sandbox.window.Bus70Android={exportDispatchImage:(...args)=>calls.push(args)};
+  const inFlight=sandbox.shareManagerImage();values.managerRoute.value='70';await inFlight;assert.equal(calls.length,2);
+  console.log('Native dispatch export protocol, stale-data guard and browser fallback passed');
+}
+testNativeDispatchExport().catch(error=>{console.error(error);process.exitCode=1;});
+
 function sheet(rows,name='') {
   return {rows,name,getName(){return this.name;},getLastRow(){return this.rows.length;}, getDataRange(){return {getDisplayValues:()=>this.rows.map(r=>r.slice())};},
     appendRow(row){this.rows.push(row.slice());}, setFrozenRows(){}, getRange(row,col,count){const target=this;return {setValues:values=>{values.forEach((source,rowOffset)=>{while(target.rows.length<row+rowOffset)target.rows.push([]);source.forEach((value,colOffset)=>target.rows[row-1+rowOffset][col-1+colOffset]=value);});},setValue:value=>{while(target.rows.length<row)target.rows.push([]);target.rows[row-1][col-1]=value;}};}};
@@ -228,6 +253,29 @@ route5Boot.vehicles.filter(item=>item.virtual&&!registeredVehicleIds.has(item.id
 drivers.appendRow(['R5-LEAVE-TEST','','가상5번휴무대기','B','예비','','','5',1300,'재직','','','Y','합성 휴무계획 검증']);
 privateFixture.config.plannedLeaves=[{route:'5',shift:'B',driverName:'가상5번기사01',type:'휴무',date:'2099-01-08',source:'SYNTHETIC LEAVE OVERRIDE'},{route:'5',shift:'B',driverName:'가상5번휴무대기',type:'휴무',date:'2099-01-12',source:'SYNTHETIC LEAVE PLAN'}];
 const route5ObservedOverride=context.bus70ManagerBootstrap_('2099-01-08','5');assert.equal(route5ObservedOverride.plannedLeaves.length,0);assert.equal(route5ObservedOverride.plannedLeaveOverrides.length,1);assert.equal(route5ObservedOverride.plannedLeaveOverrides[0].driverName,'가상5번기사01');assert.equal(route5ObservedOverride.assignments.some(v=>v.driverId==='R5-TMP-001'),true);
+// A normalized timetable can have no roster: confirmed day dispatch still wins
+// over a monthly plan. Unassigned leave and explicit daily absence stay blocked.
+const originalReference=context.bus70ManagerReferenceData_, originalPlans=context.bus70PlannedLeavesForDate_;
+context.bus70ManagerReferenceData_=(route,date,options)=>{const result=originalReference(route,date,options);return result&&result.ok?{...result,assignments:[]}:result;};
+context.bus70PlannedLeavesForDate_=()=>[
+  {driverId:'R5-TMP-001',driverName:'가상5번기사01',type:'휴무'},
+  {driverId:'R5-LEAVE-TEST',driverName:'가상5번휴무대기',type:'휴무'}
+];
+const normalizedRoster=context.bus70ManagerBootstrap_('2099-01-08','5');
+assert(normalizedRoster.drivers.some(v=>v.id==='R5-TMP-001'));
+assert(!normalizedRoster.drivers.some(v=>v.id==='R5-LEAVE-TEST'));
+assert.equal(normalizedRoster.plannedLeaveOverrides[0].reason,'당일 확정 배차 우선');
+assert(!normalizedRoster.unavailableNames.includes('가상5번기사01'));
+assert(normalizedRoster.unavailableNames.includes('가상5번휴무대기'));
+const dailyAbsence=new Array(workChanges.rows[0].length).fill('');
+dailyAbsence[0]='SYNTHETIC-DAILY-ABSENCE';dailyAbsence[1]='2099-01-08';dailyAbsence[2]='R5-TMP-001';dailyAbsence[3]='결근';workChanges.rows.push(dailyAbsence);
+assert(!context.bus70ManagerBootstrap_('2099-01-08','5').drivers.some(v=>v.id==='R5-TMP-001'));
+workChanges.rows.pop();
+const originalAssignments=context.bus70ManagerAssignments_;
+context.bus70ManagerAssignments_=()=>[];
+assert(!context.bus70ManagerBootstrap_('2099-01-08','5').drivers.some(v=>v.id==='R5-TMP-001'));
+context.bus70ManagerAssignments_=originalAssignments;
+context.bus70ManagerReferenceData_=originalReference;context.bus70PlannedLeavesForDate_=originalPlans;
 const route5Predicted=context.bus70ManagerBootstrap_('2099-01-12','5');
 assert.equal(route5Predicted.ok,true);assert.equal(route5Predicted.source,'ROUTE_PATTERN_PREDICTION');assert.equal(route5Predicted.serviceClass,'WEEKDAY');assert.equal(route5Predicted.schedulePrediction.predicted,true);assert.equal(route5Predicted.schedulePrediction.sourceDate,'2099-01-08');
 assert.equal(route5Predicted.plannedLeaves.length,1);assert.equal(route5Predicted.plannedLeaves[0].driverName,'가상5번휴무대기');assert.equal(route5Predicted.drivers.some(v=>v.id==='R5-LEAVE-TEST'),false);assert.equal(route5Predicted.unavailableNames.includes('가상5번휴무대기'),true);

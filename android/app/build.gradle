@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 80
-        versionName "0.80-arrival-gates"
+        versionCode 81
+        versionName "0.81-dispatch-share"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }
@@ -40,5 +40,6 @@ dependencies {
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.json:json:20240303"
     androidTestImplementation "androidx.test:runner:1.6.2"
+    androidTestImplementation "androidx.test:core:1.6.1"
     androidTestImplementation "androidx.test.ext:junit:1.2.1"
 }

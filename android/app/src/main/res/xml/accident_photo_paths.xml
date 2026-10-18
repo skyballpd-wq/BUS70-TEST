@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="accident_camera" path="accident-camera/" />
+    <cache-path name="dispatch_share" path="dispatch-share/" />
 </paths>

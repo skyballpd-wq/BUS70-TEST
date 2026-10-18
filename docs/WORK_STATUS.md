@@ -62,3 +62,16 @@
 
 - [모바일 검사 39102834959](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102834959) 통과. 320/412px 원장 열·행·빈 실제 시각·빨간 도착·스크롤 범위·기존 사고/휴무/날짜 흐름 확인. [Android 위젯 39102646499](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102646499) 통과. 대기·완료 상태와 대시보드 로컬 회귀 검사도 통과했다.
 - APK78 SHA-256 `764aa4f02ef4ffa5693e60dc9150f2c554938de3774e4ae92ddecdfbc16242b7`, 기존 설치본과 인증서 일치 확인. 설치파일 빌드 소스 이후 변경은 시험·상태 문서뿐이다. 실제 차량 음성과 GPS 예측 정확도는 현장 확인이 남아 있다.
+
+
+## Dispatch image export and roster consistency v81
+
+- Add an Android PNG share chooser and document save flow. Validate filename, PNG bytes and size; share a private content URI with read permission only. Opening the chooser does not mean a message was sent.
+- Keep browser sharing and download paths, identify older APKs, and reject stale images after roster/date/route changes.
+- Use confirmed same-day dispatch when reconciling monthly leave plans, even when normalized timetables contain no roster. Keep explicit daily absence restrictions and unassigned planned leave exclusions. Show a visible missing-driver placeholder instead of an empty selector.
+- The user explicitly approved publishing the 12 reviewed source files and the database field/business logic definitions, excluding real driver and dispatch records. PR48 contains the approved changes.
+- Local manager dispatch, native export protocol, normalized data, driver dashboard and current-date tests pass. Mobile browser CI 39111941065 passed. Fixed-signature APK build 39111932746 passed; versionCode 81 / versionName 0.81-dispatch-share and the existing production certificate were verified.
+- Android emulator run 39111932735 exposed a test-host launch timeout. The new export tests now use ActivityScenario with a fresh task and a MIME-aware document intent filter. In run 39112485489 the two export tests passed; an existing photo-test window-detach assertion failed once. Attempt 2 passed all six Android tests without further code changes. Runtime export code was unchanged by these test corrections.
+- Qualified source: c14028a898ccb10899759b7e9899492ded5d49d5. Mobile browser run 39112487881 and fixed-signature release build 39112485484 also passed. The delivered APK comes from build 39111932746; subsequent changes affect only tests, their dependency and this status document. SHA-256: 7eda04b2b939306ed7c03860808342f32f22f14843f9c74df1106e2a9f4065e2.
+- PR48 is ready to publish web v81.0 / service-worker cache soshin-ops-static-v81-dispatch-share. Deployment outcome is available in the repository Pages workflow and the private work handoff record.
+- Apps Script roster deployment and real handset sharing remain separate, unverified steps. Protected browser-session access currently prevents the server patch from being applied. Operational roster and leave rows have not been rewritten.

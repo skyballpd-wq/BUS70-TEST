@@ -1139,7 +1139,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v80.0
+    소신여객 통합 운행관리 TEST · v81.0
   </footer>
 
 </div>
@@ -1310,6 +1310,8 @@
   let managerStopImportData = null;
   let managerStopImportRequestId = 0;
   let managerImageBlob = null;
+  let managerImageContext = null;
+  let managerImageRequest = "";
   let masterAdminData = {accounts: [], drivers: []};
   let operationData = {vehicles: [], incidents: [], adjustments: []};
   let operationTimer = 0;
@@ -1359,7 +1361,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v80.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v81.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -3518,7 +3520,7 @@
     if(data.schedulePrediction?.predicted){const draft=el("div",undefined,"notice warning");draft.append(el("strong","소장 확정 전 시간표 예측"),el("div",(data.schedulePrediction.sourceDate||"과거 기준일")+"의 "+(data.serviceType||"동일 운행유형")+" 패턴을 적용했습니다. 기사·차량 배차를 저장하거나 전체 시간표를 수정 저장해야 기사 화면과 알람에 확정 반영됩니다."));root.append(draft);}
     if(data.phaseReview){const phase=data.phaseReview,box=el("div",undefined,"notice warning"),complete=!phase.unresolvedTripCount;box.append(el("strong",complete?"회차·도착 시각 검토 필요":"회차·도착 시각 원본 필요"),el("div",complete?(phase.sourceDate+" 동일 시간표 버전에서 "+phase.inferredTripCount+"개 탕의 회차·도착 소요시간을 보완했습니다. 신뢰도 "+phase.confidence+" · 소장 저장 전 기사 화면에는 확정 전 자료로 표시됩니다."):(phase.unresolvedTripCount+"개 탕의 회차·도착 시각이 아직 없습니다. 다른 운행유형 자료를 섞지 않았으며, 해당 "+(data.serviceType||"운행유형")+" 원본 시간표 등록이 필요합니다.")));root.append(box);}
     if(data.plannedLeaves?.length){const leave=el("div",undefined,"notice");leave.append(el("strong","사전 휴무계획 반영"),el("div",data.plannedLeaves.map(v=>v.driverName+"("+v.type+")").join(" · ")+" — 기사·차량 예측 후보에서 제외했습니다."));root.append(leave);}
-    if(data.plannedLeaveOverrides?.length){const conflict=el("div",undefined,"notice warning");conflict.append(el("strong","휴무계획과 확정 상황판 대조"),el("div",data.plannedLeaveOverrides.map(v=>v.driverName+"("+v.type+")").join(" · ")+" — 확정 상황판 배치를 우선 표시했으므로 소장이 변경 여부를 확인하세요."));root.append(conflict);}
+    if(data.plannedLeaveOverrides?.length){const conflict=el("div",undefined,"notice warning");conflict.append(el("strong","휴무계획과 당일 확정 배차 대조"),el("div",data.plannedLeaveOverrides.map(v=>v.driverName+"("+v.type+")").join(" · ")+" — 당일 확정 배차를 우선 표시합니다. 휴무 변경 여부를 확인하세요."));root.append(conflict);}
     if(data.patternSummary){const pattern=data.patternSummary,late=(pattern.sequencesStartingAfterTrip1||[]),returns=(pattern.upboundOnlyReturns||[]),last=(pattern.finalServices||[]);const info=el("div",undefined,"notice");info.append(el("strong","운행 패턴"),el("div",pattern.sequenceCount+"개 순차 · "+pattern.totalTrips+"개 탕"+(late.length?" · 2탕 이후 시작 순차 "+late.join(", "):"")+(returns.length?" · 상행 종료 후 회송 "+returns.map(v=>v.sequence+"순차 "+v.trip+"탕").join(", "):"")+(last.length?" · 최종 운행 "+last.map(v=>v.sequence+"순차 "+v.trip+"탕("+(v.type||"종료")+")").join(" / "):"")));root.append(info);}
     const selectedShift=document.getElementById("managerShift").value;
     const saved=(data.assignments || []).filter(v => v.shift === selectedShift);
@@ -3540,6 +3542,9 @@
       if (selected[seq]) {
         const assigned=data.drivers.find(v=>v.id===selected[seq].driverId);
         if(assigned&&assigned.route!==selectedRoute&&selected[seq].crossRouteAuthorized){driver.append(new Option("[확정 대체] "+assigned.name+" · "+assigned.route+"번",assigned.id));}
+        if(selected[seq].driverId&&!Array.from(driver.options).some(option=>option.value===selected[seq].driverId)){
+          const missing=new Option("[확정 배차] "+(selected[seq].driverName||"기사 정보 확인 필요"),selected[seq].driverId);missing.disabled=true;driver.append(missing);
+        }
         driver.value = selected[seq].driverId; vehicle.value = selected[seq].vehicleId;
       }
       const confirmation = el("span", selected[seq]?.confirmed ? "확인 완료" : selected[seq]?.predicted ? "예측" : "미확인", "manager-confirm" + (selected[seq]?.confirmed ? " done" : ""));
@@ -3809,6 +3814,7 @@
     if (!managerData) return managerNotice("먼저 기사·차량을 불러오세요.", true);
     const assignments=managerAssignments(), drivers=Object.fromEntries(managerData.drivers.map(v=>[v.id,v])), vehicles=Object.fromEntries(managerData.vehicles.map(v=>[v.id,v]));
     if (assignments.some(v=>!drivers[v.driverId]||!vehicles[v.vehicleId])) return managerNotice("표시된 모든 운행 순차의 기사와 차량을 선택하세요.", true);
+    const imageContext={data:managerData,signature:managerImageSignature()};
     const canvas=document.createElement("canvas"); canvas.width=1100; canvas.height=670; const ctx=canvas.getContext("2d");
     ctx.fillStyle="#143f35"; ctx.fillRect(0,0,1100,670); ctx.strokeStyle="#b7c7c4"; ctx.lineWidth=3; ctx.strokeRect(10,10,1080,650);
     const route=normalizedRoute(managerData.route||document.getElementById("managerRoute").value)||"70";
@@ -3823,15 +3829,43 @@
       const vehicleLabel=String(car.last3||car.no||"").slice(-3);
       ctx.fillStyle="#23448d"; ctx.fillRect(x+7,449,cardWidth-14,157); ctx.fillStyle="#fff"; ctx.font="bold 25px sans-serif"; verticalText(ctx,vehicleLabel,center,492,31);
     });
-    managerImageBlob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
-    const image=document.getElementById("managerResultImage"); image.src=URL.createObjectURL(managerImageBlob); document.getElementById("managerOutput").hidden=false;
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+    if(imageContext.data!==managerData||imageContext.signature!==managerImageSignature())return;
+    if(!blob)return managerNotice("이미지를 생성하지 못했습니다. 다시 시도하세요.",true);
+    managerImageBlob=blob;managerImageContext=imageContext;
+    const image=document.getElementById("managerResultImage");if(image.src.startsWith("blob:"))URL.revokeObjectURL(image.src);image.src=URL.createObjectURL(managerImageBlob);document.getElementById("managerOutput").hidden=false;
     managerNotice("배차 현황 이미지를 생성했습니다. 원본 사진과 최종 확인한 뒤 공유하세요.");
   }
 
+  function managerImageSignature(){return JSON.stringify([document.getElementById("managerRoute").value,document.getElementById("managerDate").value,document.getElementById("managerShift").value,managerAssignments()]);}
+  function validManagerImage(){
+    const valid=managerImageBlob&&managerImageContext&&managerImageContext.data===managerData&&managerImageContext.signature===managerImageSignature();
+    if(!valid)managerNotice("현재 배차로 이미지를 다시 생성하세요.",true);
+    return Boolean(valid);
+  }
+  async function nativeManagerImage(action,name){
+    if(!window.Bus70Android)return false;
+    if(typeof window.Bus70Android.exportDispatchImage!=="function"){managerNotice("앱에서 이미지 공유·저장을 사용하려면 v81 이상으로 업데이트하세요.",true);return true;}
+    const blob=managerImageBlob,context=managerImageContext;
+    try{
+      const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=()=>reject(new Error("PNG read failed"));reader.readAsDataURL(blob);});
+      if(blob!==managerImageBlob||context!==managerImageContext||!validManagerImage())return true;
+      managerImageRequest="dispatch-"+Date.now()+"-"+Math.random().toString(36).slice(2,10);
+      managerNotice(action==="share"?"휴대폰 공유창을 여는 중입니다…":"이미지 저장 위치를 선택하세요.");
+      window.Bus70Android.exportDispatchImage(managerImageRequest,action,name,encoded);
+    }catch(error){managerNotice("이미지 공유·저장을 시작하지 못했습니다. 다시 시도하세요.",true);}
+    return true;
+  }
+  window.bus70DispatchImageResult=function(raw){
+    try{const result=typeof raw==="string"?JSON.parse(raw):raw;if(!managerImageBlob||result.requestId!==managerImageRequest)return;managerNotice(result.message,!result.ok);}catch(error){console.warn("이미지 처리 결과 확인 실패");}
+  };
+
   async function shareManagerImage() {
-    if (!managerImageBlob) return;
+    if (!validManagerImage()) return;
     const route=normalizedRoute(managerData?.route||document.getElementById("managerRoute").value)||"70",title="소신여객 "+route+"번 배차 현황";
-    const file=new File([managerImageBlob],"BUS"+route+"-"+document.getElementById("managerDate").value+".png",{type:"image/png"});
+    const name="BUS"+route+"-"+document.getElementById("managerDate").value+".png";
+    if(window.Bus70Android){await nativeManagerImage("share",name);return;}
+    const file=new File([managerImageBlob],name,{type:"image/png"});
     if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
       try { await navigator.share({files:[file],title,text:title}); return; }
       catch (error) { if (error.name === "AbortError") return; console.error(error); }
@@ -3839,9 +3873,10 @@
     managerNotice("이 브라우저는 파일 공유를 지원하지 않습니다. 아래 이미지 다운로드를 누른 뒤 카카오톡 단톡방에 첨부하세요.",true);
   }
 
-  function downloadManagerImage() {
-    if (!managerImageBlob) return managerNotice("먼저 배차 현황 이미지를 생성하세요.",true);
+  async function downloadManagerImage() {
+    if (!validManagerImage()) return;
     const route=normalizedRoute(managerData?.route||document.getElementById("managerRoute").value)||"70",name="BUS"+route+"-"+document.getElementById("managerDate").value+".png";
+    if(window.Bus70Android){await nativeManagerImage("save",name);return;}
     const url=URL.createObjectURL(managerImageBlob), link=document.createElement("a");
     link.href=url; link.download=name; link.style.display="none";
     document.body.appendChild(link); link.click(); link.remove();
