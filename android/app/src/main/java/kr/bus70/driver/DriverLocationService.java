@@ -241,7 +241,7 @@ public class DriverLocationService extends Service implements LocationListener {
         try {
             JSONObject advisory=state.optJSONObject("arrivalAdvisoryState");
             if(advisory==null)advisory=new JSONObject();
-            JSONObject estimate=EarlyArrivalPolicy.update(advisory,trip,navigation,scheduleKey,scheduleMoment(trip.optString("endTime")),fix,now,location.getAccuracy(),location.getLatitude(),location.getLongitude());
+            JSONObject estimate=EarlyArrivalPolicy.update(advisory,trip,navigation,scheduleKey,schedule.optString("route"),scheduleMoment(trip.optString("endTime")),fix,now,location.getAccuracy(),location.getLatitude(),location.getLongitude());
             if(estimate.optBoolean("notify")){
                 boolean voice=schedule.optBoolean("voice",true)&&schedule.optBoolean("enabled",true);
                 boolean accepted=!voice||arrivalVoice.speak();

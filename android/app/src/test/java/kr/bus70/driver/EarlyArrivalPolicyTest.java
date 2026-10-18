@@ -16,7 +16,7 @@ public class EarlyArrivalPolicyTest {
         return call(state,trip,planned,sec,meters,new JSONObject().put("configured",true).put("returnConfirmed",true).put("timestamp",base+sec*1000).put("fraction",meters/1000).put("matchedMeters",meters),8,0,lat(meters));
     }
     JSONObject call(JSONObject state,JSONObject trip,long planned,int sec,double meters,JSONObject nav,double accuracy,long delay,double latitude)throws Exception{
-        return EarlyArrivalPolicy.update(state,trip,nav,"synthetic",planned,base+sec*1000,base+sec*1000+delay,accuracy,latitude,0);
+        return EarlyArrivalPolicy.update(state,trip,nav,"synthetic",trip.optString("route","5"),planned,base+sec*1000,base+sec*1000+delay,accuracy,latitude,0);
     }
     JSONObject arrive(JSONObject s,JSONObject t,long planned)throws Exception{
         for(int sec=0;sec<=160;sec+=5)step(s,t,planned,sec,1400+sec*10);
@@ -44,6 +44,18 @@ public class EarlyArrivalPolicyTest {
     @Test public void sameNameOutboundAndMissingGateNeverQualify()throws Exception{
         JSONObject t=trip();t.getJSONObject("course").getJSONArray("stops").getJSONObject(2).put("stationId","210000298");
         assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+    }
+    @Test public void route70AfterLastInboundHwagokStopAndRouteIsolation()throws Exception{
+        JSONObject t=trip().put("route","70"),s=new JSONObject();JSONArray stops=t.getJSONObject("course").getJSONArray("stops");
+        stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK).put("name","화곡역5번출구");
+        assertTrue(arrive(s,t,base+2400000).optBoolean("notify"));
+        for(String id:new String[]{"115000604","115000052","115000051",EarlyArrivalPolicy.INBOUND_YEOKGOK}){
+            stops.getJSONObject(2).put("stationId",id);assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        }
+        stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK);
+        t.put("route","5");assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        t.put("route","71");assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        t.put("route","70");t.getJSONObject("course").put("pivotIndex",4);assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
     }
     @Test public void excludesUnstartedCompleteStaleWrongDirectionPoorFixAndNonDepot()throws Exception{
         for(int mode=0;mode<9;mode++){
