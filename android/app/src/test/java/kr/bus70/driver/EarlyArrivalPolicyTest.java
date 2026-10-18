@@ -9,7 +9,7 @@ public class EarlyArrivalPolicyTest {
     double lat(double meters){return meters/6371000*180/Math.PI;}
     JSONObject trip()throws Exception{
         JSONArray stops=new JSONArray();
-        for(int i=0;i<=6;i++)stops.put(new JSONObject().put("id","synthetic-"+i).put("stationId",i==2?EarlyArrivalPolicy.INBOUND_YEOKGOK:i==0?"210000298":"synthetic-"+i).put("name",i==0||i==2?"역곡역북부":"합성 정류장 "+i).put("lat",lat(i*1000)).put("lng",0));
+        for(int i=0;i<=6;i++)stops.put(new JSONObject().put("id","synthetic-"+i).put("stationId",i==2?EarlyArrivalPolicy.INBOUND_KKACHIUL:i==0?"212000064":"synthetic-"+i).put("name",i==0||i==2?"까치울역":"합성 정류장 "+i).put("lat",lat(i*1000)).put("lng",0));
         return new JSONObject().put("trip",2).put("actualStart","observed").put("endPlace","고강공영차고지").put("endLocation",stops.getJSONObject(6)).put("course",new JSONObject().put("pivotIndex",1).put("stops",stops));
     }
     JSONObject step(JSONObject state,JSONObject trip,long planned,int sec,double meters)throws Exception{
@@ -42,14 +42,22 @@ public class EarlyArrivalPolicyTest {
         assertTrue(arrive(new JSONObject(),t,base+3600000).optBoolean("notify"));
     }
     @Test public void sameNameOutboundAndMissingGateNeverQualify()throws Exception{
-        JSONObject t=trip();t.getJSONObject("course").getJSONArray("stops").getJSONObject(2).put("stationId","210000298");
+        JSONObject t=trip();t.getJSONObject("course").getJSONArray("stops").getJSONObject(2).put("stationId","212000064");
         assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+    }
+    @Test public void route5UsesInboundKkachiulAndRejectsOldGateAndKkachisan()throws Exception{
+        for(String id:new String[]{"210000307","115000095","212000064"}){
+            JSONObject t=trip();t.getJSONObject("course").getJSONArray("stops").getJSONObject(2).put("stationId",id);
+            assertFalse("wrong route or superseded gate "+id,arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        }
+        JSONObject r=arrive(new JSONObject(),trip(),base+2400000);
+        assertEquals("212000105",r.optString("gateStationId"));assertTrue(r.optBoolean("notify"));
     }
     @Test public void route70AfterLastInboundHwagokStopAndRouteIsolation()throws Exception{
         JSONObject t=trip().put("route","70"),s=new JSONObject();JSONArray stops=t.getJSONObject("course").getJSONArray("stops");
         stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK).put("name","화곡역5번출구");
         assertTrue(arrive(s,t,base+2400000).optBoolean("notify"));
-        for(String id:new String[]{"115000604","115000052","115000051",EarlyArrivalPolicy.INBOUND_YEOKGOK}){
+        for(String id:new String[]{"115000604","115000052","115000051",EarlyArrivalPolicy.INBOUND_KKACHIUL}){
             stops.getJSONObject(2).put("stationId",id);assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
         }
         stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK);
