@@ -10,6 +10,10 @@ const displayed=[headers,['2099. 1. 8 오후 9:31:52','2099. 1. 8','2099. 1. 8',
 const normalized=server.bus70RunLogReadRows_({getDataRange:()=>({getValues:()=>raw,getDisplayValues:()=>displayed.map(r=>r.slice())})});
 assert.equal(normalized[1][0],'2099-01-08 21:31:52');assert.equal(normalized[1][1],'2099-01-08');assert.equal(normalized[1][2],'2099-01-08 23:56:39');assert.equal(normalized[1][3],'21:30');
 assert.equal(raw[1][2].toISOString(),'2099-01-08T14:56:39.000Z','read never changes source instants');
+const fractional=new Date('2099-01-08T14:54:50.588+09:00');
+const rounded=server.bus70RunLogReadRows_({getDataRange:()=>({getValues:()=>[['회차실제'],[fractional]],getDisplayValues:()=>[['회차실제'],['2099-01-08 14:54:51']]})});
+assert.equal(rounded[1][0],'2099-01-08 14:54:51','second display agrees with sheet rounding');
+assert.equal(fractional.toISOString(),'2099-01-08T05:54:50.588Z','formatting must not alter source precision');
 assert.equal(server.bus70RunLogDeviationMinutes_('2099-01-08',raw[1][3],raw[1][0]),2);
 const front=vm.createContext({Date,Intl,document:{getElementById:()=>({value:'24H'})}});
 ['canonicalTime','actualClock','actualMoment','scheduleMoment','scheduleComparison','hasNumericValue','displayTime'].forEach(n=>vm.runInContext(extract(n),front));

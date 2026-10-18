@@ -673,12 +673,13 @@ function bus70RunLogReadRows_(sheet) {
       const col=c[header];if(col===undefined)return;
       const value=raw[i+1][col];
       if(value instanceof Date&&!isNaN(value.getTime())){
-        const time=Utilities.formatDate(value,'Asia/Seoul','HH:mm:ss');
+        const rounded=new Date(Math.round(value.getTime()/1000)*1000);
+        const time=Utilities.formatDate(rounded,'Asia/Seoul','HH:mm:ss');
         // A legacy date-only cell may already have lost its clock on a later save.
         // Preserve that uncertainty instead of inventing an event at midnight.
         row[col]=time==='00:00:00'&&!/\d{1,2}:\d{2}/.test(String(row[col]||''))
-          ?Utilities.formatDate(value,'Asia/Seoul','yyyy-MM-dd')
-          :Utilities.formatDate(value,'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
+          ?Utilities.formatDate(rounded,'Asia/Seoul','yyyy-MM-dd')
+          :Utilities.formatDate(rounded,'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
       }
     });
     ['발차예정','회차예정','도착예정','중간예정'].forEach(function(header){const col=c[header];if(col!==undefined&&raw[i+1][col] instanceof Date)row[col]=Utilities.formatDate(raw[i+1][col],'Asia/Seoul','HH:mm');});
@@ -688,13 +689,41 @@ function bus70RunLogReadRows_(sheet) {
 
 function bus70DriverRunLogs_(body, driverId) {
   const from = normalizeDate_(body.from), to = normalizeDate_(body.to || body.from);
+  const validDay=function(d){return /^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d))&&new Date(d).toISOString().slice(0,10)===d;};
+  if(body.includePlans&&(!validDay(from)||!validDay(to)||from>to||new Date(to)-new Date(from)>30*86400000))return {ok:false,error:'HISTORY_RANGE_INVALID',message:'시작일과 종료일을 확인하세요. 한 번에 최대 31일을 조회할 수 있습니다.'};
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('운행일지');
-  if (!sheet || sheet.getLastRow() < 2) return {ok:true,logs:[]};
-  const rows=bus70RunLogReadRows_(sheet), c=makeHeaderMap_(rows[0]);
+  const rows=sheet&&sheet.getLastRow()>1?bus70RunLogReadRows_(sheet):[[]], c=makeHeaderMap_(rows[0]);
   const logs=rows.slice(1).filter(function(r){const d=normalizeDate_(r[c['날짜']]);return String(r[c['기사ID']]||'')===driverId&&(!from||d>=from)&&(!to||d<=to);})
     .map(function(r){return {logId:String(r[c['logId']]||''),date:normalizeDate_(r[c['날짜']]),driverName:String(r[c['기사명']]||''),empId:String(r[c['사원번호']]||''),route:String(r[c['노선']]||''),dispatchId:String(r[c['배차ID']]||''),vehicleId:String(r[c['차량ID']]||''),sequence:Number(r[c['순차']]||0),trip:Number(r[c['탕']]||0),startPlace:String(r[c['발차지']]||''),turnPlace:String(r[c['회차지']]||''),endPlace:String(r[c['도착지']]||''),startRole:String(r[c['발차역할']]||''),turnRole:String(r[c['회차역할']]||''),endRole:String(r[c['도착역할']]||''),plannedStart:String(r[c['발차예정']]||''),actualStart:String(r[c['발차실제']]||''),startDeviationMinutes:String(r[c['발차편차분']]||''),plannedTurn:String(r[c['회차예정']]||''),actualTurn:String(r[c['회차실제']]||''),turnDeviationMinutes:String(r[c['회차편차분']]||''),plannedEnd:String(r[c['도착예정']]||''),actualEnd:String(r[c['도착실제']]||''),endDeviationMinutes:String(r[c['도착편차분']]||''),plannedFrontGap:String(r[c['앞차예정간격']]||''),actualFrontGap:String(r[c['앞차실제간격']]||''),frontDeviation:String(r[c['앞차편차']]||''),plannedRearGap:String(r[c['뒷차예정간격']]||''),actualRearGap:String(r[c['뒷차실제간격']]||''),rearDeviation:String(r[c['뒷차편차']]||''),status:String(r[c['상태']]||''),note:String(r[c['비고']]||''),startRecordMode:String(r[c['발차기록방식']]||''),startLatitude:String(r[c['발차위도']]||''),startLongitude:String(r[c['발차경도']]||''),startAccuracyM:String(r[c['발차정확도m']]||''),turnRecordMode:String(r[c['회차기록방식']]||''),turnLatitude:String(r[c['회차위도']]||''),turnLongitude:String(r[c['회차경도']]||''),turnAccuracyM:String(r[c['회차정확도m']]||''),endRecordMode:String(r[c['도착기록방식']]||''),endLatitude:String(r[c['도착위도']]||''),endLongitude:String(r[c['도착경도']]||''),endAccuracyM:String(r[c['도착정확도m']]||''),breakChargeConnectedAt:String(r[c['휴식충전연결']]||''),breakChargeDisconnectedAt:String(r[c['휴식충전해제']]||''),serviceEndType:String(r[c['영업종료형태']]||''),serviceEndPlace:String(r[c['영업종료지']]||''),deadheadDestination:String(r[c['회송목적지']]||r[c['막탕복귀지']]||''),turnDepartedAt:String(r[c['회차출발실제']]||''),turnDepartureMode:String(r[c['회차출발기록방식']]||''),controlPoint:String(r[c['중간기준지']]||''),plannedControl:String(r[c['중간예정']]||''),actualControl:String(r[c['중간실제']]||''),controlDeviationMinutes:String(r[c['중간편차분']]||''),controlRecordMode:String(r[c['중간기록방식']]||''),returnRecordMode:String(r[c['복귀기록방식']]||''),deadheadReturnedAt:String(r[c['회송완료']]||''),cleanedAt:String(r[c['청소완료']]||''),chargerConnectedAt:String(r[c['충전잭연결']]||''),officeChargeStatus:String(r[c['사무실충전확인']]||''),shiftEndedAt:String(r[c['근무종료시간']]||'')};});
   logs.sort(function(a,b){return b.date.localeCompare(a.date)||b.sequence-a.sequence||b.trip-a.trip;});
-  return {ok:true,logs:logs};
+  // Plans are a separate read model, never inserted into the actual log sheet.
+  const plans=body.includePlans?bus70DriverRunLogPlans_(from,to,driverId):null;
+  return Object.assign({ok:true,logs:logs},plans||{});
+}
+
+function bus70DriverRunLogPlans_(from,to,driverId){
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),sheet=ss.getSheetByName('배차DB'),plannedTrips=[],unavailableDates=[],seen={};
+  if(!sheet)return {plannedTrips:[],planCoverage:{complete:false,unavailableDates:[]}};
+  const rows=typeof bus70PartitionRows_==='function'?bus70PartitionRows_(sheet):sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]||[]);
+  const driverResult=apiGetDriver_(driverId),driver=driverResult&&driverResult.driver||{driverId:driverId};
+  rows.slice(1).forEach(function(row){
+    const date=normalizeDate_(row[c['날짜']]);
+    if(date<from||date>to||String(row[c['기사ID']]||'')!==String(driverId)||String(row[c['상태']]||'')!=='확정')return;
+    const route=bus70AuthDispatchRoute_(row,c),sequence=Number(row[c['순차']]||0),dispatchId=String(row[c['dispatchId']]||''),vehicleId=String(row[c['차량ID']]||''),key=[date,dispatchId,sequence,vehicleId].join('|');
+    if(seen[key])return;seen[key]=true;
+    const effective=bus70DriverContextForDate_(driver,date);effective.route=route;
+    const reference=bus70RouteReferenceDataForAuth_(route,date,effective);
+    if(!reference||!reference.ok){unavailableDates.push(date);return;}
+    const trips=bus70PrivateTripsForSequence_(reference.trips,sequence);
+    if(!trips.length){unavailableDates.push(date);return;}
+    const schedule={ok:true,type:'WORK',route:route,dispatch:{sequence:sequence},trips:trips};
+    bus70ScheduleWithAdjustments_(schedule,date);
+    schedule.trips.forEach(function(trip){
+      const roles=bus70RunLogPointRoles_(schedule.trips,trip);
+      plannedTrips.push(Object.assign({date:date,route:route,dispatchId:dispatchId,vehicleId:vehicleId,sequence:sequence,trip:Number(trip.trip),plannedStart:trip.startTime||'',plannedTurn:trip.turnTime||'',plannedEnd:trip.endTime||'',startPlace:trip.startPlace||'',turnPlace:trip.turnPlace||'',endPlace:trip.endPlace||'',serviceEndType:trip.serviceEndType||'',controlPoint:trip.controlPoint||'',plannedControl:trip.controlTime||'',status:'실제 기록 없음'},roles));
+    });
+  });
+  return {plannedTrips:plannedTrips,planCoverage:{complete:!unavailableDates.length,unavailableDates:unavailableDates.filter(function(d,i,a){return a.indexOf(d)===i;})}};
 }
 
 function bus70RunLogTimetable_(ss, route, date, sequence, scheduleVersion, driver) {

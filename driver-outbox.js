@@ -16,8 +16,12 @@
     }
   }
   // History is a read model. Never replace the server copy with local overlays.
-  function history(logs,items,driverId,from,to){
+  function history(logs,items,driverId,from,to,plans=[]){
     const result=logs.map(log=>({...log,pendingEvents:[]}));
+    for(const plan of plans){
+      if(plan.date<from||plan.date>to)continue;
+      if(!result.some(l=>l.date===plan.date&&Number(l.sequence)===Number(plan.sequence)&&Number(l.trip)===Number(plan.trip)&&(!l.dispatchId||l.dispatchId===plan.dispatchId)&&(!l.vehicleId||l.vehicleId===plan.vehicleId)))result.push({...plan,pendingEvents:[]});
+    }
     const blockers=new Map(items.filter(i=>i.driverId===driverId&&!i.voided&&!i.delivered&&i.blocked).map(i=>[i.binding,i.error||'앞선 기록 확인 필요']));
     for(const item of items){
       const b=item.body||{},field=fields[b.event],mode=modes[b.event];

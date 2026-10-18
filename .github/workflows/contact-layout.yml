@@ -60,6 +60,10 @@ jobs:
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
           node tests/startup-performance.test.js
+          node tests/run-history-plans.test.js
+          node tests/run-log-timestamps.test.js
+          node tests/historical-record-sync.test.js
+          node tests/run-history.browser.cjs
           node tests/accident-report.test.js
           node tests/accident-report.browser.cjs
           node tests/accident-flow.browser.cjs
