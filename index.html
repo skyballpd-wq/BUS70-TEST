@@ -1521,6 +1521,7 @@
     stopDriverFleetTimer();
     if(window.Bus70Android&&typeof window.Bus70Android.clearDriverSession==="function")try{window.Bus70Android.clearDriverSession();}catch(error){console.warn(error);}
     if(typeof accidentForms!=="undefined")Object.values(accidentForms).forEach(form=>form.reset());
+    if(typeof accidentPending!=="undefined"){accidentPending.driver=null;accidentPending.manager=null;}
     localStorage.removeItem(REMEMBER_KEY);
     localStorage.removeItem(LEGACY_REMEMBER_KEY);
     localStorage.removeItem("BUS70_TEST_DRIVER");
@@ -1991,8 +1992,8 @@
       if(v.status==="운행가능"||v.status==="운행") reserve.add(new Option(label,v.id));
     });
     selectScheduledDriverVehicle();
-    syncAccidentForms();
     if(!currentRole){if(driverVehicle.options.length===2)driverVehicle.selectedIndex=1;driverVehicle.disabled=operationData.vehicles.length<=1;document.getElementById("driverIncidentSave").disabled=!operationData.vehicles.length;}
+    syncAccidentForms();
   }
 
   document.getElementById("reserveVehicleSelect").addEventListener("change",event=>{
@@ -2078,6 +2079,7 @@
     try{const result=await apiPost(body);operationNotice(result.message||"저장하지 못했습니다.",!result.ok);if(result.ok)await loadOperationData();}catch(error){operationNotice("예비차 저장 통신에 실패했습니다.",true);}finally{button.disabled=false;}
   }
 
+  const accidentPending={driver:null,manager:null};
   const accidentForms={driver:Bus70Accident.mount(document.getElementById("driverAccidentReport")),manager:Bus70Accident.mount(document.getElementById("managerAccidentReport"))};
   function syncAccidentForms(){
     [["driver","driverIncident"],["manager","incident"]].forEach(([key,prefix])=>{
@@ -2091,19 +2093,21 @@
   }
   ["driverIncidentType","incidentType","driverIncidentVehicle","incidentVehicle"].forEach(id=>document.getElementById(id).addEventListener("change",syncAccidentForms));
   async function saveAccidentReport(key,body,button){
+    body=accidentPending[key]||body;
     const form=accidentForms[key];
     const fail=text=>{form.message(text);operationNotice(text,true);};
     if(!body.vehicleId)return fail("보고 차량을 확인하세요.");
     if(key==="manager"&&(body.reserveVehicleId||body.sequence))return fail("사고 보고를 먼저 접수한 뒤 별도로 대차를 처리하세요. 사고 보고만으로 배차를 변경하지 않습니다.");
     const invalid=form.validate();if(invalid)return fail(invalid);
     if(operationData.accidentReportVersion!==1)return fail("사고 사진 저장 서버가 준비되지 않았습니다. 사진과 입력 내용을 유지합니다.");
-    body.operation="accidentReportSave";body.accident=form.data();body.content=body.content||body.accident.location+" · "+body.accident.contactArea;if(key==="driver")body.date=operationData.serviceDate||body.date;
+    if(!accidentPending[key]){body.operation="accidentReportSave";body.accident=form.data();body.content=body.content||body.accident.location+" · "+body.accident.contactArea;if(key==="driver")body.date=operationData.serviceDate||body.date;}
+    accidentPending[key]=body;
     button.disabled=true;form.busy(true);form.message("사고 보고와 사진 "+body.accident.photos.length+"장 전송 중… 화면을 닫지 마세요.");
     const owner=authToken;
     try{
       const result=await apiPost(body,120000);if(owner!==authToken)return;
-      if(result.ok){form.reset();document.getElementById(key==="driver"?"driverIncidentContent":"incidentContent").value="";await loadOperationData(true);form.message(result.message+" · 접수번호 "+result.incidentId);operationNotice(result.message);}
-      else{if(result.error==="ACCIDENT_SAVE_UNCONFIRMED")form.uncertain();fail(result.message||"접수하지 못했습니다. 사진은 유지됩니다.");}
+      if(result.ok){accidentPending[key]=null;form.reset();document.getElementById(key==="driver"?"driverIncidentContent":"incidentContent").value="";await loadOperationData(true);form.message(result.message+" · 접수번호 "+result.incidentId);operationNotice(result.message);}
+      else{if(result.error==="ACCIDENT_SAVE_UNCONFIRMED")form.uncertain();else accidentPending[key]=null;fail(result.message||"접수하지 못했습니다. 사진은 유지됩니다.");}
     }catch(e){if(owner===authToken){form.uncertain();operationNotice("접수 결과를 확인하지 못했습니다. 같은 내용으로 다시 보내 확인하세요.",true);}}
     finally{if(owner===authToken){button.disabled=false;form.busy(false);}}
   }

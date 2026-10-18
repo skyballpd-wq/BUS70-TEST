@@ -4,3 +4,4 @@
     @media(max-width:360px){.accident-fields{grid-template-columns:minmax(0,1fr)}.accident-photo-grid{gap:6px}.accident-photo{padding:6px}}
 
 .accident-upload-actions{display:flex;gap:8px;flex-wrap:wrap}.accident-upload-actions button{flex:1;min-width:120px;margin:0}.accident-coverage{display:flex;gap:8px;align-items:flex-start;font-size:15px;line-height:1.5}.accident-coverage input{width:22px;height:22px;flex:0 0 22px;margin:1px 0}.accident-photo-grid:empty{display:none}.accident-photo-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.accident-photo img{max-height:100px;object-fit:cover}.accident-photo button{font-size:14px;padding:6px}
+.accident-report .accident-photo button{height:36px;min-height:36px;margin:4px 0 0;padding:4px;line-height:1.2}.accident-photo img{height:72px}.accident-count{display:block;margin:10px 0 6px}.accident-message:empty{display:none}
