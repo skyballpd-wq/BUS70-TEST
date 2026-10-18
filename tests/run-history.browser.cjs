@@ -21,6 +21,18 @@ const fs=require('fs'),path=require('path'),assert=require('node:assert/strict')
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'no mobile horizontal overflow');
   const out=process.env.CONTACT_LAYOUT_OUTPUT;if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`run-history-${width}.png`),fullPage:true});}
   await page.locator('.run-log-head').first().click();assert.equal(await page.locator('.run-log-row[open]').count(),1);assert.match(await page.locator('.run-log-row').first().innerText(),/저장된 실제 시각이 없습니다/);
+  assert.equal(await page.locator('.run-log-row').first().locator('.ledger-table').count(),1);
+  assert.equal(await page.locator('#exportRunLogs').isDisabled(),false);
+  await page.locator('.ledger-sheet-view summary').click();
+  assert.equal(await page.locator('.ledger-sheet thead th').count(),18);
+  assert.equal(await page.locator('.ledger-sheet tbody tr').count(),6);
+  assert.equal(await page.locator('.ledger-sheet tbody tr').first().locator('td').nth(14).innerText(),'09:01:00');
+  assert.equal(await page.locator('.ledger-sheet tbody tr').last().locator('td').nth(14).innerText(),'');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'wide ledger scroll stays in its own container');
+  await page.locator('.ledger-sheet-view summary').click();
+  await page.locator('.run-log-row').last().locator('summary').click();assert.equal(await page.locator('.run-log-row').last().locator('.actual-arrival').count(),1);
+  assert.equal(await page.locator('.run-log-row').last().locator('.actual-arrival').evaluate(el=>getComputedStyle(el).color),'rgb(185, 28, 28)');
+  await page.locator('.run-log-row').last().locator('summary').click();
   await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));assert.equal(await page.locator('.run-log-row[open]').count(),6);
   await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));assert.equal(await page.locator('.run-log-row[open]').count(),1);
   await page.locator('#runLogFrom').fill('2000-01-09');await page.locator('#runLogFrom').dispatchEvent('change');

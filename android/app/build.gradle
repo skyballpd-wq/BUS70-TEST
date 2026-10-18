@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 77
-        versionName "0.77-accident-photos"
+        versionCode 78
+        versionName "0.78-arrival-ledger"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

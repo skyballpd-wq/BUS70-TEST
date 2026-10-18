@@ -53,6 +53,7 @@ public class DriverLocationService extends Service implements LocationListener {
     private final Set<String> inFlight = Collections.synchronizedSet(new HashSet<>());
     private LocationManager locationManager;
     private NativeStore store;
+    private ArrivalVoice arrivalVoice;
     private JSONObject schedule;
     private JSONObject states;
     private JSONObject routeReference;
@@ -79,6 +80,7 @@ public class DriverLocationService extends Service implements LocationListener {
     @Override public void onCreate() {
         super.onCreate();
         store = new NativeStore(this);
+        arrivalVoice = new ArrivalVoice(this);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         createChannel();
         startForeground(NOTIFICATION_ID, notification("위치 자동 기록 준비 중"));
@@ -236,6 +238,20 @@ public class DriverLocationService extends Service implements LocationListener {
         postLiveLocation(trip, location, navigation!=null&&navigation.optBoolean("waiting")?"":inbound?"RETURN":"OUTBOUND",navigation);
         String nearestText = nearestText(location, tripNo, start, turn, end);
         setStatus(navigation!=null&&navigation.optBoolean("waiting")?tripNo+"탕 출발 대기 · "+trip.optString("startTime"):nearestText);
+        try {
+            JSONObject advisory=state.optJSONObject("arrivalAdvisoryState");
+            if(advisory==null)advisory=new JSONObject();
+            JSONObject estimate=EarlyArrivalPolicy.update(advisory,trip,navigation,scheduleKey,scheduleMoment(trip.optString("endTime")),fix,now,location.getAccuracy(),location.getLatitude(),location.getLongitude());
+            if(estimate.optBoolean("notify")){
+                boolean voice=schedule.optBoolean("voice",true)&&schedule.optBoolean("enabled",true);
+                boolean accepted=!voice||arrivalVoice.speak();
+                EarlyArrivalPolicy.attempted(advisory,estimate,now,accepted);
+                estimate.put("voiceStatus",!voice?"음성 안내 꺼짐":accepted?"음성 안내 요청":"음성 엔진 확인 필요");
+            }
+            state.put("arrivalAdvisoryState",advisory).put("arrivalEstimate",estimate);
+            if(estimate.optBoolean("warning"))setStatus(EarlyArrivalPolicy.MESSAGE+(estimate.has("voiceStatus")?" · "+estimate.optString("voiceStatus"):""));
+        } catch(Exception ignored) {}
+
         try {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
             if (actualStart.isEmpty() && start != null && reliable(location, start) && plannedStart>0 && now<=plannedStart+7200000L) {
@@ -512,6 +528,7 @@ public class DriverLocationService extends Service implements LocationListener {
 
     @Override public void onDestroy() {
         running=false;
+        if(arrivalVoice!=null)arrivalVoice.close();
         try { if (locationManager != null) locationManager.removeUpdates(this); } catch (SecurityException ignored) {}
         store.locationTracking(false);
         main.removeCallbacksAndMessages(null);

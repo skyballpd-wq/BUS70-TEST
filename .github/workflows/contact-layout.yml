@@ -60,6 +60,8 @@ jobs:
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
           node tests/startup-performance.test.js
+          node tests/driver-ledger.test.js
+          python3 tests/ledger-workbook.py
           node tests/run-history-plans.test.js
           node tests/run-log-timestamps.test.js
           node tests/historical-record-sync.test.js

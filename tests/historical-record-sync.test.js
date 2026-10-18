@@ -20,7 +20,7 @@ logs=outbox.history([{...server[0],actualEnd:date+' 23:19:08',endRecordMode:'수
 
 const html=fs.readFileSync('index.html','utf8');
 function extract(name){const a=html.indexOf('function '+name+'('),b=html.indexOf('{',a);assert(a>=0);let d=0;for(let i=b;i<html.length;i++){if(html[i]==='{')d++;if(html[i]==='}'&&!--d)return html.slice(a,i+1);}throw Error(name);}
-const nodes={workDate:{value:date},runLogFrom:{value:date},runLogTo:{value:date},runLogResult:{replaceChildren(){},prepend(){}}};
+const nodes={workDate:{value:date},runLogFrom:{value:date},runLogTo:{value:date},exportRunLogs:{disabled:true},runLogResult:{replaceChildren(){},prepend(){}}};
 const trip={trip:6,startPlace:'합성기점',endPlace:'합성기점',turnPlace:'합성회차',startTime:'21:10',turnTime:'22:16',endTime:'23:22'};
 const data={date,temporalState:'PAST',dispatch:{sequence:10,dispatchId:'SYN-A'},vehicle:{vehicleId:'SYN-V'},trips:[trip],runLogs:server};
 const c=vm.createContext({Date,console,document:{getElementById:id=>nodes[id]},todayLocal:()=>today,Bus70Automation:automation,activeTripIndex:0});
