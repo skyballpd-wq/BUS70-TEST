@@ -34,7 +34,18 @@ public class MascotWidgetTest {
         });
         getInstrumentation().waitForIdleSync();int before=flipper[0].getDisplayedChild();Thread.sleep(420);
         assertTrue("Actual Android ViewFlipper advances frames",flipper[0].getDisplayedChild()!=before);
-        getInstrumentation().runOnMainSync(activity::finish);getInstrumentation().waitForIdleSync();
+        // Activity.finish() returns before the window's exit animation and detach.
+        // Observe the real detach event before checking that no frame is scheduled.
+        java.util.concurrent.CountDownLatch detached=new java.util.concurrent.CountDownLatch(1);
+        getInstrumentation().runOnMainSync(()->{
+            flipper[0].addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
+                @Override public void onViewAttachedToWindow(View view){}
+                @Override public void onViewDetachedFromWindow(View view){detached.countDown();}
+            });
+            activity.finish();
+        });
+        assertTrue("Window must detach",detached.await(5,java.util.concurrent.TimeUnit.SECONDS));
+        getInstrumentation().waitForIdleSync();
         int stopped=flipper[0].getDisplayedChild();Thread.sleep(360);assertEquals(stopped,flipper[0].getDisplayedChild());
     }
     @Test public void testAlphaAndReducedMotionFallback(){
