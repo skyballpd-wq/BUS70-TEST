@@ -1,0 +1,35 @@
+name: Accident photo component
+on:
+  push:
+    paths:
+      - "accident-report.js"
+      - "accident-report.css"
+      - "tests/accident-report.browser.cjs"
+      - ".github/workflows/accident-component.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  component:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: sudo apt-get update -qq && sudo apt-get install -y fonts-noto-cjk
+      - run: npm install --prefix "$RUNNER_TEMP/accident-test" --no-package-lock --ignore-scripts playwright@1.62.1
+      - name: Synthetic photo component only
+        env:
+          CONTACT_LAYOUT_OUTPUT: ${{ runner.temp }}/accident-output
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/accident-test/node_modules"
+          export CHROME_BIN="$(command -v google-chrome)"
+          node tests/accident-report.browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accident-component-synthetic-evidence
+          path: ${{ runner.temp }}/accident-output
+          if-no-files-found: ignore

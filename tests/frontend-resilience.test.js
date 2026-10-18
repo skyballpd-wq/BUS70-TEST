@@ -4,7 +4,7 @@ const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 
 assert.match(html, /const API_TIMEOUT_MS = 45000;/);
-assert.match(html, /async function apiFetch\(url, options\)/);
+assert.match(html, /async function apiFetch\(url, options, timeoutMs = API_TIMEOUT_MS\)/);
 assert.match(html, /const data = await apiPost\(\{action:"loginSecure", name, empId, date:requestedDate\}\);/);
 assert.doesNotMatch(html, /apiRequest\(\{action:"login", name, empId\}\)/);
 assert.doesNotMatch(html, /\n\s*checkServer\(\);\s*\n/);

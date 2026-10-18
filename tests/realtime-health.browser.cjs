@@ -6,6 +6,8 @@ const fixture=`<!doctype html><meta charset="utf-8"><meta name="viewport" conten
 const localStorage={getItem:()=>null};
 const trip={trip:5,startTime:'10:00',startPlace:'합성기점',endPlace:'합성종점'},log={};
 let lastSchedule={ok:true,temporalState:'CURRENT',route:'5',trips:[trip],dispatch:{seq:2},vehicle:{displayNo:'가상1234'},routeProfile:{stops:[]}},activeTripIndex=0,followCurrentTrip=true,currentRoute='5';
+let nativeArrivalEstimate=null;
+const driverAssignmentBinding=()=>({});
 let context={trip,index:0,log,state:'출발 확인 중',action:'5탕 도착'};
 let liveFleet={positions:[],crossCheck:{available:false,message:'차량정보 연결 확인 필요',error:'GBIS_HTTP_503'}},currentNavigation={waiting:true,configured:false,reason:'차량 출발 확인 중'};
 let lastDriverPosition={coords:{latitude:37,longitude:127,accuracy:6,speed:6},timestamp:Date.now()};

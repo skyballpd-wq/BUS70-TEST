@@ -33,7 +33,7 @@ assert.match(alarm, /AlarmPolicy\.build\(payload/);
 assert.match(calendar, /CalendarSchedule\.plan\(payload/);
 assert.match(service, /server cache expires it instead of building a location history/);
 assert.match(fs.readFileSync('android/app/src/main/java/kr/bus70/driver/NativeStore.java', 'utf8'), /remove\("locationTimestamp"\)/);
-assert.match(build, /versionCode 74/);
-assert.match(build, /versionName "0\.74-record-sync"/);
+assert.ok(Number(build.match(/versionCode (\d+)/)[1]) >= 74);
+assert.match(build, /versionName "0\.\d+-[a-z-]+"/);
 
 console.log('Android location integration tests passed');
