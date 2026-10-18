@@ -737,11 +737,16 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   if(reference&&reference.ok&&(bus70ManagerNormalizeRoute_(reference.route)!==route||normalizeDate_(reference.date)!==date)){
     return {ok:false,error:'ROUTE_DATA_MISMATCH',message:'선택한 '+route+'번·'+date+'와 다른 노선 또는 날짜의 기준자료 응답을 차단했습니다.'};
   }
+  // The normalized timetable need not repeat the roster. Read confirmed day
+  // assignments before applying a monthly leave plan to the candidate list.
+  const savedAssignments = bus70ManagerAssignments_(dispatchSheet, date, route);
+  const savedDriverIds={};savedAssignments.forEach(function(item){savedDriverIds[item.driverId]=true;});
   const plannedLeaves=typeof bus70PlannedLeavesForDate_==='function'?bus70PlannedLeavesForDate_(ss,route,date):[],observedNames={},plannedLeaveOverrides=[],effectivePlannedLeaves=[];
   if(reference&&reference.ok&&!reference.predicted)(reference.assignments||[]).forEach(function(item){const name=String(item.driverName||'').replace(/\s/g,'');if(name)observedNames[name]=true;});
   plannedLeaves.forEach(function(plan){
     const names=[plan.driverName].concat(plan.aliases||[]).map(function(name){return String(name||'').replace(/\s/g,'');}).filter(Boolean),name=names[0];if(!name)return;
-    if(names.some(function(candidate){return observedNames[candidate];})){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:'확정 배차상황판 우선'});return;}
+    const assignedById=plan.driverId?Boolean(savedDriverIds[String(plan.driverId)]):allDrivers.some(function(driver){return String(driver.route)===route&&savedDriverIds[driver.id]&&names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1;});
+    if(assignedById||names.some(function(candidate){return observedNames[candidate];})){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:assignedById?'당일 확정 배차 우선':'확정 배차상황판 우선'});return;}
     effectivePlannedLeaves.push(plan);names.forEach(function(candidate){unavailableNames[candidate]=String(plan.type||'휴무');});
     allDrivers.forEach(function(driver){if(names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1&&String(driver.route||'')===route)unavailable[driver.id]=String(plan.type||'휴무');});
   });
@@ -751,7 +756,6 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   if(reference&&reference.ok){scheduleVersion=String(reference.scheduleVersion||'');departures=bus70ManagerReferenceDepartures_(reference);tripNumbersBySequence=bus70ManagerReferenceTripNumbers_(reference);}
   else if(route==='70'&&scheduleSheet){scheduleVersion=bus70ScheduleVersionForDate_(date);departures=bus70ManagerDepartures_(scheduleSheet,scheduleVersion);tripNumbersBySequence=bus70ManagerScheduleTripNumbers_(scheduleSheet,scheduleVersion);}
   else return reference||{ok:false,error:'ROUTE_REFERENCE_NOT_CONFIGURED',message:date+' '+route+'번 노선 상황판·배차시간표 기준자료가 설정되지 않았습니다.'};
-  const savedAssignments = bus70ManagerAssignments_(dispatchSheet, date, route);
   const referenceAssignments=reference&&reference.ok?bus70ManagerMergeReferenceRoster_(reference,drivers,vehicles,route):[];
   const assignments=savedAssignments.length?savedAssignments:referenceAssignments;
   const expectedSequences=Object.keys(departures).map(Number).filter(Number.isInteger).sort(function(a,b){return a-b;});
@@ -1077,3 +1081,4 @@ function bus70DepotContactsSave_(body,requesterId) {
     return {ok:true,contactsVersion:2,contacts:contacts.map(bus70DepotContactPublic_),message:'긴급연락망을 저장했습니다.'};
   } finally {lock.releaseLock();}
 }
+

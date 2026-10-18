@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 80
-        versionName "0.80-arrival-gates"
+        versionCode 81
+        versionName "0.81-dispatch-share"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

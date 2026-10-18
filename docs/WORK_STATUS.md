@@ -62,3 +62,11 @@
 
 - [모바일 검사 39102834959](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102834959) 통과. 320/412px 원장 열·행·빈 실제 시각·빨간 도착·스크롤 범위·기존 사고/휴무/날짜 흐름 확인. [Android 위젯 39102646499](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39102646499) 통과. 대기·완료 상태와 대시보드 로컬 회귀 검사도 통과했다.
 - APK78 SHA-256 `764aa4f02ef4ffa5693e60dc9150f2c554938de3774e4ae92ddecdfbc16242b7`, 기존 설치본과 인증서 일치 확인. 설치파일 빌드 소스 이후 변경은 시험·상태 문서뿐이다. 실제 차량 음성과 GPS 예측 정확도는 현장 확인이 남아 있다.
+
+
+## Dispatch image export and roster consistency v81
+
+- Add an Android PNG share chooser and document save flow. Validate filename, PNG bytes and size; share a private content URI with read permission only. Opening the chooser does not mean a message was sent.
+- Keep browser sharing and download paths, identify older APKs, and reject stale images after roster/date/route changes.
+- Use confirmed same-day dispatch when reconciling monthly leave plans, even when normalized timetables contain no roster. Keep explicit daily absence restrictions and unassigned planned leave exclusions. Show a visible missing-driver placeholder instead of an empty selector.
+- Local manager dispatch, native export protocol, normalized data, driver dashboard and current-date tests pass. Browser tests could not run because no Chromium executable is installed; Android compilation/emulator tests remain unverified. Automatic approval review blocked publication of the 12 changed public-repository files, so no v81 CI build, merge or web deployment occurred. Server roster patch deployment and real handset sharing remain separate, unverified steps.

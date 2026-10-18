@@ -62,6 +62,8 @@ jobs:
           node tests/startup-performance.test.js
           node tests/operations-data.test.js
           node tests/operations-data.browser.cjs
+          node tests/managerdispatch.test.js
+          node tests/dispatch-share.browser.cjs
           node tests/driver-ledger.test.js
           python3 tests/ledger-workbook.py
           node tests/run-history-plans.test.js
