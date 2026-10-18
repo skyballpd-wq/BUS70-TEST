@@ -734,6 +734,12 @@
     @media print{.ledger-sheet-view{display:none}}
     #driverArrivalEstimate{font-size:14px;line-height:1.5;margin:9px 0;padding:9px;border-radius:8px;background:#f1f5f9}
     #driverArrivalEstimate.early-warning{background:#fee2e2;color:#991b1b;font-weight:800}
+      .operations-data-rows{display:grid;gap:.7rem}
+    .operations-data-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;padding:.8rem;border:1px solid #dbe2ea;border-radius:12px;overflow-wrap:anywhere}
+    .operations-data-row small{display:block;color:#637083;font-size:.8rem}
+    .operations-data-row strong{display:block;font-size:.95rem}
+    .operations-data-row details{grid-column:1/-1;font-size:.85rem}
+    @media(max-width:600px){.operations-data-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 </head>
@@ -944,6 +950,10 @@
       </div>
       <button id="managerLoad" type="button">기사·차량 불러오기</button>
       <div id="managerRows"></div>
+      <details id="operationsDataPanel" class="timetable-editor-panel">
+        <summary>통합 DB · 기사·차량·운행계획 연결</summary>
+        <div id="operationsDataView" aria-live="polite">열면 선택한 날짜와 노선의 연결 상태를 확인합니다.</div>
+      </details>
       <button id="managerSave" type="button" hidden>배차 저장</button>
       <details id="managerTimetablePanel" class="timetable-editor-panel" hidden>
         <summary>노선별 배차시간표 전체 편집</summary>
@@ -1129,7 +1139,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v78.0
+    소신여객 통합 운행관리 TEST · v79.0
   </footer>
 
 </div>
@@ -1349,7 +1359,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v78.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v79.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1550,6 +1560,7 @@
     localStorage.removeItem(LEGACY_REMEMBER_KEY);
     localStorage.removeItem("BUS70_TEST_DRIVER");
     authToken = "";apiReadFlights.clear();apiTimings.length=0;
+    operationsDataRequest++;document.getElementById("operationsDataView").replaceChildren();document.getElementById("operationsDataPanel").open=false;
     runLogView=null;runLogRequestId++;ledgerRows=[];nativeArrivalEstimate=null;nativeEventItems=[];nativePendingCount=0;nativeEventSignature="";nativeSyncError="";
     clearInterval(operationTimer);
     operationTimer = 0;
@@ -2391,7 +2402,7 @@
 
   function nativeSchedulePayload(data){
     const d=data.dispatch||{},vehicle=data.vehicle||{},trips=normalizeScheduleTrips(data.trips),normalizedData=Object.assign({},data,{trips}),last=trips[trips.length-1],finish=last?endOfShiftMeta(normalizedData,last,trips.length-1):null;
-    const routeStops=(data.routeProfile?.stops||[]).filter(stop=>hasNumericValue(stop.lat)&&hasNumericValue(stop.lng)).map(stop=>({id:String(stop.id||""),name:String(stop.name||""),number:String(stop.number||""),order:Number(stop.order||0),direction:String(stop.direction||""),origin:Boolean(stop.origin),turnaround:Boolean(stop.turnaround),lat:Number(stop.lat),lng:Number(stop.lng)}));
+    const routeStops=(data.routeProfile?.stops||[]).filter(stop=>hasNumericValue(stop.lat)&&hasNumericValue(stop.lng)).map(stop=>({id:String(stop.id||""),stationId:String(stop.externalStopId||stop.stationId||""),name:String(stop.name||""),number:String(stop.number||""),order:Number(stop.order||0),direction:String(stop.direction||""),origin:Boolean(stop.origin),turnaround:Boolean(stop.turnaround),lat:Number(stop.lat),lng:Number(stop.lng)}));
     return {apiUrl:API_URL,token:authToken,driverId:currentDriverId,route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicleId:String(vehicle.vehicleId||vehicle.id||d.vehicleId||""),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||d.vehicleNo||""),electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,firstScheduledTrip:trips.length?Number(trips[0].trip):null,endOfShift:finish,routeStops:routeStops,liveLocation:{enabled:true,minimumIntervalSeconds:15,snapshotRetentionSeconds:600},trips:trips.map(v=>{const log=runLogForTrip(data,v)||{};return {course:Bus70Automation.course(v,routeStops),trip:Number(v.trip),startPlace:v.startPlace||"",startTime:v.startTime,turnPlace:v.turnPlace||"",turnTime:v.turnTime||"",endPlace:v.endPlace||"",endTime:v.endTime||v.startTime,plannedFrontGap:v.plannedFrontGapMinutes,plannedRearGap:v.plannedRearGapMinutes,startLocation:tripLocationPoint(v,"start"),turnLocation:tripLocationPoint(v,"turn"),endLocation:tripLocationPoint(v,"end"),controlPoint:v.controlPoint||"",controlTime:v.controlTime||"",controlLocation:tripLocationPoint(v,"control"),deadheadDestination:v.deadheadDestination||"",returnLocation:tripLocationPoint(v,"return"),turnDepartedAt:log.turnDepartedAt||"",actualControl:log.actualControl||"",deadheadReturnedAt:log.deadheadReturnedAt||"",actualStart:log.actualStart||"",startRecordMode:log.startRecordMode||"",actualTurn:log.actualTurn||"",actualEnd:log.actualEnd||""};})};
   }
 
@@ -3547,6 +3558,41 @@
     document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;
   }
 
+  let operationsDataRequest=0;
+  function resetOperationsData(){
+    operationsDataRequest++;
+    document.getElementById("operationsDataView").replaceChildren(el("p","선택한 날짜와 노선의 연결 상태를 확인합니다.","hint"));
+    if(document.getElementById("operationsDataPanel").open)loadOperationsData();
+  }
+  async function loadOperationsData(){
+    const root=document.getElementById("operationsDataView"),route=document.getElementById("managerRoute").value,date=document.getElementById("managerDate").value,token=authToken,request=++operationsDataRequest;
+    if(!authToken||!currentRole||!date)return;
+    root.replaceChildren(el("p","DB 연결 확인 중…","hint"));
+    try{
+      const result=await apiPost({action:"managerDispatchBootstrap",operation:"operationsDataOverview",token,route,date});
+      if(request!==operationsDataRequest||route!==document.getElementById("managerRoute").value||date!==document.getElementById("managerDate").value||authToken!==token||!currentRole)return;
+      if(!result.ok||result.schemaVersion!==1){root.replaceChildren(el("p",result.error==="MANAGER_REQUIRED"?"소장·마스터 권한을 확인하세요.":"통합 DB 조회 기능의 서버 적용이 필요합니다. 기존 배차 메뉴를 이용할 수 있습니다.","notice warning"));return;}
+      if(result.route!==route||result.date!==date)throw Error("요청한 노선·날짜와 다른 응답입니다.");
+      renderOperationsData(root,result);
+    }catch(error){if(request===operationsDataRequest)root.replaceChildren(el("p","연결 상태를 확인하지 못했습니다. "+error.message,"notice error"));}
+  }
+  function renderOperationsData(root,data){
+    root.replaceChildren(el("p",data.date+" · "+(data.route==="ALL"?"전체 노선":data.route+"번")+" · "+(data.issues.length?data.issues.length+"개 연결 확인 필요":"연결 오류 없음"),"hint"));
+    (data.routes||[]).forEach(item=>{
+      const box=el("div",undefined,"notice");box.append(el("strong",item.route+"번 · 배차 "+item.dispatchCount+"건 · 시간표 "+item.planCount+"탕"),el("div","정류장 "+item.stopCount+"곳 · 고정차량 배정 "+item.fixedCount+"건"),el("div","현재 안내 기준: "+item.ruleLabel));
+      if(!item.fixedCount)box.append(el("div","고정차량 미등록 · 당일 배차 차량과 구분","hint"));root.append(box);
+    });
+    if(data.issues.length){const list=el("ul");data.issues.forEach(item=>list.append(el("li",item.entity+" · "+item.message)));const detail=el("details");detail.append(el("summary","연결 확인 항목 "+data.issues.length+"건"),list);root.append(detail);}
+    const records=el("div",undefined,"operations-data-rows");
+    (data.rows||[]).forEach(item=>{
+      const card=el("div",undefined,"operations-data-row");
+      [["노선·순차",item.route+"번 "+item.shift+"조 "+item.sequence+"순차"],["기사",item.driverName],["당일 배차 차량",item.vehicleNo],["고정차량",item.fixedVehicles.length?item.fixedVehicles.join(", "):"미등록"],["탕",item.tripNumbers.length?item.tripNumbers.join(" · "):"? 시간표 없음"],["연결",item.state]].forEach(([label,value])=>{const field=el("div");field.append(el("small",label),el("strong",value));card.append(field);});
+      const evidence=el("details");evidence.append(el("summary","기준 자료"),el("div","운행일 ID: "+(item.serviceDayId||"미등록")),el("div","시간표 버전: "+item.version));card.append(evidence);records.append(card);
+    });
+    if(!data.rows.length)root.append(el("p","? 선택 날짜의 확정 배차가 없습니다.","notice"));root.append(records);
+  }
+  document.getElementById("operationsDataPanel").addEventListener("toggle",()=>{if(document.getElementById("operationsDataPanel").open)loadOperationsData();});
+
   function invalidateManagerRequest() {
     managerRequestId++;
     const button=document.getElementById("managerLoad");
@@ -3554,6 +3600,7 @@
   }
 
   async function loadManagerData() {
+    resetOperationsData();
     const date = document.getElementById("managerDate").value;
     const route = document.getElementById("managerRoute").value;
     if (!date) return managerNotice("운행 날짜를 선택하세요.", true);
@@ -3816,8 +3863,8 @@
   document.getElementById("managerGenerate").addEventListener("click",generateManagerImage);
   document.getElementById("managerShare").addEventListener("click",shareManagerImage);
   document.getElementById("managerDownload").addEventListener("click",downloadManagerImage);
-  document.getElementById("managerRoute").addEventListener("change",()=>{invalidateManagerRequest();managerData=null;managerImageBlob=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");applyRouteBrand(document.getElementById("managerRoute").value,currentRole);document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;managerNotice("선택한 노선의 기사·차량을 불러오세요.");});
-  document.getElementById("managerDate").addEventListener("change",()=>{invalidateManagerRequest();syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
+  document.getElementById("managerRoute").addEventListener("change",()=>{invalidateManagerRequest();resetOperationsData();managerData=null;managerImageBlob=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");applyRouteBrand(document.getElementById("managerRoute").value,currentRole);document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;managerNotice("선택한 노선의 기사·차량을 불러오세요.");});
+  document.getElementById("managerDate").addEventListener("change",()=>{invalidateManagerRequest();resetOperationsData();syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
   let managerPage = "HOME";
   let depotContacts = [], depotContactsVersion = 0;
