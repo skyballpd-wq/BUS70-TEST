@@ -5,9 +5,10 @@
 function bus70DbKey_(parts) { return JSON.stringify(parts.map(function(v){return String(v===undefined||v===null?'':v);})); }
 function bus70DbObjects_(values) {
   if(!values||!values.length)return [];
-  const headers=values[0];return values.slice(1).filter(function(row){return row.some(function(v){return v!==''&&v!==null&&v!==undefined;});}).map(function(row,index){
+  const headers=values[0];return values.slice(1).map(function(row,index){
+    if(!row.some(function(v){return v!==''&&v!==null&&v!==undefined;}))return null;
     const item={_row:index+2};headers.forEach(function(h,i){item[h]=row[i]===undefined?'':row[i];});return item;
-  });
+  }).filter(Boolean);
 }
 function bus70DbText_(value){return String(value===undefined||value===null?'':value).trim();}
 function bus70DbActive_(row,date,from,to){

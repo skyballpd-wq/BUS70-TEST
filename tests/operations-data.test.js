@@ -29,6 +29,7 @@ if(require.main===module){
   h=harness(fixture());r=h.run('5');assert.equal(r.rows.length,1);assert.equal(h.reads['노선_70_정류장DB'],undefined);assert.equal(h.reads['노선_70_배차스케줄DB_2099_01'],undefined);
   h=harness(fixture());r=h.run('5','2099-01-09');assert.equal(r.rows.length,0);assert.equal(r.routes[0].planCount,0,'no previous-day fallback');
   h=harness(fixture(),false);assert.equal(h.run().error,'MANAGER_REQUIRED');assert.equal(Object.keys(h.reads).length,0,'permission checked before reading private data');
+  const sparse=harness(fixture()).context.bus70DbObjects_([['id'],[],['A'],[''],['B']]);assert.equal(sparse[0]._row,3);assert.equal(sparse[1]._row,5,'blank rows must not shift physical write targets');
   for(const field of [5,6,7,9]){const t=fixture();t['배차DB'][1][field]='MISSING';r=harness(t).run('5');assert.ok(r.issues.some(i=>i.code==='DISPATCH_RELATION'));}
   const t=fixture();t['운행일DB'][1][2]='70';r=harness(t).run('5');assert.equal(r.rows[0].state,'확인 필요');
   const duplicate=fixture();duplicate['노선_5_배차스케줄DB_2099_01'].push(duplicate['노선_5_배차스케줄DB_2099_01'][2].slice());r=harness(duplicate).run('5');assert.ok(r.issues.some(i=>i.code==='DUPLICATE_REVISION'));assert.deepEqual(r.rows[0].tripNumbers,[7]);
