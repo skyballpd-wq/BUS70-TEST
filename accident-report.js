@@ -10,7 +10,8 @@
     if(!data.occurredAt||!data.location?.trim()||!data.contactArea?.trim())return '사고 시각·현장 위치·접촉 부위를 입력하세요.';
     if(!Array.isArray(data.photos)||data.photos.length<5)return '필수 사진 5장을 모두 첨부하세요.';
     if(data.photos.length>LIMIT)return '사진은 최대 10장까지 첨부할 수 있습니다.';
-    const missing=REQUIRED.filter(([key])=>!data.photos.some(p=>p.category===key));
+    if(data.evidenceMode==='BULK'&&data.evidenceConfirmed!==true)return '양쪽 번호판·현장·양쪽 접촉 부위 사진이 포함됐는지 확인해 주세요.';
+    const missing=data.evidenceMode==='BULK'?[]:REQUIRED.filter(([key])=>!data.photos.some(p=>p.category===key));
     if(missing.length)return missing.map(x=>x[1]).join(', ')+' 사진을 첨부하세요.';
     if(new Set(data.photos.map(p=>p.data)).size!==data.photos.length)return '같은 사진이 중복되었습니다. 서로 다른 사진을 첨부하세요.';
     return '';
@@ -32,46 +33,47 @@
   }
   function mount(host){
     host.classList.add('accident-report');
-    const fields={}, photos=new Map();let busy=false,processing=0,requestId='',locked=false,generation=0;
-    const heading=node('h3','사고 차량·현장 정보'),hint=node('p','안전한 곳에서 촬영하세요. 양쪽 차량번호와 접촉 부위가 선명하게 보이도록 확인해 주세요.','hint');
-    host.append(heading,hint);
-    const grid=node('div',undefined,'accident-fields');
-    const defs=[['ownPlate','우리 차량 전체 번호','text'],['otherPlate','상대 차량 전체 번호','text'],['occurredAt','사고 발생 시각','datetime-local'],['location','사고 현장 위치','text'],['contactArea','양쪽 차량 접촉·파손 부위','text']];
-    const changed=()=>{if(!locked)requestId='';};
-    defs.forEach(([key,label,type])=>{const wrap=node('label',label),input=node('input');input.type=type;input.maxLength=key.includes('Plate')?30:200;input.setAttribute('aria-label',label);input.addEventListener('input',changed);wrap.append(input);grid.append(wrap);fields[key]=input;});
-    const roleWrap=node('label','우리 차량 가해·피해 구분'),role=node('select');[['미확정','미확정'],['가해','가해'],['피해','피해'],['쌍방','쌍방']].forEach(([v,t])=>role.add(new Option(t,v)));role.setAttribute('aria-label','우리 차량 가해·피해 구분');role.addEventListener('change',changed);roleWrap.append(role);grid.append(roleWrap);fields.ownRole=role;
-    host.append(grid,node('p','가해·피해 구분은 현재 보고 내용이며, 확정 전에는 미확정을 선택하세요.','hint'));
-    const count=node('p','필수 사진 0/5 · 전체 0장','accident-count');count.setAttribute('aria-live','polite');host.append(count);
-    const list=node('div',undefined,'accident-photo-grid'),status=node('p','','accident-message');status.setAttribute('role','status');
-    const refresh=()=>{count.textContent='필수 사진 '+REQUIRED.filter(([k])=>photos.has(k)).length+'/5 · 전체 '+photos.size+'장';};
-    const controls=[];
-    function slot(key,label){
-      const card=node('div',undefined,'accident-photo'),title=node('strong',label),preview=node('img');preview.hidden=true;preview.alt=label+' 미리보기';
-      const actions=node('div',undefined,'accident-photo-actions');
-      for(const [caption,capture] of [['촬영',true],['사진 선택',false]]){
-        const input=node('input');input.type='file';input.accept='image/*';input.hidden=true;if(capture)input.setAttribute('capture','environment');input.setAttribute('aria-label',label+' '+caption);
-        const button=node('button',caption);button.type='button';button.setAttribute('aria-label',label+' '+caption);button.addEventListener('click',()=>{if(!busy&&!locked)input.click();});controls.push(button,input);
-        input.addEventListener('change',async()=>{
-          const file=input.files&&input.files[0];input.value='';if(!file||busy||locked)return;
-          const currentGeneration=generation;processing++;button.disabled=true;status.textContent='사진 준비 중…';
-          try{const photo=await prepare(file);if(currentGeneration!==generation)return;if([...photos.entries()].some(([k,p])=>k!==key&&p.data===photo.data))throw Error('이미 첨부된 사진입니다. 다른 사진을 선택하세요.');photos.set(key,{...photo,category:key.startsWith('EXTRA_')?'EXTRA':key});preview.src=photo.preview;preview.hidden=false;changed();refresh();status.textContent='사진을 확대해 차량번호와 접촉 부위가 잘 보이는지 확인해 주세요.';}
-          catch(e){status.textContent=e.message||'사진을 읽지 못했습니다.';}finally{processing--;button.disabled=false;}
-        });actions.append(button,input);
-      }
-      const remove=node('button','삭제');remove.type='button';remove.setAttribute('aria-label',label+' 삭제');remove.addEventListener('click',()=>{if(busy||locked)return;photos.delete(key);preview.removeAttribute('src');preview.hidden=true;changed();refresh();});controls.push(remove);actions.append(remove);
-      preview.addEventListener('click',()=>{const dialog=node('dialog',undefined,'accident-preview'),large=node('img'),close=node('button','닫기');large.src=preview.src;large.alt=preview.alt;close.type='button';close.onclick=()=>dialog.close();dialog.append(large,close);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();});
-      card.append(title,preview,actions);list.append(card);
+    const fields={},photos=[];let busy=false,processing=false,requestId='',locked=false,generation=0,lastPrefill='';
+    const controls=[],changed=()=>{if(!locked)requestId='';};
+    const hint=node('p','양쪽 번호판 · 현장 전경 · 양쪽 접촉 부위가 보이는 사진을 5장 이상 첨부하세요.','hint');
+    const count=node('strong','사진 0/5장 이상','accident-count');count.setAttribute('aria-live','polite');
+    const actions=node('div',undefined,'accident-upload-actions'),list=node('div',undefined,'accident-photo-grid'),status=node('p','','accident-message');status.setAttribute('role','status');
+    const coverageLabel=node('label',undefined,'accident-coverage'),coverage=node('input');coverage.type='checkbox';coverage.addEventListener('change',changed);controls.push(coverage);
+    coverageLabel.append(coverage,node('span','양쪽 번호판·현장·양쪽 접촉 부위 사진을 포함했습니다.'));
+    const refresh=()=>{
+      count.textContent='사진 '+photos.length+'장 / 최소 5장';list.replaceChildren();
+      photos.forEach((photo,index)=>{const card=node('div',undefined,'accident-photo'),preview=node('img'),remove=node('button','삭제');preview.src=photo.preview;preview.alt='사고 사진 '+(index+1);remove.type='button';remove.disabled=busy||locked||processing;remove.setAttribute('aria-label','사고 사진 '+(index+1)+' 삭제');
+        remove.onclick=()=>{if(busy||locked||processing)return;photos.splice(index,1);coverage.checked=false;changed();refresh();};
+        preview.onclick=()=>{const dialog=node('dialog',undefined,'accident-preview'),large=node('img'),close=node('button','닫기');large.src=preview.src;large.alt=preview.alt;close.type='button';close.onclick=()=>dialog.close();dialog.append(large,close);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();};card.append(preview,remove);list.append(card);
+      });
+    };
+    const disable=()=>{[...Object.values(fields),...controls].forEach(n=>n.disabled=busy||locked||processing);list.querySelectorAll('button').forEach(n=>n.disabled=busy||locked||processing);};
+    for(const [caption,capture] of [['사진 여러 장 선택',false],['추가 촬영',true]]){
+      const input=node('input'),button=node('button',caption);input.type='file';input.accept='image/*';input.hidden=true;input.multiple=!capture;if(capture)input.setAttribute('capture','environment');input.setAttribute('aria-label',caption+' 파일');button.type='button';button.onclick=()=>{if(!busy&&!locked&&!processing)input.click();};controls.push(input,button);
+      input.onchange=async()=>{
+        const files=Array.from(input.files||[]);input.value='';if(!files.length||busy||locked||processing)return;
+        if(photos.length+files.length>LIMIT){status.textContent='사진은 최대 '+LIMIT+'장입니다. 선택 수를 줄여 주세요.';return;}
+        const current=generation;processing=true;disable();let added=0,duplicates=0,failed=0;
+        try{for(let i=0;i<files.length;i++){
+          if(current!==generation)return;status.textContent='사진 준비 '+(i+1)+'/'+files.length+'…';
+          try{const photo=await prepare(files[i]);if(current!==generation)return;if(photos.some(p=>p.data===photo.data)){duplicates++;continue;}photos.push({...photo,category:'EVIDENCE'});added++;coverage.checked=false;changed();refresh();}catch(e){failed++;}
+        }status.textContent=added+'장 추가'+(duplicates?' · 중복 '+duplicates+'장 제외':'')+(failed?' · 읽기 실패 '+failed+'장, 다시 선택해 주세요.':'');}
+        finally{if(current===generation){processing=false;disable();}}
+      };actions.append(button,input);
     }
-    REQUIRED.forEach(([k,label],i)=>slot(k,(i+1)+'. '+label));host.append(list);
-    const extra=node('button','사진 더 추가 (최대 10장)');extra.type='button';let extras=0;extra.onclick=()=>{if(busy||locked||extras>=5)return;slot('EXTRA_'+(++extras),'추가 사진 '+extras);if(extras>=5)extra.hidden=true;};controls.push(extra);host.append(extra,status);
+    host.append(hint,actions,count,list,coverageLabel,status);
+    const grid=node('div',undefined,'accident-fields');
+    const defs=[['ownPlate','우리 차량 전체 번호','text'],['otherPlate','상대 차량 전체 번호','text'],['location','사고 현장 위치','text'],['contactArea','양쪽 차량 접촉·파손 부위','text'],['occurredAt','사고 발생 시각','datetime-local']];
+    defs.forEach(([key,label,type])=>{const wrap=node('label',label),input=node('input');input.type=type;input.maxLength=key.includes('Plate')?30:200;input.setAttribute('aria-label',label);input.addEventListener('input',changed);wrap.append(input);grid.append(wrap);fields[key]=input;});
+    const roleWrap=node('label','우리 차량 가해·피해 구분'),role=node('select');['미확정','가해','피해','쌍방'].forEach(v=>role.add(new Option(v,v)));role.setAttribute('aria-label','우리 차량 가해·피해 구분');role.addEventListener('change',changed);roleWrap.append(role);grid.append(roleWrap);fields.ownRole=role;host.append(grid);
     const controller={
-      data(){return {requestId:requestId||(requestId=crypto.randomUUID()),...Object.fromEntries(Object.entries(fields).map(([k,n])=>[k,n.value.trim()])),photos:[...photos.values()].map(({preview,...p})=>p)};},
+      data(){return {requestId:requestId||(requestId=crypto.randomUUID()),...Object.fromEntries(Object.entries(fields).map(([k,n])=>[k,n.value.trim()])),evidenceMode:'BULK',evidenceConfirmed:coverage.checked,photos:photos.map(({preview,...p})=>p)};},
       validate(){return processing?'사진 준비가 끝난 뒤 보고하세요.':validate(this.data());},
-      prefill(plate){if(!fields.ownPlate.value)fields.ownPlate.value=plate||'';if(!fields.occurredAt.value){const d=new Date(Date.now()+9*3600000);fields.occurredAt.value=d.toISOString().slice(0,16);}},
+      prefill(plate){if(!locked&&(!fields.ownPlate.value||fields.ownPlate.value===lastPrefill)){if(fields.ownPlate.value!==(plate||''))changed();fields.ownPlate.value=plate||'';lastPrefill=plate||'';}if(!fields.occurredAt.value){const d=new Date(Date.now()+9*3600000);fields.occurredAt.value=d.toISOString().slice(0,16);}},
       message(text){status.textContent=text;},
-      busy(value){busy=value;[...Object.values(fields),...controls].forEach(n=>n.disabled=value||locked);},
-      uncertain(){locked=true;this.busy(false);status.textContent='접수 결과를 확인하지 못했습니다. 같은 내용으로 다시 보내면 중복 접수하지 않고 결과를 확인합니다.';},
-      reset(){generation++;photos.clear();requestId='';locked=false;Object.values(fields).forEach(n=>n.value=n.tagName==='SELECT'?'미확정':'');list.querySelectorAll('img').forEach(n=>{n.hidden=true;n.removeAttribute('src');});refresh();this.busy(false);status.textContent='';},
+      busy(value){busy=value;disable();},
+      uncertain(){locked=true;this.busy(false);status.textContent='접수 결과를 확인하지 못했습니다. 같은 내용으로 다시 보내면 중복 접수 없이 결과를 확인합니다.';},
+      reset(){generation++;processing=false;photos.length=0;requestId='';locked=false;lastPrefill='';coverage.checked=false;Object.values(fields).forEach(n=>n.value=n.tagName==='SELECT'?'미확정':'');refresh();this.busy(false);status.textContent='';},
       show(value){host.hidden=!value;}
     };return controller;
   }

@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "accident-report.js"
+      - "apps-script/AccidentReport.gs"
+      - "apps-script/ManagerDispatch.gs"
+      - "tests/accident-report*"
+      - "accident-report.css"
       - "driver-recording.js"
       - "tests/realtime-health.test.js"
       - "tests/realtime-health.browser.cjs"
@@ -54,6 +59,9 @@ jobs:
           node tests/departure-evidence.test.js
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
+          node tests/startup-performance.test.js
+          node tests/accident-report.test.js
+          node tests/accident-report.browser.cjs
           node tests/current-date-schedule.test.js
           node tests/schedule-session-recovery.test.js
       - uses: actions/upload-artifact@v4

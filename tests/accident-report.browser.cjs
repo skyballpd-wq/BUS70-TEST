@@ -11,14 +11,17 @@ const output=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-accident-preview';fs
   await page.getByRole('button',{name:'보고 검사'}).click();assert.match(await page.locator('#result').innerText(),/5장/);
   const categories=['우리 차량 번호판','상대 차량 번호판','사고 현장 전경','우리 차량 접촉·파손 부위','상대 차량 접촉·파손 부위'];
   const pictures=[];for(let i=0;i<5;i++)pictures.push(await page.evaluate(i=>{const c=document.createElement('canvas');c.width=600;c.height=400;const x=c.getContext('2d');x.fillStyle=['#e8f5e9','#e3f2fd','#fff3e0','#fce4ec','#f3e5f5'][i];x.fillRect(0,0,600,400);x.fillStyle='#123a69';x.font='40px sans-serif';x.fillText('SYNTHETIC '+(i+1),70,200);return c.toDataURL('image/png').split(',')[1];},i));
-  for(let i=0;i<5;i++){await page.getByLabel(`${i+1}. ${categories[i]} 사진 선택`,{exact:true}).setInputFiles({name:`synthetic-${i}.png`,mimeType:'image/png',buffer:Buffer.from(pictures[i],'base64')});await page.waitForFunction(n=>document.querySelector('.accident-count').textContent.includes(`전체 ${n}장`),i+1);}
+  await page.getByLabel('사진 여러 장 선택 파일',{exact:true}).setInputFiles(pictures.map((data,i)=>({name:`synthetic-${i}.png`,mimeType:'image/png',buffer:Buffer.from(data,'base64')})));
+  await page.waitForFunction(()=>form.data().photos.length===5&&!document.querySelector('input[type=file]').disabled);
+  await page.getByRole('button',{name:'보고 검사'}).click();assert.match(await page.locator('#result').innerText(),/포함/);
+  await page.getByLabel('양쪽 번호판·현장·양쪽 접촉 부위 사진을 포함했습니다.',{exact:true}).check();
   await page.getByRole('button',{name:'보고 검사'}).click();assert.equal(await page.locator('#result').innerText(),'검증 통과');
   const firstId=await page.evaluate(()=>form.data().requestId);assert.equal(firstId,await page.evaluate(()=>form.data().requestId));
-  await page.getByRole('button',{name:'사진 더 추가 (최대 10장)'}).click();await page.getByLabel('추가 사진 1 사진 선택',{exact:true}).setInputFiles({name:'same.png',mimeType:'image/png',buffer:Buffer.from(pictures[0],'base64')});await page.waitForFunction(()=>document.querySelector('.accident-message').textContent.includes('이미 첨부'));assert.equal(await page.evaluate(()=>form.data().photos.length),5);
+  await page.getByLabel('사진 여러 장 선택 파일',{exact:true}).setInputFiles({name:'same.png',mimeType:'image/png',buffer:Buffer.from(pictures[0],'base64')});await page.waitForFunction(()=>document.querySelector('.accident-message').textContent.includes('중복'));assert.equal(await page.evaluate(()=>form.data().photos.length),5);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal overflow');
   await page.screenshot({path:`${output}/accident-${width}.png`,fullPage:true});
   await page.evaluate(()=>form.uncertain());assert.equal(await page.getByLabel('상대 차량 전체 번호',{exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>form.data().requestId),firstId);assert.equal(await page.evaluate(()=>form.data().photos.length),5);
   await page.evaluate(()=>form.reset());assert.equal(await page.evaluate(()=>form.data().photos.length),0);assert.equal(await page.getByLabel('상대 차량 전체 번호',{exact:true}).inputValue(),'');assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
- console.log('Accident mobile 320/412px: image selection, compression, five required categories, duplicate rejection, stable retry and reset passed');
+ console.log('Accident mobile 320/412px: image selection, compression, one multi-file selection with coverage confirmation, duplicate rejection, stable retry and reset passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});

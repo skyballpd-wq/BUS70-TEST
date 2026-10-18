@@ -43,6 +43,8 @@ function bus70RevokeSession_(token) {
 
 function bus70AuthAction_(body) {
   if(typeof BUS70_PARTITION_READS_ !== 'undefined')BUS70_PARTITION_READS_={};
+  if(typeof BUS70_ROLE_READ_ !== 'undefined')BUS70_ROLE_READ_=null;
+  const requestStarted=Date.now();
   body = body || {};
   const action = String(body.action || '').trim();
   if (action === 'loginSecure') {
@@ -68,12 +70,14 @@ function bus70AuthAction_(body) {
     const session = bus70IssueSession_(result.driver.driverId);
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
+    const authFinished=Date.now();
     if (body.date && !role) {
       response.schedule = bus70SecureScheduleForDriver_(result.driver.driverId, body.date, result.driver);
     }
     if (!role && typeof bus70DriverAlertSettingsGet_ === 'function') {
       response.alertSettings = bus70DriverAlertSettingsGet_(result.driver.driverId).settings;
     }
+    response.timingsMs={auth:authFinished-requestStarted,schedule:Date.now()-authFinished,total:Date.now()-requestStarted};
     return response;
   }
   const driverId = bus70AuthDriver_(body.token);
@@ -90,12 +94,14 @@ function bus70AuthAction_(body) {
     }
     const response = {ok:true, driver:result.driver,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
+    const authFinished=Date.now();
     if (body.date && !role) {
       response.schedule = bus70SecureScheduleForDriver_(driverId, body.date, result.driver);
     }
     if (!role && typeof bus70DriverAlertSettingsGet_ === 'function') {
       response.alertSettings = bus70DriverAlertSettingsGet_(driverId).settings;
     }
+    response.timingsMs={auth:authFinished-requestStarted,schedule:Date.now()-authFinished,total:Date.now()-requestStarted};
     return response;
   }
   if (action === 'logout') {
@@ -152,7 +158,7 @@ function bus70SecureScheduleForDriver_(driverId, date, knownDriver) {
   const homeRoute=bus70DriverReferenceRoute_(effectiveDriver),assignedRoute=bus70ConfirmedAssignedRoute_(driverId,date),expectedRoute=assignedRoute||homeRoute;
   if(assignedRoute&&assignedRoute!==homeRoute){effectiveDriver.homeRoute=homeRoute;effectiveDriver.route=assignedRoute;effectiveDriver.assignmentRouteOverride=true;}
   const confirmed=expectedRoute?bus70ConfirmedRouteScheduleForDriver_(effectiveDriver,date,expectedRoute):null;
-  const base=apiMySchedule_({parameter:{driverId:driverId,date:date}});
+  const base=confirmed?null:apiMySchedule_({parameter:{driverId:driverId,date:date}});
   const baseRoute=bus70ScheduleRoute_(base,'70');
   let schedule=null;
   if(confirmed){
@@ -224,7 +230,7 @@ function bus70ConfirmedAssignedRoute_(driverId, rawDate) {
   const date=normalizeDate_(rawDate),routes={};if(!driverId||!date)return '';
   try{
     const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('배차DB');if(!sheet||sheet.getLastRow()<2)return '';
-    const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);
+    const rows=(typeof bus70PartitionRows_==='function'?bus70PartitionRows_(sheet):sheet.getDataRange().getDisplayValues()),c=makeHeaderMap_(rows[0]);
     rows.slice(1).forEach(function(row){if(normalizeDate_(row[c['날짜']])===date&&String(row[c['기사ID']]||'')===String(driverId)&&String(row[c['상태']]||'')==='확정')routes[bus70AuthDispatchRoute_(row,c)]=true;});
   }catch(error){return '';}
   const keys=Object.keys(routes).filter(Boolean);return keys.length===1?keys[0]:'';
@@ -244,7 +250,7 @@ function bus70ConfirmedRouteScheduleForDriver_(driver, rawDate, route) {
   let ss,dispatchSheet;
   try{ss=SpreadsheetApp.getActiveSpreadsheet();dispatchSheet=ss.getSheetByName('배차DB');}catch(error){return null;}
   if(!dispatchSheet||dispatchSheet.getLastRow()<2)return null;
-  const rows=dispatchSheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);let row=null;
+  const rows=(typeof bus70PartitionRows_==='function'?bus70PartitionRows_(dispatchSheet):dispatchSheet.getDataRange().getDisplayValues()),c=makeHeaderMap_(rows[0]);let row=null;
   for(let i=1;i<rows.length;i++){
     if(normalizeDate_(rows[i][c['날짜']])===date&&String(rows[i][c['기사ID']]||'')===driverId&&String(rows[i][c['상태']]||'')==='확정'&&bus70AuthDispatchRoute_(rows[i],c)===route){row=rows[i];break;}
   }
@@ -258,7 +264,7 @@ function bus70ConfirmedRouteScheduleForDriver_(driver, rawDate, route) {
   if(!sequence||!trips.length)return {ok:false,error:'ROUTE_TIMETABLE_NOT_CONFIGURED',message:route+'번 '+sequence+'순차의 탕별 시간표가 없습니다.',date:date,route:route};
   let vehicleNo=String(assignment&&assignment.vehicleNo||'').replace(/\D/g,''),vehicleStatus='운행';
   const vehicleSheet=ss.getSheetByName('차량DB');
-  if(vehicleSheet&&vehicleSheet.getLastRow()>1){const vr=vehicleSheet.getDataRange().getDisplayValues(),vc=makeHeaderMap_(vr[0]);for(let j=1;j<vr.length;j++)if(String(vr[j][vc['vehicleId']]||'')===vehicleId){vehicleNo=String(vr[j][vc['차량번호']]||'').replace(/\D/g,'')||vehicleNo;vehicleStatus=String(vr[j][vc['상태']]||vehicleStatus);break;}}
+  if(vehicleSheet&&vehicleSheet.getLastRow()>1){const vr=(typeof bus70PartitionRows_==='function'?bus70PartitionRows_(vehicleSheet):vehicleSheet.getDataRange().getDisplayValues()),vc=makeHeaderMap_(vr[0]);for(let j=1;j<vr.length;j++)if(String(vr[j][vc['vehicleId']]||'')===vehicleId){vehicleNo=String(vr[j][vc['차량번호']]||'').replace(/\D/g,'')||vehicleNo;vehicleStatus=String(vr[j][vc['상태']]||vehicleStatus);break;}}
   if(!vehicleNo)vehicleNo=vehicleId.replace(/\D/g,'').slice(-4);
   const dispatchId=String(row[c['dispatchId']]||''),scheduleVersion=String(row[c['시간표버전']]||reference.scheduleVersion||'');
   return {ok:true,type:'WORK',route:route,date:date,driverId:driverId,dispatch:{id:dispatchId,dispatchId:dispatchId,date:date,shift:String(row[c['근무조']]||reference.shift||''),seq:sequence,sequence:sequence,vehicleId:vehicleId,vehicleNo:vehicleNo,scheduleVersion:scheduleVersion,status:'확정',route:route},vehicle:{vehicleId:vehicleId,id:vehicleId,vehicleNo:vehicleNo,no:vehicleNo,displayNo:vehicleNo.length===4?'경기71아'+vehicleNo:vehicleNo,route:route,status:vehicleStatus},scheduleVersion:scheduleVersion,trips:trips,firstScheduledTrip:trips[0].trip,lastScheduledTrip:trips[trips.length-1].trip,operationRule:(reference.sequenceOperations||[]).find(function(item){return Number(item.sequence)===sequence;})||null,operatingRules:reference.operatingRules||null,routeProfile:reference.routeProfile||null,sourceNote:reference.sourceNote||'',verificationStatus:reference.verificationStatus||'',dispatchSource:'CONFIRMED_ROUTE_DB'};
@@ -271,7 +277,7 @@ function bus70DriverContextForDate_(driver, rawDate) {
     try{
       const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('근무변경DB');
       if(sheet&&sheet.getLastRow()>1){
-        const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);
+        const rows=(typeof bus70PartitionRows_==='function'?bus70PartitionRows_(sheet):sheet.getDataRange().getDisplayValues()),c=makeHeaderMap_(rows[0]);
         rows.slice(1).forEach(function(row,index){
           if(String(row[c['기사ID']]||'')!==driverId)return;
           const type=String(row[c['유형']]||''),effectiveDate=normalizeDate_(row[c['날짜']]);
@@ -983,7 +989,7 @@ function bus70DriverLeaveContext_(driver, rawDate) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!driver||!driver.driverId)return result;
   try{
     const ss=SpreadsheetApp.getActiveSpreadsheet(),events=[],dayShifts={};
-    function rows(name){const sheet=ss.getSheetByName(name);return sheet&&sheet.getLastRow()>1?sheet.getDataRange().getDisplayValues():[];}
+    function rows(name){const sheet=ss.getSheetByName(name);return sheet&&sheet.getLastRow()>1?(typeof bus70PartitionRows_==='function'?bus70PartitionRows_(sheet):sheet.getDataRange().getDisplayValues()):[];}
     function clean(value){return String(value||'').trim();}
     function approved(value){return ['확정','승인','승인완료'].indexOf(clean(value))!==-1;}
     function readLeaves(name,workChange){
