@@ -281,13 +281,35 @@
     .schedule-empty { text-align:center; padding:32px 16px; border:1px solid #dbe3ec; border-radius:14px; background:#f8fafc; }
     .schedule-empty .empty-mark { display:block; font-size:80px; line-height:1.2; color:#183f69; }
     .schedule-empty p { color:#64748b; margin:10px 0 0; }
-    .schedule-rest { padding:22px 18px; background:#f0f8f5; border-color:#c5ded4; }
-    .schedule-rest .empty-mark { font-size:42px; color:#12664d; }
-    .schedule-rest h3 { margin:12px 0; }
-    .schedule-rest .leave-period { font-weight:750; color:#183f69; }
-    .leave-month { margin-top:14px; text-align:left; font-size:14px; line-height:1.55; }
+    .schedule-rest { padding:16px; background:#f0f8f5; border-color:#c5ded4; font-size:15px; line-height:1.5; word-break:keep-all; overflow-wrap:break-word; }
+    .schedule-rest p { font-size:14px; line-height:1.5; margin:8px 0 0; }
+    .schedule-rest .leave-date { margin:0; font-size:13px; }
+    .leave-heading { display:flex; align-items:center; justify-content:center; gap:10px; margin:10px 0; }
+    .schedule-rest .empty-mark { display:inline-flex; justify-content:center; align-items:center; width:38px; height:38px; border-radius:50%; background:#d9eee3; font-size:25px; color:#12664d; flex-shrink:0; }
+    .schedule-rest h3 { font-size:20px; line-height:1.35; margin:0; }
+    .schedule-rest .leave-period { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:2px 8px; margin-top:12px; font-size:15px; font-weight:750; color:#183f69; }
+    .leave-period .period-label { font-size:13px; font-weight:500; color:#526476; }
+    .leave-period .period-date { white-space:nowrap; }
+    .schedule-rest .leave-note { margin-top:10px; font-size:14px; color:#526476; }
+    .leave-month { margin-top:12px; border-top:1px solid #d4e4dc; padding-top:4px; text-align:left; font-size:14px; line-height:1.55; }
     .leave-month summary { min-height:44px; display:flex; align-items:center; cursor:pointer; font-weight:700; }
-    .leave-month p { margin:8px 0; overflow-wrap:anywhere; }
+    .leave-month p { margin:8px 0; word-break:keep-all; overflow-wrap:break-word; }
+    .leave-days { display:flex; flex-wrap:wrap; gap:5px; list-style:none; padding:0; margin:7px 0 12px; }
+    .leave-days li { font-size:13px; border-radius:6px; background:#e2efe8; padding:3px 7px; white-space:nowrap; }
+    .mascot-stage { width:82px; height:82px; margin:0 auto; position:relative; }
+    .mascot-stage img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+    .mascot-sprite { width:100%; height:100%; transform-origin:center; transform:scale(.88); }
+    .mascot-sprite [data-face] { opacity:0; }
+    .mascot-sprite [data-face="0"] { opacity:1; }
+    .mascot-stage.playing .mascot-sprite { animation:mascot-greeting 7.68s ease-in-out 1; }
+    .mascot-stage.playing [data-face="0"] { animation:mascot-neutral 7.68s step-end 1; }
+    .mascot-stage.playing [data-face="1"] { animation:mascot-blink 7.68s step-end 1; }
+    .mascot-stage.playing [data-face="2"] { animation:mascot-smile 7.68s step-end 1; }
+    @keyframes mascot-neutral { 0%,20%{opacity:1} 16%,28%{opacity:0} 94%,100%{opacity:1} }
+    @keyframes mascot-blink { 0%,20%,100%{opacity:0} 16%{opacity:1} }
+    @keyframes mascot-smile { 0%,94%,100%{opacity:0} 28%{opacity:1} }
+    @keyframes mascot-greeting { 0%,35%{transform:translateY(0) rotate(0deg) scale(.88)} 60%,66%{transform:translateY(0) rotate(360deg) scale(.88)} 76%{transform:translateY(-14px) rotate(360deg) scale(.93)} 86%{transform:translateY(0) rotate(360deg) scale(.88)} 90%{transform:translateY(2px) rotate(360deg) scale(.92,.82)} 94%,100%{transform:translateY(0) rotate(360deg) scale(.88)} }
+    @media(prefers-reduced-motion:reduce) { .mascot-stage.playing .mascot-sprite,.mascot-stage.playing [data-face] { animation:none; } }
     .schedule-panel .notice.error { background: #fef2f2; color: #b91c1c; }
     .schedule-panel .confirm-button { background: #166534; }
     .schedule-panel .confirm-button[hidden] { display: none; }
@@ -1077,7 +1099,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v75.0
+    소신여객 통합 운행관리 TEST · v76.0
   </footer>
 
 </div>
@@ -1294,7 +1316,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v75.0";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v76.0";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2950,12 +2972,26 @@
     if(!leave?.startDate||!leave?.endDate)return "기간 확인 필요";
     return leave.startDate===leave.endDate?leave.startDate+" (1일)":leave.startDate+" ~ "+leave.endDate;
   }
+  function driverLeavePeriodRow(leave) {
+    const row=el("p",undefined,"leave-period");row.append(el("span","휴무 기간","period-label"));
+    if(!leave?.startDate||!leave?.endDate){row.append(el("span","기간 확인 필요"));return row;}
+    row.append(el("span",leave.startDate,"period-date"));
+    if(leave.startDate===leave.endDate)row.append(el("span","(1일)","period-date"));
+    else row.append(el("span","~"),el("span",leave.endDate,"period-date"));
+    return row;
+  }
+  function driverLeaveMascot() {
+    const stage=el("div",undefined,"mascot-stage playing"),sprite=el("div",undefined,"mascot-sprite");stage.setAttribute("aria-hidden","true");
+    for(let i=0;i<4;i++){const img=el("img");img.src="./icons/mascot-"+i+".png";img.alt="";img.width=82;img.height=82;img.setAttribute("data-face",String(i));sprite.append(img);}
+    stage.append(sprite);return stage;
+  }
   function appendDriverLeaveMonth(root,leave) {
     if(!leave?.month)return;
     const detail=el("details",undefined,"leave-month"),month=leave.month;
     detail.append(el("summary",Number(String(month.key).slice(5,7))+"월 나의 휴무 보기"));
     const dates=(month.groupRestDates||[]).map(date=>Number(date.slice(-2))+"일");
-    detail.append(el("p",leave.shift+"조 비번 · "+(dates.length?dates.join(", "):"확인된 날짜 없음")));
+    detail.append(el("p",leave.shift+"조 비번"+(dates.length?"":" · 확인된 날짜 없음")));
+    if(dates.length){const days=el("ul",undefined,"leave-days");dates.forEach(day=>days.append(el("li",day)));detail.append(days);}
     const personal=month.leaves||[];
     if(personal.length)personal.forEach(item=>detail.append(el("p",driverLeaveLabel(item)+" · "+driverLeavePeriod(item))));
     else detail.append(el("p","등록된 개인 지정·승인휴무 없음"));
@@ -2982,12 +3018,13 @@
     if (missing) {
       stopDriverFleetTimer();clearDriverAlarms();
       const box=el("section",undefined,"schedule-empty"+(isRest?" schedule-rest":""));box.setAttribute("role","status");
-      box.append(el("p",serviceDate+" · 한국시간 기준"));
+      box.append(el("p",serviceDate+(isRest?"":" · 한국시간 기준"),isRest?"leave-date":""));
       if(isRest){
-        box.append(el("strong","휴","empty-mark"),el("h3",personal?driverLeaveLabel(personal):leave.shift+"조 비번"));
+        const heading=el("div",undefined,"leave-heading");heading.append(el("strong","휴","empty-mark"),el("h3",personal?driverLeaveLabel(personal):leave.shift+"조 비번"));
+        box.append(heading,driverLeaveMascot());
         box.append(el("p",leave.groupStatus==="WORK"?leave.shift+"조 근무일 · 개인 휴무":leave.groupStatus==="REST"?leave.shift+"조 비번일":"조별 근무 기준 확인 필요"));
-        box.append(el("p","휴무 기간 · "+driverLeavePeriod(personal||{startDate:serviceDate,endDate:serviceDate}),"leave-period"));
-        box.append(el("p",personal?"확인된 휴무로 운행 스케줄이 없습니다.":"조별 근무 기준에 따른 비번입니다."));
+        box.append(driverLeavePeriodRow(personal||{startDate:serviceDate,endDate:serviceDate}));
+        box.append(el("p",personal?"휴무일에는 운행 배차가 없습니다.":"조별 근무 기준에 따른 비번입니다.","leave-note"));
       }else{
         box.append(el("strong","?","empty-mark"),el("h3",serviceDate===calendarDateInSeoul()?"오늘 스케줄 없음":"선택한 날짜의 스케줄 없음"),el("p",leave?.groupStatus==="WORK"?leave.shift+"조 근무일 · 확정 배차와 승인된 개인 휴무가 없습니다. 배차 확인이 필요합니다.":"확정된 운행 스케줄이 없습니다. 휴무 여부는 별도 확인이 필요합니다."));
       }
