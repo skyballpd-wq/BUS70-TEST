@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,8 +27,11 @@ public class DispatchImageExporterTest {
     }
     @Test public void shareUsesReadablePrivateUriAndSaveCancellationIsHonest() throws Exception {
         Instrumentation instrument=InstrumentationRegistry.getInstrumentation();android.content.Context context=instrument.getTargetContext();
-        Activity activity=instrument.startActivitySync(new Intent(context,PhotoTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        Instrumentation.ActivityMonitor monitor=instrument.addMonitor(new IntentFilter(Intent.ACTION_CREATE_DOCUMENT),new Instrumentation.ActivityResult(Activity.RESULT_CANCELED,null),true);
+        // Launch a fresh task and wait for its lifecycle, independently of the preceding chooser tests.
+        try(ActivityScenario<PhotoTestActivity> scenario=ActivityScenario.launch(new Intent(context,PhotoTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK))){
+        java.util.concurrent.atomic.AtomicReference<Activity> host=new java.util.concurrent.atomic.AtomicReference<>();scenario.onActivity(host::set);Activity activity=host.get();
+        IntentFilter saveFilter=new IntentFilter(Intent.ACTION_CREATE_DOCUMENT);saveFilter.addCategory(Intent.CATEGORY_OPENABLE);saveFilter.addDataType("image/png");
+        Instrumentation.ActivityMonitor monitor=instrument.addMonitor(saveFilter,new Instrumentation.ActivityResult(Activity.RESULT_CANCELED,null),true);
         try{
             java.util.concurrent.atomic.AtomicReference<JSONObject> result=new java.util.concurrent.atomic.AtomicReference<>();CountDownLatch cancelled=new CountDownLatch(1);
             DispatchImageExporter exporter=new DispatchImageExporter(activity,value->{result.set(value);cancelled.countDown();});
@@ -43,6 +47,7 @@ public class DispatchImageExporterTest {
             instrument.runOnMainSync(()->assertTrue(exporter.onResult(DispatchImageExporter.SAVE_IMAGE,Activity.RESULT_CANCELED,null)));
             assertTrue(cancelled.await(3,TimeUnit.SECONDS));assertEquals("cancelled",result.get().getString("state"));
             assertNotEquals("saved",result.get().getString("state"));
-        }finally{instrument.removeMonitor(monitor);instrument.runOnMainSync(activity::finish);instrument.waitForIdleSync();}
+        }finally{instrument.removeMonitor(monitor);}
+        }
     }
 }
