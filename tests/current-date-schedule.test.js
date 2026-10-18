@@ -47,7 +47,7 @@ function fixture() {
     setInterval:fn=>{intervals.push(fn);return 1;},stopDriverLiveTimer(){},
     flushGpsOutbox(){},pollNativeLocation(){},resumeDriverLocationIfAllowed(){},updateDriverLiveDashboard(){}
   });
-  const names=['calendarDateInSeoul','serviceDateInSeoul','scheduleForRequestedDate','resetScheduleView','refreshScheduleDate','refreshScheduleOnResume','normalizeScheduleTrips','driverLeaveLabel','driverLeavePeriod','appendDriverLeaveMonth','renderSchedule','loadMySchedule','startDriverLiveTimer'];
+  const names=['calendarDateInSeoul','serviceDateInSeoul','scheduleForRequestedDate','resetScheduleView','refreshScheduleDate','refreshScheduleOnResume','normalizeScheduleTrips','driverLeaveLabel','driverLeavePeriod','driverLeavePeriodRow','driverLeaveMascot','appendDriverLeaveMonth','renderSchedule','loadMySchedule','startDriverLiveTimer'];
   vm.runInContext(names.map(extract).join('\n'),c);
   vm.runInContext(html.slice(html.indexOf('  document.getElementById("timeMode").addEventListener'),html.indexOf('  function resetBoardReview(')),c);
   handlers.respond=body=>({ok:true,driver:{driverId:c.currentDriverId,status:'재직'},schedule:{ok:true,type:'NO_DISPATCH',date:body.date}});
