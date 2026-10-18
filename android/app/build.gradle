@@ -8,8 +8,9 @@ android {
         applicationId "kr.bus70.driver"
         minSdk 26
         targetSdk 35
-        versionCode 75
-        versionName "0.75-leave-icon"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        versionCode 76
+        versionName "0.76-mascot"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }
@@ -34,4 +35,9 @@ android {
     }
 }
 
-dependencies { testImplementation "junit:junit:4.13.2"; testImplementation "org.json:json:20240303" }
+dependencies {
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.json:json:20240303"
+    androidTestImplementation "androidx.test:runner:1.6.2"
+    androidTestImplementation "androidx.test.ext:junit:1.2.1"
+}

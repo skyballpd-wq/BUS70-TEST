@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mascot_name">소신 버스 캐릭터</string>
+    <string name="mascot_open">소신 버스 캐릭터. 누르면 운행 앱 열기</string>
+    <string name="mascot_description">투명 배경에서 눈을 깜박이고 웃으며 한 바퀴 돌고 점프해요. 누르면 운행 앱이 열립니다.</string>
+</resources>

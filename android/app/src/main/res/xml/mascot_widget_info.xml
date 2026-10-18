@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp" android:minHeight="110dp" android:minResizeWidth="55dp" android:minResizeHeight="55dp"
+    android:targetCellWidth="2" android:targetCellHeight="2" android:updatePeriodMillis="0"
+    android:initialLayout="@layout/mascot_widget_still" android:previewLayout="@layout/mascot_widget_still"
+    android:previewImage="@drawable/mascot_0" android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
+    android:description="@string/mascot_description" />
