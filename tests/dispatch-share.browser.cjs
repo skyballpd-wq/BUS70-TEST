@@ -65,7 +65,7 @@ managerGenerate.onclick=generateManagerImage;managerShare.onclick=shareManagerIm
         managerData.drivers.push({id:'SYN-D'+i,name:'시험기사'+String(i).padStart(2,'0'),route,shift:'B'});
         managerData.vehicles.push({id:'SYN-V'+i,last3:String(900+i),displayNo:'합성차량'+i});
         managerData.assignments.push({sequence:i,driverId:i===10?'SYN-MISSING-D':i===2?'':'SYN-D'+i,vehicleId:i===11?'SYN-MISSING-V':i===3?'':'SYN-V'+i,shift:'B'});
-        managerData.departures[i]={time:'05:'+String(i).padStart(2,'0'),place:i%2?'시험고강공영차고지':'시험장거리출발지정류소'};
+        managerData.departures[i]={time:String(5+Math.floor(i/60)).padStart(2,'0')+':'+String(i%60).padStart(2,'0'),place:i%2?'시험고강공영차고지':'시험장거리출발지정류소'};
       }
       renderManagerRows(managerData);window.drawn=[];const before=JSON.stringify(managerAssignments());await generateManagerImage();
       return {before,after:JSON.stringify(managerAssignments()),size:managerImageBlob.size,drawn:window.drawn,data:await new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(managerImageBlob);})};
