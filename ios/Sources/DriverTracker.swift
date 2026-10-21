@@ -10,6 +10,7 @@ final class DriverTracker: NSObject, CLLocationManagerDelegate {
     private var state: [String: Any]
     private var wanted = false, active = false, liveBusy = false, eventBusy = false
     private var askedAlways = false
+    private var lastSnapshot: Double = 0
     private var lastLive: Double = 0
     private var message = "로그인 후 현재 배차를 확인하세요."
     var onStatus: (([String: Any]) -> Void)?
@@ -32,7 +33,7 @@ final class DriverTracker: NSObject, CLLocationManagerDelegate {
         location.allowsBackgroundLocationUpdates = true; location.showsBackgroundLocationIndicator = true
         // Never auto-start solely from a persisted old shift after app launch.
     }
-    private func persist(_ next: [String: Any]) throws { try store.write(next); state = next }
+    private func persist(_ next: [String: Any]) throws { try store.write(next); state = next; lastSnapshot = now }
     func configure(_ json: String, start: Bool) {
         do {
             guard json.utf8.count < 2_000_000, let data = json.data(using: .utf8), var incoming = try JSONSerialization.jsonObject(with: data) as? [String: Any], incoming["apiUrl"] as? String == Self.apiURL, let token = incoming.removeValue(forKey: "token") as? String, !token.isEmpty, let driver = incoming["driverId"] as? String else { throw NativeFailure.session }
@@ -88,7 +89,13 @@ final class DriverTracker: NSObject, CLLocationManagerDelegate {
         do {
             let result = try engine.object("tick", [state, position, now])
             guard let next = result["state"] as? [String: Any] else { throw NativeFailure.engine }
-            try persist(next) // If disk fails, do not advance, upload or announce.
+            let oldEvents = state["outbox"] as? NSArray ?? []
+            let newEvents = next["outbox"] as? NSArray ?? []
+            // Checkpoints commit immediately. Coalesce ordinary GPS snapshots so
+            // the full route plan is not rewritten to flash on every 1 Hz fix.
+            if !oldEvents.isEqual(newEvents) || result["stop"] as? Bool == true || now-lastSnapshot >= 15000 {
+                try persist(next)
+            } else { state = next }
             message = result["message"] as? String ?? "GPS 수신 중"
             flushEvents()
             if result["stop"] as? Bool == true { stop("오늘 운행 종료 · 위치 수집 중지"); return }
