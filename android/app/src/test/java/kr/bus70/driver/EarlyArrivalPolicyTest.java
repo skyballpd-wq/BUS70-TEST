@@ -22,6 +22,15 @@ public class EarlyArrivalPolicyTest {
         for(int sec=0;sec<=160;sec+=5)step(s,t,planned,sec,1400+sec*10);
         return step(s,t,planned,162,3000);
     }
+    @Test public void etaContinuesBetweenStopsWithoutVoiceAndExpiresWhenHeld()throws Exception{
+        JSONObject s=new JSONObject(),t=trip(),r=arrive(s,t,base+2400000);
+        r=step(s,t,base+2400000,172,3100);assertTrue(r.optBoolean("available"));assertFalse(r.optBoolean("notify"));
+        assertTrue(r.optLong("predictedAt")>base+172000);assertEquals(2900,r.optLong("remainingM"));
+        for(int sec=177;sec<=247;sec+=5)r=step(s,t,base+2400000,sec,3100);
+        assertTrue(r.optBoolean("retained"));assertFalse(r.optBoolean("notify"));
+        for(int sec=252;sec<=327;sec+=5)r=step(s,t,base+2400000,sec,3100);
+        assertFalse(r.optBoolean("available"));
+    }
     @Test public void gateAndStopOnlyWithRestartDeduplication()throws Exception{
         JSONObject s=new JSONObject(),t=trip(),r=null;long p=base+2400000;
         for(int sec=0;sec<=150;sec+=5){r=step(s,t,p,sec,1400+sec*10);assertFalse(r.optBoolean("notify"));}

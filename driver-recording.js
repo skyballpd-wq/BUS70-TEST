@@ -8,7 +8,7 @@
     if(!value)return '경기도 차량정보 연결 확인 중';
     if(!value.available){
       const code=/^GBIS_HTTP_(\d{3})$/.exec(value.error||'');
-      return (value.message||'경기도 차량정보 수신 대기')+(code?' · HTTP '+code[1]:'');
+      return (code&&code[1]==='429'?'경기도 API 요청 제한 · GPS 수신과 별도':value.message||'경기도 차량정보 수신 대기')+(code?' · HTTP '+code[1]:'');
     }
     const age=Math.max(0,Math.floor((now-Number(value.fetchedAt||0))/1000));
     if(age>90)return '경기도 차량정보 갱신 대기';
@@ -32,7 +32,7 @@
     if(pending)parts.push('기기 보관 '+pending+'건 · 서버 전송 대기');
     if(input.syncError)parts.push('기록 전송 오류');
     if(!input.actualStart&&!blocked)parts.push('실제 출발 미기록');
-    return {blocked,warning:Boolean(blocked||input.serverError||input.syncError||pending||!input.gpsFresh),label:parts.join(' · ')};
+    return {blocked,warning:Boolean(blocked||!verified||input.serverError||input.syncError||pending||!input.gpsFresh),label:parts.join(' · ')};
   }
   return {shouldResume,crossCheckLabel,health};
 });

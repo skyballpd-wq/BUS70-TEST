@@ -37,6 +37,10 @@ renderDriverLiveDashboard(document.getElementById('test-root'),lastSchedule);upd
  assert.equal(await page.locator('#driverLiveSpeed').textContent(),'출발 대기','a future scheduled trip stays waiting');
  await page.evaluate(()=>{Bus70Automation.moment=()=>Date.now()-10000;liveFleet.crossCheck={available:true,fetchedAt:Date.now(),status:'AGREE'};updateDriverLiveDashboard();});
  assert(!((await page.locator('#driverLiveState').textContent()).includes('불가')),'recovered provider clears warning');
+ await page.evaluate(()=>{Bus70Cockpit.drawRing=()=>{throw new Error('synthetic canvas failure')};liveFleet.crossCheck={available:false,error:'GBIS_HTTP_429'};Bus70Automation.moment=()=>Date.now()-10000;updateDriverLiveDashboard();});
+ assert.match(await page.locator('#driverLiveCountdown').textContent(),/실제 출발 미기록/,'countdown updates even when optional canvas fails');
+ assert.match(await page.locator('#driverCrossCheckStatus').textContent(),/HTTP 429/);
+ assert(await page.locator('#driverLiveDashboard').evaluate(n=>n.classList.contains('recording-warning')));
  await page.close();
  }
  console.log('320/360/412px actual dashboard renderer: API outage, GPS speed, unknown progress, future waiting and recovery passed');
