@@ -369,19 +369,53 @@ function bus70GyeonggiLiveParse_(json,routeId,fetchedAt){
   items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd)};});
   return {ok:true,available:true,items:items,fetchedAt:fetchedAt,queryTime:String(header.queryTime||''),source:'GYEONGGI_BUS_LOCATION_V2'};
 }
+// One in-flight request per route across all phones. Locks cover metadata only,
+// never UrlFetch: location uploads must remain available while GBIS is slow.
+function bus70GyeonggiRetryAfter_(headers,now){
+  const name=Object.keys(headers||{}).find(function(k){return k.toLowerCase()==='retry-after';});
+  if(!name)return 0;const value=String(headers[name]).trim(),seconds=Number(value);
+  return /^\d+$/.test(value)?now+seconds*1000:Math.max(0,Date.parse(value)||0);
+}
 function bus70GyeonggiLiveFetch_(route){
   const config=bus70PublicTransitRouteConfig_(route),key=bus70PublicTransitProperty_('BUS70_DATA_GO_KR_SERVICE_KEY');
   if(!config||config.provider!==BUS70_GYEONGGI_ROUTE_PROVIDER_||!config.routeId)return {available:false,message:'경기도 차량위치 노선 연결 필요'};
   if(!key)return {available:false,message:'경기도 차량위치 인증 설정 필요'};
-  const cache=CacheService.getScriptCache(),cacheKey='BUS70_GBIS_LIVE_V1_'+config.routeId,raw=cache.get(cacheKey);
-  if(raw){try{return JSON.parse(raw);}catch(ignore){}}
-  let result;
+  const cache=CacheService.getScriptCache(),cacheKey='BUS70_GBIS_LIVE_V2_'+config.routeId;
+  const readCache=function(){try{return JSON.parse(cache.get(cacheKey)||'null');}catch(ignore){return null;}};
+  let cached=readCache();if(cached)return cached;
+  const properties=PropertiesService.getScriptProperties(),stateKey='BUS70_GBIS_REQUEST_'+config.routeId,globalKey='BUS70_GBIS_COOLDOWN',lock=LockService.getScriptLock();
+  const read=function(name){try{return JSON.parse(properties.getProperty(name)||'{}');}catch(ignore){return {};}};
+  const busy=function(){return {available:false,error:'GBIS_REFRESH_PENDING',message:'경기도 차량정보 갱신 중 · GPS 기록 계속',retryAt:Date.now()+5000};};
+  if(!lock.tryLock(200))return busy();
+  let lease,day;
+  try{
+    cached=readCache();if(cached)return cached;
+    const now=Date.now(),global=read(globalKey),state=read(stateKey);
+    if(Number(global.retryAt)>now)return {available:false,error:'GBIS_HTTP_429',message:'경기도 API 요청 제한 · GPS 기록 계속',retryAt:global.retryAt};
+    if(Number(state.inFlightUntil)>now)return busy();
+    day=Utilities.formatDate(new Date(now),'Asia/Seoul','yyyy-MM-dd');
+    if(state.day!==day){state.day=day;state.requests=0;state.responses={};}
+    lease=now;state.lease=lease;state.inFlightUntil=now+90000;state.requests=Number(state.requests||0)+1;
+    properties.setProperty(stateKey,JSON.stringify(state));
+  }finally{lock.releaseLock();}
+  let result,http=0,retryAt=0;
   try{
     const url=bus70PublicTransitQueryUrl_('https://apis.data.go.kr/6410000/buslocationservice/v2/getBusLocationListv2',key,{format:'json',routeId:config.routeId});
     const response=UrlFetchApp.fetch(url,{method:'get',muteHttpExceptions:true,followRedirects:false,headers:{Accept:'application/json'}});
-    result=response.getResponseCode()===200?bus70GyeonggiLiveParse_(JSON.parse(response.getContentText('UTF-8')),config.routeId,Date.now()):{available:false,message:'경기도 차량위치 API 이용 권한·연결 확인 필요',error:'GBIS_HTTP_'+response.getResponseCode()};
-  }catch(ignore){result={available:false,message:'경기도 차량위치 응답 대기',error:'GBIS_UNAVAILABLE'};}
-  cache.put(cacheKey,JSON.stringify(result),result.available?30:120);return result;
+    http=response.getResponseCode();
+    if(http===200)result=bus70GyeonggiLiveParse_(JSON.parse(response.getContentText('UTF-8')),config.routeId,Date.now());
+    else {result={available:false,error:'GBIS_HTTP_'+http,message:http===429?'경기도 API 요청 제한 · GPS 기록 계속':http===401||http===403?'경기도 차량위치 API 인증·권한 확인 필요':'경기도 차량위치 응답 장애 · GPS 기록 계속'};if(http===429)retryAt=bus70GyeonggiRetryAfter_(response.getAllHeaders(),Date.now());}
+  }catch(ignore){result={available:false,message:'경기도 차량위치 응답 대기 · GPS 기록 계속',error:'GBIS_UNAVAILABLE'};}
+  // Cooldown survives cache eviction and is shared by routes using the key.
+  if(lock.tryLock(2000))try{
+    const state=read(stateKey),global=read(globalKey),now=Date.now();
+    if(state.lease===lease){state.inFlightUntil=0;state.lastResponseAt=now;state.lastHttp=http;state.responses=state.responses||{};state.responses[String(http)]=Number(state.responses[String(http)]||0)+1;properties.setProperty(stateKey,JSON.stringify(state));}
+    if(http===429){const attempts=Number(global.attempts||0)+1;result.retryAt=Math.max(retryAt,now+Math.min(3600000,300000*Math.pow(2,Math.min(attempts-1,4))));properties.setProperty(globalKey,JSON.stringify({attempts:attempts,retryAt:result.retryAt,last429At:now}));}
+    else if(result.available&&Number(global.retryAt||0)<=now)properties.deleteProperty(globalKey);
+  }finally{lock.releaseLock();}
+  // An old lease cannot replace a newer request's result.
+  if(read(stateKey).lease===lease)cache.put(cacheKey,JSON.stringify(result),result.available?45:http===429?300:120);
+  return result;
 }
 function bus70GyeonggiSelectVehicle_(items,plate){
   const normalize=function(value){return String(value||'').replace(/[\s.-]/g,'');},wanted=normalize(plate);
@@ -415,5 +449,6 @@ function bus70GyeonggiCrossCheck_(assignment,own){
 }
 function BUS70_checkGyeonggiLiveConnection(){
   const result=bus70GyeonggiLiveFetch_('5');
-  console.log(JSON.stringify({available:result.available,error:result.error||'',message:result.message||'',vehicleCount:(result.items||[]).length,fetchedAt:result.fetchedAt||null}));
+  const properties=PropertiesService.getScriptProperties(),config=bus70PublicTransitRouteConfig_('5');
+  console.log(JSON.stringify({available:result.available,error:result.error||'',message:result.message||'',vehicleCount:(result.items||[]).length,fetchedAt:result.fetchedAt||null,retryAt:result.retryAt||null,requestStats:JSON.parse(properties.getProperty('BUS70_GBIS_REQUEST_'+config.routeId)||'{}'),cooldown:JSON.parse(properties.getProperty('BUS70_GBIS_COOLDOWN')||'{}')}));
 }

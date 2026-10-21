@@ -90,7 +90,7 @@
     if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||Number(c.accuracy)>60||Number(c.accuracy)<0||!ts||now-ts>20000||ts>now+5000||ts<=Number(state.lastTimestamp||0))return {state,event:null};
     // Cached samples and repeated callbacks cannot satisfy a dwell requirement.
     if(state.lastTimestamp&&ts-state.lastTimestamp<1500)return {state,event:null};
-    if(state.lastTimestamp&&ts-state.lastTimestamp>45000)for(const key of ["seenStart","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
+    if(state.lastTimestamp&&ts-state.lastTimestamp>45000)for(const key of ["seenStart","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
     state.lastTimestamp=ts;
     const here={lat:Number(c.latitude),lng:Number(c.longitude)},points=input.points||{},log=input.log||{};
     const direction=(point,field)=>!number(point?.[field])||!number(c.heading)||!number(c.speed)||Number(c.speed)<1.5||Math.abs((Number(c.heading)-Number(point[field])+540)%360-180)<=100;
@@ -106,10 +106,14 @@
       const planned=moment(input.date,input.startTime);
       if(!Number.isFinite(planned)||ts<planned||now>planned+120*60000){if(inside("start")&&count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;delete state.departureFix;return {state,event:null};}
       if(!validPoint(points.start))return {state,event:null};
+      const proofInput=Object.assign({},input);
+      if(!input.navigation?.configured&&input.course){proofInput.navigation=navigate(input.course,p,{date:input.date,startTime:input.startTime,startLocation:points.start,trackingActive:true},state.departureNavigation,now,input.vehicleReference);state.departureNavigation=proofInput.navigation;}
+      const offlineFix=gpsDeparture(state,proofInput);
+      if(offlineFix)return {state,event:"DEPART",position:offlineFix,evidenceSource:"GPS_CONTINUOUS_PRIOR_VEHICLE"};
       if(inside("start")){if(count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;}
       else {state.startInside=0;const outside=direction(points.start,"departureBearing")&&distance(here,points.start)>Number(points.start.radiusM||80)+Math.max(30,Number(c.accuracy));
         const verified=outside&&vehicleDeparture(state,input.course,input.navigation,p,input.vehicleReference,planned,now);
-        if(state.seenStart&&verified){if(!state.startOutside)state.departureFix=p;if(count("startOutside",true)>=2)return {state,event:"DEPART",position:state.departureFix};}
+        if(state.seenStart&&verified){if(!state.startOutside)state.departureFix=state.gpsDeparture?.ready?state.gpsDeparture.first:p;if(count("startOutside",true)>=2)return {state,event:"DEPART",position:state.departureFix};}
         else {state.startOutside=0;delete state.departureFix;}
       }
       return {state,event:null};
@@ -166,6 +170,29 @@
     const stop=path.stops[index],id=String(hint.stationId||"");
     if(id&&String(stop.stationId||stop.id)!==id&&!String(stop.id).endsWith("-"+id))return -1;
     return index;
+  }
+  // A day-bound vehicle identity is not a fresh position. During an outage,
+  // require a new, continuous outbound motion sequence for each trip.
+  function identityFresh(at,now){return number(at)&&at>0&&now>=at&&now-at<=20*3600000;}
+  function gpsDeparture(state,input){
+    const p=input.position||{},c=p.coords||{},ts=Number(p.timestamp),path=input.course,nav=input.navigation,planned=moment(input.date,input.startTime),start=input.points?.start;
+    const clear=()=>{delete state.gpsDeparture;return null;};
+    if(!state.seenStart||!Number.isFinite(planned)||ts<planned||ts>planned+7200000||!validPoint(start)||!nav?.configured||nav.returnConfirmed||nav.timestamp!==ts||!path?.stops?.length||!number(nav.fraction)||nav.fraction<.2||nav.fraction>=Math.min(8,path.turnIndex>0?path.turnIndex:8)||!number(c.accuracy)||c.accuracy>25||!number(c.speed)||c.speed<2.8||c.speed>25||input.vehicleReference?.status==='DIFFERENT')return clear();
+    const here={lat:Number(c.latitude),lng:Number(c.longitude)};
+    if(distance(here,start)<=Number(start.radiusM||80)+Math.max(30,c.accuracy))return clear();
+    let proof=state.gpsDeparture;
+    if(proof){const dt=(ts-proof.lastAt)/1000,travel=distance(here,proof.last);if(dt<=0)return null;if(dt>15||nav.fraction<proof.lastFraction-.1||travel>dt*30+2*c.accuracy||ts-proof.first.timestamp>180000)proof=null;}
+    if(!proof)proof={first:p,firstFraction:nav.fraction,lastFraction:nav.fraction,last:here,lastAt:ts,samples:0};
+    proof.samples++;proof.last=here;proof.lastAt=ts;proof.lastFraction=nav.fraction;state.gpsDeparture=proof;
+    const seconds=(ts-proof.first.timestamp)/1000,meters=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
+    proof.ready=proof.samples>=6&&seconds>=20&&meters>=180&&meters/seconds>=4&&nav.fraction-proof.firstFraction>=.75;
+    return proof.ready&&identityFresh(input.vehicleIdentityAt,ts)?proof.first:null;
+  }
+  function remainingRoute(path,nav,log){
+    if(!path?.stops?.length||!nav?.configured||nav.waiting||!number(nav.matchedMeters)||!number(nav.fraction)||log?.actualEnd)return null;
+    const returning=Boolean(log?.actualTurn||nav.turnPassed||nav.returnConfirmed),stops=path.stops,target=returning||path.turnIndex<0?stops.length-1:path.turnIndex;
+    let length=0;for(let i=1;i<=target;i++)length+=distance(stops[i-1],stops[i]);
+    return {meters:Math.round(Math.max(0,length-nav.matchedMeters)),place:stops[target].name,phase:returning||path.turnIndex<0?'도착지':'회차지',basis:'정류장 경로 기준'};
   }
   function vehicleDeparture(state,path,nav,position,hint,planned,now){
     const c=position?.coords||{},here={lat:Number(c.latitude),lng:Number(c.longitude)},index=referenceIndex(path||{stops:[]},hint,here,now);
@@ -241,5 +268,5 @@
     if(returnConfirmed&&index<stops.length-1&&nearCurrent&&evidence.at(-1)?.stopId!==stops[index].id)evidence.push({stopId:stops[index].id,order:stops[index].order,observedAt:ts,latitude:here.lat,longitude:here.lng,accuracy:Number(c.accuracy)});
     return {configured:true,retained:false,motion,matchSource:source,returnEvidence:evidence.slice(-2),matchedIndex:index,matchedMeters:Math.max(continuous?oldMeters:0,best.meters),fraction,returnConfirmed,turnPassed,tripPassedStops:seen,tripStopCount:stops.length,tripProgressPercent:Math.round(pct*10)/10,routeProgressPercent:Math.round(fraction/(stops.length-1)*1000)/10,stopIndex:index+1,stopCount:stops.length,previousStop:stops[nearCurrent?Math.max(0,index-1):index].name,currentStop:nearCurrent?stops[index].name:"",nextStop:stops[Math.min(stops.length-1,index+1)].name,distanceToNextM:Math.round(distance(here,stops[Math.min(stops.length-1,index+1)])),direction:returnConfirmed?(stops.at(-1).name+" 방면"):turnPassed?"회차 구간":"회차 방면",heading:best.heading,nearestDistanceM:Math.round(best.d),timestamp:ts};
   }
-  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,referenceIndex,waitingForDeparture,navigate};
+  return {resolvePoints,activeIndex,step,moment,distance,validPoint,bearing,course,referenceIndex,identityFresh,gpsDeparture,remainingRoute,waitingForDeparture,navigate};
 });

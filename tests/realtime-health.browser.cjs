@@ -37,6 +37,19 @@ renderDriverLiveDashboard(document.getElementById('test-root'),lastSchedule);upd
  assert.equal(await page.locator('#driverLiveSpeed').textContent(),'출발 대기','a future scheduled trip stays waiting');
  await page.evaluate(()=>{Bus70Automation.moment=()=>Date.now()-10000;liveFleet.crossCheck={available:true,fetchedAt:Date.now(),status:'AGREE'};updateDriverLiveDashboard();});
  assert(!((await page.locator('#driverLiveState').textContent()).includes('불가')),'recovered provider clears warning');
+ await page.evaluate(()=>{Bus70Cockpit.drawRing=()=>{throw new Error('synthetic canvas failure')};liveFleet.crossCheck={available:false,error:'GBIS_HTTP_429'};Bus70Automation.moment=()=>Date.now()-10000;updateDriverLiveDashboard();});
+ assert.match(await page.locator('#driverLiveCountdown').textContent(),/실제 출발 미기록/,'countdown updates even when optional canvas fails');
+ assert.match(await page.locator('#driverCrossCheckStatus').textContent(),/HTTP 429/);
+ assert(await page.locator('#driverLiveDashboard').evaluate(n=>n.classList.contains('recording-warning')));
+ await page.evaluate(()=>{
+   log.actualStart='observed';trip.endPlace='고강공영차고지';trip.endTime='12:00';
+   currentNavigation={configured:true,returnConfirmed:true,turnPassed:true,fraction:1.5,matchedMeters:1600,path:{turnIndex:1,stops:[{name:'기점',lat:37,lng:127},{name:'회차지',lat:37.01,lng:127},{name:'고강공영차고지',lat:37.02,lng:127}]}};
+   nativeArrivalEstimate={date:'2099-01-10',trip:5,timestamp:Date.now(),estimateAt:Date.now()-15000,available:true,retained:true,predictedAt:Date.now()+240000,latestAt:Date.now()+360000};updateDriverLiveDashboard();
+ });
+ assert.match(await page.locator('#driverArrivalEstimate').textContent(),/고강공영차고지 · 남은 노선거리 약/);
+ assert.match(await page.locator('#driverArrivalEstimate').textContent(),/최근 추정 유지.*기준.*차고지 도착 추정/);
+ assert(await page.locator('#driverArrivalEstimate').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'arrival estimate must wrap within narrow phones');
+ if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/live-return-'+width+'.png',fullPage:true});}
  await page.close();
  }
  console.log('320/360/412px actual dashboard renderer: API outage, GPS speed, unknown progress, future waiting and recovery passed');

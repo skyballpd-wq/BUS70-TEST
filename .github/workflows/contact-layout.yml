@@ -57,6 +57,7 @@ jobs:
           node tests/realtime-health.test.js
           node tests/realtime-health.browser.cjs
           node tests/departure-evidence.test.js
+          node tests/gbis-outage-recovery.test.js
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
           node tests/startup-performance.test.js

@@ -35,8 +35,9 @@ final class RouteMatcher {
         boolean recovering=previous!=null&&previous.optBoolean("returnConfirmed")&&evidence!=null&&evidence.length()==2&&timestamp>=previous.optLong("timestamp")&&timestamp-previous.optLong("timestamp")<=120000;
         boolean atStart=start!=null&&distance(lat,lng,start)<=start.optDouble("radiusM",80)+Math.max(30,accuracy);
         boolean vehicleMatched=false;
+        boolean knownVehicle=DepartureEvidence.identityFresh(trip.optLong("vehicleIdentityAt"),timestamp);
         if(hint!=null&&hint.optBoolean("available")&&"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))&&timestamp-hint.optLong("fetchedAt")<=60000&&hint.optLong("fetchedAt")<=timestamp+5000&&stops!=null){for(int i=1;i<stops.length()-1;i++){JSONObject stop=stops.getJSONObject(i);String id=hint.optString("stationId");if(stop.optInt("order")==hint.optInt("stationSeq")&&distance(lat,lng,stop)<=120&&(id.isEmpty()||id.equals(stop.optString("stationId",stop.optString("id")))||stop.optString("id").endsWith("-"+id)))vehicleMatched=true;}}
-        if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering||!recovering&&!vehicleMatched))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
+        if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering||!recovering&&!vehicleMatched&&!knownVehicle))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
         if(previous!=null&&previous.optBoolean("waiting"))previous=null;
         return match(course,previous,lat,lng,accuracy,speed,heading,timestamp,!trip.optString("actualTurn").isEmpty(),hint);
     }
