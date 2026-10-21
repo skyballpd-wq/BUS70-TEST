@@ -65,6 +65,8 @@ jobs:
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
           node tests/startup-performance.test.js
+          node tests/private-route-store.test.js
+          node tests/fleet-poll-budget.test.js
           node tests/operations-data.test.js
           node tests/operations-data.browser.cjs
           node tests/managerdispatch.test.js
