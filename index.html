@@ -1154,7 +1154,7 @@
 <script src="./driver-cockpit.js?v=66"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
-<script src="./mobile-compat.js?v=821"></script>
+<script src="./mobile-compat.js?v=823"></script>
 <script src="./accident-report.js?v=821"></script>
 <script>
   /*
@@ -1364,7 +1364,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82.2";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82.3";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1558,7 +1558,7 @@
   function clearLocalAuth() {
     stopDriverLocationTracking(true);
     stopDriverFleetTimer();
-    if(window.Bus70Android&&typeof window.Bus70Android.clearDriverSession==="function")try{window.Bus70Android.clearDriverSession();}catch(error){console.warn(error);}
+    if(nativeLocationBridge()&&typeof nativeLocationBridge().clearDriverSession==="function")try{nativeLocationBridge().clearDriverSession();}catch(error){console.warn(error);}
     if(typeof accidentForms!=="undefined")Object.values(accidentForms).forEach(form=>form.reset());
     if(typeof accidentPending!=="undefined"){accidentPending.driver=null;accidentPending.manager=null;}
     localStorage.removeItem(REMEMBER_KEY);
@@ -2260,7 +2260,7 @@
     loadOperationData(true);
     refreshScheduleOnResume();
     if(!currentRole&&document.getElementById("workDate").value===todayLocal())loadDriverLiveLocations(true);
-    if(hasNativeLocationBridge()&&typeof window.Bus70Android.locationStatus==="function")window.Bus70Android.locationStatus();
+    if(hasNativeLocationBridge()&&typeof nativeLocationBridge().locationStatus==="function")nativeLocationBridge().locationStatus();
   });
   window.addEventListener("pagehide",suspendBrowserLocation);
   window.addEventListener("pageshow",()=>{refreshScheduleOnResume();locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();browserScreenAwake.sync();});
@@ -2765,8 +2765,8 @@
 
   let nativeLocationPolledAt=0;
   function pollNativeLocation(){
-    if(document.hidden||!authToken||currentRole||!hasNativeLocationBridge()||typeof window.Bus70Android.locationStatus!=="function"||Date.now()-nativeLocationPolledAt<2000)return;
-    nativeLocationPolledAt=Date.now();window.Bus70Android.locationStatus();
+    if(document.hidden||!authToken||currentRole||!hasNativeLocationBridge()||typeof nativeLocationBridge().locationStatus!=="function"||Date.now()-nativeLocationPolledAt<2000)return;
+    nativeLocationPolledAt=Date.now();nativeLocationBridge().locationStatus();
   }
 
   function startDriverLiveTimer(){
@@ -2825,7 +2825,7 @@
       if(eligible){
         const same=estimate&&estimate.date===document.getElementById("workDate").value&&estimate.dispatchId===binding.dispatchId&&estimate.vehicleId===binding.vehicleId&&Number(estimate.trip)===Number(context.trip.trip),fresh=same&&Date.now()-estimate.timestamp>=-5000&&Date.now()-estimate.timestamp<=10000;
         const remaining=Bus70Automation.remainingRoute(navigation.path,navigation,context.log),prefix=remaining?remaining.place+" · 남은 노선거리 약 "+liveDistanceLabel(remaining.meters)+" (정류장 경로 기준) · ":"";
-        arrivalNode.textContent=prefix+(fresh&&estimate.available?(estimate.retained?"최근 추정 유지 · "+new Date(estimate.estimateAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",second:"2-digit"})+" 기준 · ":"")+(estimate.stopName?estimate.stopName+" · ":"")+"차고지 도착 추정 "+new Date(estimate.predictedAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"})+"~"+new Date(estimate.latestAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"})+" · 예정 "+context.trip.endTime+(estimate.warning?" · 10분 이상 조기 도착 예상":"")+" · 교통상황에 따라 변동":fresh?(estimate.reason||"차고지 도착 예측 준비 중"):hasNativeLocationBridge()&&typeof window.Bus70Android.saveWorkbook==="function"?"차고지 도착 예측 · 최신 위치 확인 중":"조기 도착 음성 안내는 Android v78 이상에서 지원합니다.");
+        arrivalNode.textContent=prefix+(fresh&&estimate.available?(estimate.retained?"최근 추정 유지 · "+new Date(estimate.estimateAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",second:"2-digit"})+" 기준 · ":"")+(estimate.stopName?estimate.stopName+" · ":"")+"차고지 도착 추정 "+new Date(estimate.predictedAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"})+"~"+new Date(estimate.latestAt).toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit"})+" · 예정 "+context.trip.endTime+(estimate.warning?" · 10분 이상 조기 도착 예상":"")+" · 교통상황에 따라 변동":fresh?(estimate.reason||"차고지 도착 예측 준비 중"):hasNativeLocationBridge()?"차고지 도착 예측 · 최신 위치 확인 중":"조기 도착 음성 안내는 설치형 앱에서 지원합니다.");
         arrivalNode.classList.toggle("early-warning",Boolean(fresh&&estimate.warning));
       }
     }
@@ -2912,7 +2912,7 @@
     const estimate=el("p","","");estimate.id="driverArrivalEstimate";estimate.setAttribute("role","status");box.append(estimate);
     const status=el("p",locationStatusText||"GPS 자동 기록을 켜면 운행 지점을 자동 기록합니다.","location-status");status.id="locationStatus";status.setAttribute("role","status");status.hidden=!isDisplayedTripLive(data)&&!gpsPendingCount();box.append(status);
     const crossCheck=el("div","경기도 차량정보 연결 확인 중","location-status");crossCheck.id="driverCrossCheckStatus";box.append(crossCheck);
-    const button=el("button","위치 설정 확인","driver-live-location-action");button.id="driverLiveLocationToggle";button.type="button";button.hidden=true;button.addEventListener("click",()=>{if(hasNativeLocationBridge()&&typeof window.Bus70Android.openLocationSettings==="function")window.Bus70Android.openLocationSettings();else {locationPermissionState="unknown";locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();}});box.append(button);
+    const button=el("button","위치 설정 확인","driver-live-location-action");button.id="driverLiveLocationToggle";button.type="button";button.hidden=true;button.addEventListener("click",()=>{if(hasNativeLocationBridge()&&typeof nativeLocationBridge().openLocationSettings==="function")nativeLocationBridge().openLocationSettings();else {locationPermissionState="unknown";locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();}});box.append(button);
     const maintenance=el("div","","driver-live-maintenance");maintenance.id="driverLiveMaintenance";box.append(maintenance);root.append(box);refreshCockpitWeather(data);
   }
 
@@ -2951,7 +2951,8 @@
     return 2*r*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
 
-  function hasNativeLocationBridge(){return Boolean(window.Bus70Android&&typeof window.Bus70Android.startLocationTracking==="function");}
+  function nativeLocationBridge(){return window.Bus70IOS||window.Bus70Android||null;}
+  function hasNativeLocationBridge(){const bridge=nativeLocationBridge();return Boolean(bridge&&typeof bridge.startLocationTracking==="function");}
 
   function updateLocationPanel(){
     const button=document.getElementById("locationToggle"),status=document.getElementById("locationStatus"),accuracy=document.getElementById("locationAccuracy"),speed=document.getElementById("locationSpeed");
@@ -2968,7 +2969,7 @@
     box.append(el("summary","GPS 자동기록 상세 설정"));
     box.append(el("h3","실시간 위치 자동 기록"));
     box.append(el("p","GPS로 탕 진행률·이전/다음 정류장·속도를 계산하고 같은 노선 앞·뒤차의 최신 위치와 간격을 공유합니다. 출발·회차 도착/출발·중간 기준점·도착·차고지 복귀를 운행일지에 기록하며 연속 이동경로는 저장하지 않습니다."));
-    box.append(el("p",(coverage.assignmentReady?"로그인 기사·확정 배차·배정 차량 일치":"확정 배차 또는 배정 차량 확인 필요")+" · 정류장 좌표 "+coverage.coordinateStops+"개 · 운행 기준점 "+coverage.configured+"/"+coverage.required+"개 · 최신 위치는 10분 후 자동 소멸 · "+(hasNativeLocationBridge()?"Android 앱은 화면이 꺼져도 전면 서비스로 계속 추적":"브라우저는 화면이 활성 상태일 때만 추적")));
+    box.append(el("p",(coverage.assignmentReady?"로그인 기사·확정 배차·배정 차량 일치":"확정 배차 또는 배정 차량 확인 필요")+" · 정류장 좌표 "+coverage.coordinateStops+"개 · 운행 기준점 "+coverage.configured+"/"+coverage.required+"개 · 최신 위치는 10분 후 자동 소멸 · "+(window.Bus70IOS?"아이폰 앱은 위치 항상 허용·정확한 위치가 필요하며 잠금 중 동작은 실기기 검증 필요":hasNativeLocationBridge()?"Android 앱은 화면이 꺼져도 전면 서비스로 계속 추적":"브라우저는 화면이 활성 상태일 때만 추적")));
     const live=el("div",undefined,"location-live"),accuracy=el("div"),speed=el("div");accuracy.append(el("span","GPS 정확도"),el("strong","-"));accuracy.lastChild.id="locationAccuracy";speed.append(el("span","현재 속도"),el("strong","-"));speed.lastChild.id="locationSpeed";live.append(accuracy,speed);box.append(live);
     if(!coverage.assignmentReady){locationStatusText="로그인 기사에게 확정된 배차와 배정 차량이 모두 있어야 위치 추적을 시작할 수 있습니다.";locationStatusType="error";}
     else if(!coverage.locationReady){locationStatusText="검증된 노선 정류장 좌표 또는 운행 기준점이 없습니다. 노선별 정류장DB에 위도·경도를 등록하세요.";locationStatusType="error";}
@@ -2992,7 +2993,7 @@
   function stopDriverLocationTracking(silent=false){
     browserScreenAwake.enable(false);
     if(browserLocationWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(browserLocationWatchId);browserLocationWatchId=null;}
-    if(window.Bus70Android&&typeof window.Bus70Android.stopLocationTracking==="function")try{window.Bus70Android.stopLocationTracking();}catch(error){console.warn(error);}
+    if(nativeLocationBridge()&&typeof nativeLocationBridge().stopLocationTracking==="function")try{nativeLocationBridge().stopLocationTracking();}catch(error){console.warn(error);}
     locationTrackingActive=false;geofenceVisitState.clear();automaticRunEvents.clear();
     if(!silent){locationStatusText="위치 자동 기록을 중지했습니다.";locationStatusType="";}
     updateLocationPanel();
@@ -3005,8 +3006,8 @@
     if(!coverage.locationReady){locationStatusText="노선별 정류장DB 좌표 또는 운행 기준점 등록이 필요합니다.";locationStatusType="error";updateLocationPanel();return;}
     localStorage.setItem(driverLocationPreference(),"Y");
     if(hasNativeLocationBridge()){
-      try{if(typeof window.Bus70Android.ensureLocationTracking==="function")window.Bus70Android.ensureLocationTracking(JSON.stringify(nativeSchedulePayload(lastSchedule)));else {window.Bus70Android.syncSchedule(JSON.stringify(nativeSchedulePayload(lastSchedule)));window.Bus70Android.startLocationTracking();}locationStatusText="Android 위치 권한과 화면 꺼짐 추적을 준비 중입니다.";locationStatusType="";updateLocationPanel();return;}
-      catch(error){locationStatusText="Android 위치 추적을 시작하지 못했습니다: "+error.message;locationStatusType="error";updateLocationPanel();return;}
+      try{if(typeof nativeLocationBridge().ensureLocationTracking==="function")nativeLocationBridge().ensureLocationTracking(JSON.stringify(nativeSchedulePayload(lastSchedule)));else {window.Bus70Android.syncSchedule(JSON.stringify(nativeSchedulePayload(lastSchedule)));window.Bus70Android.startLocationTracking();}locationStatusText=window.Bus70IOS?"아이폰 위치 항상 허용·정확한 위치 설정을 확인하세요.":"Android 위치 권한과 화면 꺼짐 추적을 준비 중입니다.";locationStatusType="";updateLocationPanel();return;}
+      catch(error){locationStatusText="위치 추적을 시작하지 못했습니다: "+error.message;locationStatusType="error";updateLocationPanel();return;}
     }
     if(!navigator.geolocation){locationStatusText="이 브라우저는 위치 기능을 지원하지 않습니다.";locationStatusType="error";updateLocationPanel();return;}
     browserLocationWatchId=navigator.geolocation.watchPosition(processDriverPosition,error=>{locationStatusText=error.code===1?"위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용하세요.":"현재 위치를 확인하지 못했습니다. GPS와 네트워크를 확인하세요.";locationStatusType="error";if(error.code===1){locationPermissionState="denied";stopDriverLocationTracking(true);}updateLocationPanel();},{enableHighAccuracy:true,maximumAge:3000,timeout:15000});
@@ -3032,7 +3033,7 @@
   async function flushGpsOutbox(){
     if(gpsOutboxSending||!authToken||currentRole||Date.now()-gpsOutboxAttemptAt<5000)return;
     if(hasNativeLocationBridge()){
-      if(!document.hidden&&typeof window.Bus70Android.syncPendingEvents==="function"){gpsOutboxAttemptAt=Date.now();window.Bus70Android.syncPendingEvents(currentDriverId,authToken);}
+      if(!document.hidden&&typeof nativeLocationBridge().syncPendingEvents==="function"){gpsOutboxAttemptAt=Date.now();nativeLocationBridge().syncPendingEvents(currentDriverId,authToken);}
       return;
     }
     const item=Bus70Outbox.next(readGpsOutbox(),currentDriverId,Date.now());if(!item)return;
@@ -3383,7 +3384,7 @@
       if(silent&&!followCurrentTrip&&lastSchedule?.trips?.[activeTripIndex]){const selectedNumber=Number(lastSchedule.trips[activeTripIndex].trip),selected=(data.trips||[]).findIndex(trip=>Number(trip.trip)===selectedNumber);if(selected>=0){activeTripIndex=selected;data._viewInitialized=true;}}
       overlayGpsEvents(data);lastSchedule = data;scheduleRefreshedAt=Date.now();scheduleRefreshError="";
       document.getElementById("scheduleFreshness").textContent=date+" · 일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour12:false});
-      if(data.ok&&hasNativeLocationBridge()&&locationTrackingActive&&date===todayLocal()){if(typeof window.Bus70Android.syncTrackingSchedule==="function")window.Bus70Android.syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(data)));else syncNativeSchedule(data);}
+      if(data.ok&&hasNativeLocationBridge()&&locationTrackingActive&&date===todayLocal()){if(typeof nativeLocationBridge().syncTrackingSchedule==="function")nativeLocationBridge().syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(data)));else syncNativeSchedule(data);}
       if(!silent||previousSignature!==nextSignature)renderSchedule();
     } catch (error) {
       console.error(error);
