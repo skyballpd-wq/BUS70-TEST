@@ -8,7 +8,8 @@
 - GBIS 요청은 노선별 동시 1건, 정상 응답 45초 공유 캐시를 사용한다. HTTP 429에는 Retry-After와 공유 지수 대기를 적용하고 일별 요청·응답 코드 집계를 보관한다. 외부 API 응답을 기다리는 동안 위치 저장 잠금을 유지하지 않는다. 특정 시각에 중단되는 분기는 없다. 실제 계정의 일일/순간 요청 한도 원인은 별도 운영 진단이 필요하다.
 - 화면의 시각·수집 상태 갱신을 선택적인 지도·원형 그림 갱신보다 먼저 처리한다. API 장애 중 GPS 수신과 서버 전송 상태를 구분한다.
 - 로컬 검증: 관련 Node 12개 파일 통과, Java/JUnit 18개 검사 통과. 전체 Node 검사에서 기존 `current-vehicle-scope.test.js` 실패가 확인되었고 이번 변경 대상은 아니다. 로컬 Chromium 다운로드 실패로 화면 검증은 CI에서 수행해야 한다.
-- 현재 단계: 코드·합성 검증 완료, APK/웹/운영 Apps Script 배포 및 실차 검증 미완료. 과거 실제 시각은 변경하지 않았다.
+- PR50 최초 검증 head `25a3b9bfbd1ca268a6a5e9606012cb9a34c6a666`: [서명 APK 빌드](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538440844)와 [모바일 화면 CI](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538494382) 성공. Android versionCode 82, versionName 0.82-live-recovery. APK SHA-256: `54808ed80332e30e8df4d70f0fe28b0300844149c1fc96061e59ba2cef0b02dd`.
+- 현재 단계: 코드·합성 검증·서명 APK 빌드 완료. 웹/운영 Apps Script 배포 및 실차 검증 미완료. 과거 실제 시각은 변경하지 않았다.
 
 
 확인 기준: 2026-10-18 KST. 코드 작성, 테스트, APK 빌드, 웹 배포와 실제 모바일 확인은 별도 단계로 기록한다. 작업 재개 시 최신 main과 PR·Actions 결과를 다시 확인한다. 운영 상세와 원본 확인 결과는 비공개 작업기록에서 관리한다.
