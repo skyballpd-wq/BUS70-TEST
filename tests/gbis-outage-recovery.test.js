@@ -33,3 +33,7 @@ now=again.retryAt;http=200;cache.clear();assert(c.bus70GyeonggiLiveFetch_('5').a
 assert.equal(JSON.parse(props.get('BUS70_GBIS_REQUEST_5')).requests,4);
 assert.equal(c.bus70GyeonggiRetryAfter_({'retry-after':new Date(now+120000).toUTCString()},now),now+120000);
 console.log('Outage departure timing, walking/early/completed/identity/gap guards, remaining route distance, shared fetch and durable rate-limit recovery passed');
+
+const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
+for(const name of ['driver-automation','driver-recording']){assert(page.includes(name+'.js?v=82'));assert(worker.includes(name+'.js?v=82'));}
+assert(worker.includes('soshin-ops-static-v82-live-recovery'));
