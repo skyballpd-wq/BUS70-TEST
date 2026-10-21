@@ -7,7 +7,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     private var controller: DriverController?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let window = UIWindow(frame: UIScreen.main.bounds)
-        do { let controller = try DriverController(); self.controller = controller; window.rootViewController = controller }
+        do { let controller = DriverController(tracker: try DriverTracker(engine: Engine(), store: SecureStore())); self.controller = controller; window.rootViewController = controller }
         catch { let screen = UIViewController(); screen.view.backgroundColor = .systemBackground; let label = UILabel(frame: screen.view.bounds); label.text = "기기 기록을 열 수 없습니다. 앱을 삭제하지 말고 관리자에게 문의하세요."; label.numberOfLines = 0; label.textAlignment = .center; screen.view.addSubview(label); window.rootViewController = screen }
         self.window = window; window.makeKeyAndVisible(); return true
     }
@@ -19,7 +19,7 @@ final class DriverController: UIViewController, WKNavigationDelegate, WKScriptMe
     private let status = UILabel()
     private static let home = URL(string: "https://skyballpd-wq.github.io/BUS70-TEST/")!
     static func trusted(_ url: URL?) -> Bool { url?.scheme == "https" && url?.host == home.host && (url?.path.hasPrefix("/BUS70-TEST/") == true) && (url?.port == nil || url?.port == 443) }
-    init() throws { tracker = try DriverTracker(engine: Engine(), store: SecureStore()); super.init(nibName: nil, bundle: nil) }
+    init(tracker: DriverTracker) { self.tracker = tracker; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
     override func viewDidLoad() {
         super.viewDidLoad(); view.backgroundColor = .systemBackground
