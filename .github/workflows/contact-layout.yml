@@ -5,6 +5,8 @@ on:
     paths:
       - "index.html"
       - "accident-report.js"
+      - "mobile-compat.js"
+      - "tests/mobile-compat*"
       - "apps-script/AccidentReport.gs"
       - "apps-script/ManagerDispatch.gs"
       - "tests/accident-report*"
@@ -54,6 +56,8 @@ jobs:
           node tests/contact-layout.browser.cjs
           node tests/emergency-contacts.test.js
           node tests/schedule-controls.browser.cjs
+          node tests/mobile-compat.test.js
+          node tests/mobile-compat.browser.cjs
           node tests/realtime-health.test.js
           node tests/realtime-health.browser.cjs
           node tests/departure-evidence.test.js
@@ -81,4 +85,39 @@ jobs:
         with:
           name: contact-layout-synthetic-evidence
           path: ${{ runner.temp }}/contact-layout-output
+          if-no-files-found: ignore
+
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Korean font for visual evidence
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Install WebKit test engine
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ios-compat" --no-package-lock --ignore-scripts playwright@1.62.1
+          "$RUNNER_TEMP/ios-compat/node_modules/.bin/playwright" install --with-deps webkit
+      - name: Verify browser compatibility with synthetic data
+        env:
+          BROWSER_ENGINE: webkit
+          CONTACT_LAYOUT_OUTPUT: ${{ runner.temp }}/webkit-output
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
+          node tests/mobile-compat.browser.cjs
+          node tests/schedule-controls.browser.cjs
+          node tests/realtime-health.browser.cjs
+          node tests/accident-report.browser.cjs
+          node tests/accident-flow.browser.cjs
+          node tests/dispatch-share.browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webkit-synthetic-evidence
+          path: ${{ runner.temp }}/webkit-output
           if-no-files-found: ignore

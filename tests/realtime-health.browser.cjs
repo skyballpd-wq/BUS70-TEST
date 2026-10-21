@@ -1,4 +1,4 @@
-const fs=require('fs'),assert=require('assert'),{chromium}=require('playwright');
+const fs=require('fs'),assert=require('assert'),{chromium,webkit}=require('playwright');
 const html=fs.readFileSync('index.html','utf8'),css=html.match(/<style>([\s\S]*?)<\/style>/)[1];
 function section(name,next){return html.slice(html.indexOf('  function '+name+'('),html.indexOf('  function '+next+'('));}
 const fixture=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body class="driver-mode"><div class="app"><main class="content" id="test-root"></main></div><input id="workDate" type="hidden" value="2099-01-10">
@@ -24,7 +24,7 @@ ${section('renderDriverLiveDashboard','locationCoverage')}
 Bus70Automation.moment=()=>Date.now()-10000;
 renderDriverLiveDashboard(document.getElementById('test-root'),lastSchedule);updateDriverLiveDashboard();
 </script>`;
-(async()=>{const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});try{
+(async()=>{const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));try{
  for(const width of [320,360,412]){const page=await browser.newPage({viewport:{width,height:900}});let errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setContent(fixture);assert.deepEqual(errors,[]);
  assert.match(await page.locator('#driverLiveState').textContent(),/차량 확인 불가/);
  assert.match(await page.locator('#driverLiveSpeed').textContent(),/km\/h/,'fresh GPS speed stays visible during API outage');

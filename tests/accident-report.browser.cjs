@@ -1,8 +1,8 @@
-const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
 const html=fs.readFileSync('index.html','utf8'),css=html.match(/<style>([\s\S]*?)<\/style>/)[1]+fs.readFileSync('accident-report.css','utf8'),moduleSource=fs.readFileSync('accident-report.js','utf8');
 const output=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-accident-preview';fs.mkdirSync(output,{recursive:true});
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});
+ const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
  try{for(const width of [320,412]){
   const page=await browser.newPage({viewport:{width,height:740}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('https://bus70.test/**',r=>r.fulfill({contentType:'text/html',body:`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body><main class="content"><h2>사건·사고 보고</h2><p>합성 데이터 검사</p><div id="report"></div><button id="submit">보고 검사</button><p id="result"></p></main><script>${moduleSource}\nwindow.form=Bus70Accident.mount(document.getElementById('report'));form.prefill('시험00가0001');document.getElementById('submit').onclick=()=>document.getElementById('result').textContent=form.validate()||'검증 통과';</script></body></html>`}));

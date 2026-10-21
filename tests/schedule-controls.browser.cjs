@@ -1,6 +1,6 @@
 const fs=require('fs');
 const assert=require('assert');
-const {chromium}=require('playwright');
+const {chromium,webkit}=require('playwright');
 const html=fs.readFileSync('index.html','utf8');
 const css=html.match(/<style>([\s\S]*?)<\/style>/)[1];
 const start=html.indexOf('<details id="scheduleQueryOptions"');
@@ -19,7 +19,7 @@ ${handlers}
 loadMySchedule();
 </script>`;
 (async()=>{
-  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});
+  const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
   const results=[];
   try{
     for(const [width,height] of [[320,568],[360,640],[412,824]]){

@@ -765,6 +765,7 @@
 
       <div class="login-title">소신여객 운행관리 로그인</div>
 
+      <p id="iosInstallHint" class="hint" hidden>아이폰: Safari 공유 메뉴에서 ‘홈 화면에 추가’로 열 수 있습니다. 화면 잠금 중 자동기록은 지원하지 않습니다.</p>
       <div class="login-help">
         기사는 성명·사원번호, 운영계정은 계정명·비밀번호를 입력하세요.
       </div>
@@ -874,7 +875,7 @@
 
       <div id="alertSettings" class="settings-box" hidden>
         <h3>내 운행 알림</h3>
-        <p class="hint">출근 준비와 각 탕 발차 전에 알림과 음성으로 안내합니다. 현재 웹 알림은 화면이 켜져 있거나 앱이 살아 있을 때 작동하며, 화면 종료 상태의 정확한 알람은 Android 설치형 모듈 연결 후 보장됩니다.</p>
+        <p id="platformAlertHint" class="hint"></p>
         <label for="commuteMinutes">출근 알림(분 전, 쉼표 구분)</label><input id="commuteMinutes" type="text" inputmode="numeric" value="60,15" placeholder="예: 60,15">
         <label for="tripMinutes">탕별 준비 알림(분 전, 쉼표 구분)</label><input id="tripMinutes" type="text" inputmode="numeric" value="10,3" placeholder="예: 10,3">
         <label class="check-row"><input id="exactAlarm" type="checkbox" checked> 발차 정시에도 알림</label>
@@ -883,7 +884,8 @@
         <label for="alarmSoundMode">알람음</label><select id="alarmSoundMode"><option value="SYSTEM_DEFAULT">휴대폰 기본 알람음</option><option value="DEVICE_SELECTED">기사 선택 내장음(Android 연결)</option></select>
         <label class="check-row"><input id="alarmEnabled" type="checkbox" checked> 운행 알림 사용</label>
         <div class="inline-actions"><button id="requestNotification" type="button">알림 권한 허용</button><button id="saveAlertSettings" type="button">알림 설정 저장</button></div>
-        <div class="inline-actions"><button id="testScreenOffAlarm" type="button">2분 후 화면 꺼짐 시험</button><button id="checkNativeAlarms" class="secondary" type="button">예약 상태 확인</button></div>
+        <div id="nativeAlarmControls" class="inline-actions"><button id="testScreenOffAlarm" type="button">2분 후 화면 꺼짐 시험</button><button id="checkNativeAlarms" class="secondary" type="button">예약 상태 확인</button></div>
+        <button id="testBrowserVoice" type="button" hidden>음성 안내 시험</button>
         <div id="alertStatus" class="result" aria-live="polite"></div>
       </div>
     </section>
@@ -1152,7 +1154,8 @@
 <script src="./driver-cockpit.js?v=66"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
-<script src="./accident-report.js?v=77"></script>
+<script src="./mobile-compat.js?v=821"></script>
+<script src="./accident-report.js?v=821"></script>
 <script>
   /*
    * STEP 6-1
@@ -1361,7 +1364,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2248,7 +2251,10 @@
   document.getElementById("adjustmentBefore").addEventListener("input",formatDirectTimeInput);
   document.getElementById("adjustmentAfter").addEventListener("input",formatDirectTimeInput);
   document.addEventListener("visibilitychange",()=>{
-    if(document.hidden||!authToken)return;
+    if(document.hidden){suspendBrowserLocation();browserScreenAwake.sync();return;}
+    browserScreenAwake.sync();
+    if(!authToken)return;
+    locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();
     // 화면을 다시 열면 현장 상태와 오늘 배차를 갱신합니다. 화면이 꺼진 동안의
     // 알람은 Android 네이티브 예약이 담당합니다.
     loadOperationData(true);
@@ -2256,7 +2262,8 @@
     if(!currentRole&&document.getElementById("workDate").value===todayLocal())loadDriverLiveLocations(true);
     if(hasNativeLocationBridge()&&typeof window.Bus70Android.locationStatus==="function")window.Bus70Android.locationStatus();
   });
-  window.addEventListener("pageshow",refreshScheduleOnResume);
+  window.addEventListener("pagehide",suspendBrowserLocation);
+  window.addEventListener("pageshow",()=>{refreshScheduleOnResume();locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();browserScreenAwake.sync();});
   populateOperationalTimeOptions();
 
 
@@ -2392,10 +2399,12 @@
 
   async function fireDriverAlert(title, message) {
     if(driverAlertSettings.vibration&&navigator.vibrate)navigator.vibrate([300,150,300]);
-    if("Notification" in window&&Notification.permission==="granted"){
-      try{const registration=await navigator.serviceWorker?.ready; if(registration)await registration.showNotification(title,{body:message,icon:"./icons/bus70-192.png",badge:"./icons/bus70-192.png",tag:"bus70-driver-alert",renotify:true,vibrate:driverAlertSettings.vibration?[300,150,300]:undefined});else new Notification(title,{body:message});}catch(error){console.warn("알림 표시 실패",error);}
-    }
+    // Start speech within the tap handler; waiting for a service worker loses
+    // user activation on Safari and can leave the voice test pending forever.
     if(driverAlertSettings.voice&&"speechSynthesis" in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(message);speech.lang="ko-KR";speech.rate=.95;speechSynthesis.speak(speech);}
+    if("Notification" in window&&Notification.permission==="granted"){
+      try{const registration=await navigator.serviceWorker?.getRegistration();if(registration)await registration.showNotification(title,{body:message,icon:"./icons/bus70-192.png",tag:"bus70-driver-alert"});else if(!Bus70Mobile.capabilities(window).ios)new Notification(title,{body:message});}catch(error){console.warn("알림 표시 실패",error);}
+    }
   }
 
   function clearDriverAlarms(){alarmTimers.forEach(clearTimeout);alarmTimers=[];}
@@ -2438,16 +2447,18 @@
     if(first&&!runLogForTrip(data,data.trips[0])?.actualStart&&!runLogForTrip(data,data.trips[0])?.actualEnd)driverAlertSettings.commuteMinutes.forEach(min=>alarms.push({trip:Number(data.trips[0].trip),at:first.getTime()-min*60000,title:route+"번 출근 준비",message:min+"분 후 "+route+"번 "+seq+"순차 운행이 시작됩니다."}));
     data.trips.forEach(trip=>{const log=runLogForTrip(data,trip)||{};if(log.actualStart||log.actualEnd)return;const at=scheduleMoment(date,trip.startTime);if(!at)return;driverAlertSettings.tripMinutes.forEach(min=>alarms.push({trip:Number(trip.trip),at:at.getTime()-min*60000,title:route+"번 "+trip.trip+"탕 준비",message:min+"분 후 "+route+"번 "+trip.trip+"탕 출발입니다. 출발 예정 "+trip.startTime+"."}));if(driverAlertSettings.exact)alarms.push({trip:Number(trip.trip),at:at.getTime(),title:route+"번 "+trip.trip+"탕 출발",message:route+"번 "+trip.trip+"탕 출발 예정 시각입니다."});});
     alarms.filter(v=>v.at>now&&v.at-now<=2147483647).forEach(v=>alarmTimers.push(setTimeout(()=>{const current=(lastSchedule?.trips||[]).find(t=>Number(t.trip)===v.trip),log=current?runLogForTrip(lastSchedule,current)||{}:null;if(driverAlertSettings.enabled&&Date.now()-v.at<=90000&&log&&!log.actualStart&&!log.actualEnd)fireDriverAlert(v.title,v.message);},v.at-now)));
-    const status=document.getElementById("alertStatus"); status.replaceChildren(el("div",alarmTimers.length?alarmTimers.length+"개 알림을 이 기기에 예약했습니다.":"현재부터 24일 안에 울릴 알림이 없습니다.","notice"));
+    const status=document.getElementById("alertStatus"); status.replaceChildren(el("div",alarmTimers.length?alarmTimers.length+"개 알림을 화면이 열려 있는 동안 안내합니다. 화면 잠금 중에는 작동하지 않습니다.":"현재부터 24일 안에 울릴 알림이 없습니다.","notice"));
   }
 
   async function requestNotificationPermission(){
     const root=document.getElementById("alertStatus");
     if(hasAndroidBridge()){window.Bus70Android.requestSetup();root.replaceChildren(el("div","캘린더·알림·정확한 알람 권한을 승인한 뒤 알림 설정을 저장하세요.","notice"));return;}
     if(!("Notification" in window))return root.replaceChildren(el("div","이 브라우저는 알림을 지원하지 않습니다.","notice error"));
-    const permission=await Notification.requestPermission();
+    const caps=Bus70Mobile.capabilities(window);
+    if(caps.ios&&!caps.standalone)return root.replaceChildren(el("div","아이폰 알림 권한은 홈 화면에 추가한 앱에서 확인할 수 있습니다. 현재 잠금 화면 예약 알람은 지원하지 않습니다.","notice"));
+    let permission;try{permission=await Notification.requestPermission();}catch(error){root.replaceChildren(el("div","알림 권한을 요청하지 못했습니다. 음성 시험은 이 화면에서 사용할 수 있습니다.","notice error"));return;}
     root.replaceChildren(el("div",permission==="granted"?"알림 권한이 허용되었습니다. 시험 음성 안내를 실행합니다.":"알림 권한이 허용되지 않았습니다.",permission==="granted"?"notice":"notice error"));
-    if(permission==="granted")fireDriverAlert((currentRoute?currentRoute+"번 ":"")+"운행 알림 시험","운행 알림과 음성 안내가 정상 설정되었습니다.");
+    if(permission==="granted")fireDriverAlert((currentRoute?currentRoute+"번 ":"")+"운행 알림 시험","음성 시험입니다. 안내가 들리는지 확인해 주세요.");
   }
 
   function fillAlertSettings(settings){driverAlertSettings=settings||driverAlertSettings;document.getElementById("commuteMinutes").value=driverAlertSettings.commuteMinutes.join(",");document.getElementById("tripMinutes").value=driverAlertSettings.tripMinutes.join(",");document.getElementById("exactAlarm").checked=driverAlertSettings.exact;document.getElementById("voiceAlarm").checked=driverAlertSettings.voice;document.getElementById("vibrationAlarm").checked=driverAlertSettings.vibration;document.getElementById("alarmSoundMode").value=driverAlertSettings.soundMode||"SYSTEM_DEFAULT";document.getElementById("alarmEnabled").checked=driverAlertSettings.enabled;}
@@ -2938,6 +2949,8 @@
     if(button){button.textContent=localStorage.getItem(driverLocationPreference())==="N"?"자동기록 재개":"자동기록 일시중지";button.classList.toggle("tracking",locationTrackingActive);}
     if(status){const pending=gpsPendingCount();status.textContent=locationStatusText+(pending?" · 기기 보관 "+pending+"건 전송 대기":"")+(nativeSyncError?" · "+nativeSyncError:"");status.className="location-status"+(locationStatusType?" "+locationStatusType:"");}
     if(lastDriverPosition){const c=lastDriverPosition.coords||{};if(accuracy)accuracy.textContent=Number.isFinite(Number(c.accuracy))?Math.round(Number(c.accuracy))+"m":"-";if(speed)speed.textContent=Number.isFinite(Number(c.speed))?Math.max(0,Number(c.speed)*3.6).toFixed(1)+"km/h":"-";}
+    browserScreenAwake.setActive(!hasNativeLocationBridge()&&locationTrackingActive&&Boolean(authToken)&&!currentRole);
+    updateBrowserScreenStatus();
     updateDriverLiveDashboard();
   }
 
@@ -2952,10 +2965,23 @@
     else if(!coverage.locationReady){locationStatusText="검증된 노선 정류장 좌표 또는 운행 기준점이 없습니다. 노선별 정류장DB에 위도·경도를 등록하세요.";locationStatusType="error";}
     else if(document.getElementById("workDate").value!==todayLocal()){locationStatusText="실시간 위치 기록은 현재 운행일에만 시작할 수 있습니다.";locationStatusType="";}
     const toggle=el("button",localStorage.getItem(driverLocationPreference())==="N"?"자동기록 재개":"자동기록 일시중지");toggle.id="locationToggle";toggle.type="button";toggle.addEventListener("click",()=>{const paused=localStorage.getItem(driverLocationPreference())==="N";localStorage.setItem(driverLocationPreference(),paused?"Y":"N");if(paused){locationResumeAttemptAt=0;resumeDriverLocationIfAllowed();}else stopDriverLocationTracking();updateLocationPanel();});box.append(toggle);
+    if(!hasNativeLocationBridge()){
+      const keep=el("button","운행 화면 켜짐 유지");keep.id="browserScreenAwake";keep.type="button";keep.addEventListener("click",()=>browserScreenAwake.enable(!browserScreenAwake.enabled));
+      const note=el("p","화면 잠금·다른 앱 전환 중에는 GPS가 중단됩니다. 다시 열면 위치를 재수신합니다.");note.id="browserScreenStatus";note.setAttribute("role","status");box.append(keep,note);
+    }
     root.append(box);updateLocationPanel();
   }
 
+  function suspendBrowserLocation(){
+    if(hasNativeLocationBridge())return;
+    if(browserLocationWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(browserLocationWatchId);browserLocationWatchId=null;}
+    locationTrackingActive=false;
+    locationStatusText="화면 비활성으로 GPS 일시정지 · 다시 열면 재수신";locationStatusType="";
+    browserScreenAwake.setActive(false);
+  }
+
   function stopDriverLocationTracking(silent=false){
+    browserScreenAwake.enable(false);
     if(browserLocationWatchId!==null&&navigator.geolocation){navigator.geolocation.clearWatch(browserLocationWatchId);browserLocationWatchId=null;}
     if(window.Bus70Android&&typeof window.Bus70Android.stopLocationTracking==="function")try{window.Bus70Android.stopLocationTracking();}catch(error){console.warn(error);}
     locationTrackingActive=false;geofenceVisitState.clear();automaticRunEvents.clear();
@@ -2979,7 +3005,7 @@
   }
 
   function processDriverPosition(position){
-    if(!lastSchedule||!locationTrackingActive||!lastSchedule.trips?.length||document.getElementById("workDate").value!==todayLocal())return;
+    if(document.hidden||!lastSchedule||!locationTrackingActive||!lastSchedule.trips?.length||document.getElementById("workDate").value!==todayLocal())return;
     locationPermissionState="granted";lastDriverPosition=position;const tripIndex=firstActiveTripIndex(lastSchedule),trip=lastSchedule.trips[tripIndex],log=runLogForTrip(lastSchedule,trip)||{},key=currentDriverId+"|"+driverAssignmentBinding(lastSchedule).dispatchId+"|"+trip.trip;
     currentNavigation=routeNavigationState(lastSchedule,position);maybeShareDriverLiveLocation(position,currentNavigation,trip);
     const points={start:tripLocationPoint(trip,"start"),turn:tripLocationPoint(trip,"turn"),end:tripLocationPoint(trip,"end"),control:tripLocationPoint(trip,"control"),return:tripLocationPoint(trip,"return")};
@@ -4063,6 +4089,31 @@
   document.getElementById("replacementScope").addEventListener("change",refreshWorkChangeReplacements);
   ["peopleSearch","peopleShift"].forEach(id=>document.getElementById(id).addEventListener(id==="peopleSearch"?"input":"change",()=>{refreshManagerRoster();refreshWorkChangeDrivers();}));
   ["managerRoute","managerDate"].forEach(id=>document.getElementById(id).addEventListener("change",refreshManagerContext));
+
+  function configureMobileCompatibility(){
+    const caps=Bus70Mobile.capabilities(window);
+    document.getElementById("iosInstallHint").hidden=!caps.ios||caps.standalone;
+    document.getElementById("nativeAlarmControls").hidden=!caps.nativeAlarm;
+    document.getElementById("alarmSoundMode").hidden=!caps.nativeAlarm;
+    document.querySelector('label[for="alarmSoundMode"]').hidden=!caps.nativeAlarm;
+    document.getElementById("vibrationAlarm").closest("label").hidden=!caps.vibration&&!caps.nativeAlarm;
+    document.getElementById("testBrowserVoice").hidden=caps.nativeAlarm||!caps.voice;
+    document.getElementById("requestNotification").hidden=!caps.nativeAlarm&&(!caps.notification||(caps.ios&&!caps.standalone));
+    document.getElementById("platformAlertHint").textContent=caps.nativeAlarm?"출근·발차 알림은 Android 앱의 알림·정확한 알람 권한과 배터리 설정을 확인하세요.":"이 화면이 열려 있을 때만 준비·발차 알림을 안내합니다. 화면 잠금 중 GPS 자동기록·예약 알람·10분 전착 음성은 지원하지 않습니다.";
+  }
+  function updateBrowserScreenStatus(){
+    const button=document.getElementById("browserScreenAwake"),note=document.getElementById("browserScreenStatus");if(!button||!note)return;
+    const state=browserScreenAwake.state;
+    button.textContent=browserScreenAwake.enabled?"화면 켜짐 유지 끄기":"운행 화면 켜짐 유지";button.setAttribute("aria-pressed",String(browserScreenAwake.enabled));
+    const messages={on:"화면 켜짐 유지 중 · 잠금·다른 앱 전환 시 GPS 중단",waiting:"위치 기록을 시작하면 화면 켜짐 유지 · 잠금 중 GPS 중단",off:"화면 잠금·다른 앱 전환 중 GPS 중단 · 다시 열면 재수신",unsupported:"이 브라우저는 화면 켜짐 유지를 지원하지 않습니다.",denied:"화면 켜짐 유지가 허용되지 않았습니다. 절전 설정을 확인하세요.",released:"화면 켜짐 유지가 해제됐습니다. 필요하면 다시 켜 주세요."};note.textContent=messages[state]||messages.off;
+  }
+  const browserScreenAwake=Bus70Mobile.screenAwake(window,updateBrowserScreenStatus);
+  document.getElementById("testBrowserVoice").addEventListener("click",()=>{
+    if(!driverAlertSettings.voice){document.getElementById("alertStatus").textContent="음성 안내를 켜고 설정을 저장한 뒤 시험하세요.";return;}
+    fireDriverAlert("음성 시험","음성 시험입니다. 안내가 들리는지 확인해 주세요.");
+    document.getElementById("alertStatus").textContent="휴대폰 음량을 확인하세요. 화면을 닫은 상태의 알람 시험은 아닙니다.";
+  });
+  configureMobileCompatibility();
 
   // 설치된 PWA의 정적 화면 파일만 캐시합니다. 배차 API 응답은 캐시하지 않습니다.
   if ("serviceWorker" in navigator && location.protocol === "https:") {
