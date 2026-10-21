@@ -9,7 +9,9 @@
 - 화면의 시각·수집 상태 갱신을 선택적인 지도·원형 그림 갱신보다 먼저 처리한다. API 장애 중 GPS 수신과 서버 전송 상태를 구분한다.
 - 로컬 검증: 관련 Node 12개 파일 통과, Java/JUnit 18개 검사 통과. 전체 Node 검사에서 기존 `current-vehicle-scope.test.js` 실패가 확인되었고 이번 변경 대상은 아니다. 로컬 Chromium 다운로드 실패로 화면 검증은 CI에서 수행해야 한다.
 - PR50 최초 검증 head `25a3b9bfbd1ca268a6a5e9606012cb9a34c6a666`: [서명 APK 빌드](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538440844)와 [모바일 화면 CI](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538494382) 성공. Android versionCode 82, versionName 0.82-live-recovery. APK SHA-256: `54808ed80332e30e8df4d70f0fe28b0300844149c1fc96061e59ba2cef0b02dd`.
-- 현재 단계: 코드·합성 검증·서명 APK 빌드 완료. 웹/운영 Apps Script 배포 및 실차 검증 미완료. 과거 실제 시각은 변경하지 않았다.
+- [PR50](https://github.com/skyballpd-wq/BUS70-TEST/pull/50) 병합: `711152bfc5b7f6811bee587089150b8eacea37b3`. 최종 화면 CI [39538904280](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538904280) 성공, 320/360/412px 남은 거리·ETA·추정 기준시각·장애 상태 확인. 첫 Android 변경 head의 에뮬레이터 검사 [39538440708](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39538440708) 성공.
+- [PR51](https://github.com/skyballpd-wq/BUS70-TEST/pull/51)에서 두 GPS 모듈 URL과 서비스워커 캐시를 함께 v82로 갱신했다. 기존 설치폰이 예전 모듈을 재사용하는 문제를 방지한다. 검증 head `9a9d184d3711ea18ac8b0ffdd3020dbf654c5954`, 화면 CI [39539473319](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39539473319) 성공. 병합 `2e44cd761e3e2301ba5eb8018471d36620642f76`, Pages 배포 [39539611412](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39539611412) 성공.
+- 현재 단계: 코드·합성 검증·서명 APK 빌드·웹 배포 완료. 운영 Apps Script 배포 및 실제 모바일 설치·실차 검증은 미완료. PublicTransitApi.gs의 호출 제어와 진단 변경은 운영 서버 배포 전이다. 과거 실제 시각은 변경하지 않았다.
 
 
 확인 기준: 2026-10-18 KST. 코드 작성, 테스트, APK 빌드, 웹 배포와 실제 모바일 확인은 별도 단계로 기록한다. 작업 재개 시 최신 main과 PR·Actions 결과를 다시 확인한다. 운영 상세와 원본 확인 결과는 비공개 작업기록에서 관리한다.
