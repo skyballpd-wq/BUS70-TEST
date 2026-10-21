@@ -7,7 +7,9 @@
 - 웹 화면을 숨길 때 GPS watch를 정리하고 다시 열 때 새 watch로 재수신한다. 사용자 일시중지·완료한 운행·당일 배차 조건은 유지한다. 화면 잠금 중 누락된 경로를 추측하여 복원하지 않는다.
 - GPS 상세에서 선택적으로 화면 켜짐 유지를 요청한다. 미지원·권한 거절·OS 해제 상태를 구분하며 추적 중지/로그아웃 시 해제한다. 이 기능은 백그라운드 위치 추적이 아니다.
 - 사진 다중 첨부/촬영을 유지하고 MIME이 비어 있는 이미지 파일도 실제 디코딩으로 확인한다. 읽을 수 없는 HEIC 등은 JPEG/PNG 또는 재촬영 안내를 표시한다. 서버에는 기존처럼 용량을 제한한 JPEG만 보낸다.
-- 검증: Node 기능 검사 완료. Chrome/WebKit의 실제 페이지 합성 로그인·화면 복귀·사진 5장·재전송·이미지 공유·날짜 선택 검증을 CI로 추가한다. 실물 iPhone/Safari·화면 잠금·수 시간 실차 운행 검증과 iOS 전용 백그라운드 앱은 미완료다.
+- 검증 완료: Node 기능 검사와 [Chrome/WebKit CI 39543466266](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39543466266) 통과. 검증 head `fcf2e43c47cc9735ccd6d1fa735ff39a2772d0b8`. 실제 페이지의 합성 로그인·음성 호출·화면 복귀·일시중지/완료 보호·사진 5장·동일 내용 재전송·이미지 공유·날짜 선택을 확인했다. WebKit 검사의 임시 blob 주소 차단을 수정했고, 한글 줄바꿈 차이는 같은 필드 내 전체 문구와 글자 경계로 검증한다.
+- [PR52](https://github.com/skyballpd-wq/BUS70-TEST/pull/52) 병합 `05eb8582887f8c20eca616ea36f3acf8da65359d`, [Pages 배포 39543679169](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39543679169) 성공. 운영 index.html, sw.js, mobile-compat.js?v=821, accident-report.js?v=821 모두 HTTP 200 및 검증 파일 바이트 일치 확인. Android 네이티브 변경이 없어 기존 서명 v82 APK를 유지한다.
+- 실물 iPhone/Safari 음성·사진 선택·화면 잠금·수 시간 실차 운행 검증과 iOS 전용 백그라운드 앱은 미완료다. 브라우저 엔진 검사 통과를 실물 기기 확인으로 표현하지 않는다.
 - Apple 공식 근거: [Home Screen Web Push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)는 별도 Push 서버 연동이 필요하며 현재 앱에 구현하지 않았다. [Safari 18.4](https://webkit.org/blog/16574/webkit-features-in-safari-18-4/)부터 홈 화면 웹 앱의 Screen Wake Lock을 지원한다. 기기별 실제 가능 여부를 기능 검사한다.
 
 ## v82 운영 서버 배포 완료 — 2026-10-21
@@ -57,7 +59,7 @@
 
 ## 별도 미완료 작업
 
-- 외부 실시간 API의 실제 응답 및 연결 상태 확인.
+- 외부 실시간 API의 장시간 안정성·계정별 제한 원인 검증. 현재 연결 확인은 위의 서버 버전 66 기록 참조.
 - 누락 운행 기록의 근거 확인과 복구.
 - 접속·트래픽 기능 검토와 실제 현장 검증.
 
