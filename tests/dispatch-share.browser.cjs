@@ -78,9 +78,12 @@ managerGenerate.onclick=generateManagerImage;managerShare.onclick=shareManagerIm
     assert(board.size<5000000,'PNG fits the signed APK limit');
     const png=Buffer.from(board.data.split(',')[1],'base64');assert.equal(png.readUInt32BE(16),1440);assert(png.readUInt32BE(20)<=4096);
     assert.equal(board.drawn.filter(x=>/^\d+순차$/.test(x.text)).length,count,'retain every sequence');
-    assert(board.drawn.map(x=>x.text).join('').includes('기사 미지정'));
-    assert(board.drawn.map(x=>x.text).join('').includes('차량 미지정'));
-    if(count>=22){assert(board.drawn.map(x=>x.text).join('').includes('기사 확인 필요'));assert(board.drawn.map(x=>x.text).join('').includes('차량 확인 필요'));}
+    // Font metrics may wrap words differently. Preserve every label within its
+    // own clipped field rather than relying on the same line break in both engines.
+    const labels=new Map();for(const glyph of board.drawn){const key=JSON.stringify(glyph.clip);labels.set(key,(labels.get(key)||'')+glyph.text.replace(/\s/g,''));}
+    const hasLabel=text=>[...labels.values()].includes(text.replace(/\s/g,''));
+    assert(hasLabel('기사 미지정'));assert(hasLabel('차량 미지정'));
+    if(count>=22){assert(hasLabel('기사 확인 필요'));assert(hasLabel('차량 확인 필요'));}
     for(const glyph of board.drawn){const b=glyph.clip;assert(b,'text must be confined to a field');assert(glyph.left>=b.x-1&&glyph.right<=b.x+b.w+1&&glyph.top>=b.y-1&&glyph.bottom<=b.y+b.h+1,'glyph overflow: '+JSON.stringify(glyph));}
     if(count<=22)fs.writeFileSync(require('path').join(output,'dispatch-layout-'+route+'-'+count+'-synthetic.png'),png);
   }
