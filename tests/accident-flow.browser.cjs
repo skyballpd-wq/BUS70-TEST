@@ -1,5 +1,5 @@
-const fs=require('fs'),path=require('path'),assert=require('node:assert/strict'),{chromium}=require('playwright');
-(async()=>{const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});try{
+const fs=require('fs'),path=require('path'),assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
+(async()=>{const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));try{
  const page=await browser.newPage({viewport:{width:412,height:824},serviceWorkers:'block'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin!=='https://synthetic.test')return r.abort();const relative=decodeURIComponent(u.pathname).replace(/^\//,'')||'index.html';if(relative.includes('..')||!fs.existsSync(relative))return r.fulfill({status:404,body:''});return r.fulfill({contentType:relative.endsWith('.html')?'text/html':relative.endsWith('.js')?'application/javascript':relative.endsWith('.css')?'text/css':'image/png',body:fs.readFileSync(relative)});});
  await page.goto('https://synthetic.test/');

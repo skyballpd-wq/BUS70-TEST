@@ -17,11 +17,11 @@
     return '';
   }
   async function prepare(file){
-    if(!file||!/^image\//.test(file.type))throw Error('사진 파일을 선택하세요.');
+    if(!file||(!/^image\//.test(file.type)&&!(file.type===''&&/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name||''))))throw Error('사진 파일을 선택하세요.');
     if(file.size>25000000)throw Error('25MB 이하 사진을 선택하세요.');
     const url=URL.createObjectURL(file),img=new Image();
     try{
-      img.src=url;await img.decode();
+      img.src=url;try{await img.decode();}catch(error){throw Error('이 사진 형식을 읽을 수 없습니다. JPEG·PNG 사진을 선택하거나 추가 촬영해 주세요.');}
       const scale=Math.min(1,1920/Math.max(img.naturalWidth,img.naturalHeight));
       const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
@@ -53,11 +53,11 @@
       input.onchange=async()=>{
         const files=Array.from(input.files||[]);input.value='';if(!files.length||busy||locked||processing)return;
         if(photos.length+files.length>LIMIT){status.textContent='사진은 최대 '+LIMIT+'장입니다. 선택 수를 줄여 주세요.';return;}
-        const current=generation;processing=true;disable();let added=0,duplicates=0,failed=0;
+        const current=generation;processing=true;disable();let added=0,duplicates=0,failed=0,firstError='';
         try{for(let i=0;i<files.length;i++){
           if(current!==generation)return;status.textContent='사진 준비 '+(i+1)+'/'+files.length+'…';
-          try{const photo=await prepare(files[i]);if(current!==generation)return;if(photos.some(p=>p.data===photo.data)){duplicates++;continue;}photos.push({...photo,category:'EVIDENCE'});added++;coverage.checked=false;changed();refresh();}catch(e){failed++;}
-        }status.textContent=added+'장 추가'+(duplicates?' · 중복 '+duplicates+'장 제외':'')+(failed?' · 읽기 실패 '+failed+'장, 다시 선택해 주세요.':'');}
+          try{const photo=await prepare(files[i]);if(current!==generation)return;if(photos.some(p=>p.data===photo.data)){duplicates++;continue;}photos.push({...photo,category:'EVIDENCE'});added++;coverage.checked=false;changed();refresh();}catch(e){failed++;if(!firstError)firstError=e.message;}
+        }status.textContent=added+'장 추가'+(duplicates?' · 중복 '+duplicates+'장 제외':'')+(failed?' · 읽기 실패 '+failed+'장 · '+firstError:'');}
         finally{if(current===generation){processing=false;disable();}}
       };actions.append(button,input);
     }

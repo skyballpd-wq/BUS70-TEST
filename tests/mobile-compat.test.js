@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict'),{capabilities,screenAwake}=require('../mobile-compat');
+(async()=>{
+  assert.equal(capabilities({navigator:{userAgent:'iPhone'}}).ios,true);
+  assert.equal(capabilities({navigator:{platform:'MacIntel',maxTouchPoints:5}}).ios,true);
+  assert.equal(capabilities({navigator:{platform:'MacIntel',maxTouchPoints:0}}).ios,false);
+  assert.equal(capabilities({navigator:{},Bus70Android:{syncSchedule(){},startLocationTracking(){}}}).nativeLocation,true);
+  let calls=0,releases=0,resolve;
+  const lock=()=>({addEventListener(){},async release(){releases++;}});
+  const win={navigator:{wakeLock:{request:async()=>{calls++;return lock();}}},document:{hidden:false}};
+  const control=screenAwake(win);
+  await control.setActive(true);assert.equal(calls,0,'opt-in is required');
+  await control.enable(true);assert.equal(control.state,'on');assert.equal(calls,1);
+  await control.sync();assert.equal(calls,1,'no duplicate sentinel');
+  win.document.hidden=true;await control.sync();assert.equal(releases,1);
+  win.document.hidden=false;await control.sync();assert.equal(calls,2);
+  await control.setActive(false);assert.equal(releases,2);
+  win.navigator.wakeLock.request=async()=>{throw Error('denied');};
+  await control.setActive(true);assert.equal(control.state,'denied');
+  await control.setActive(true);assert.equal(control.state,'denied','no retry loop on every GPS tick');
+  win.navigator.wakeLock.request=()=>new Promise(r=>resolve=r);
+  const pending=control.enable(true);await control.enable(false);resolve(lock());await pending;
+  assert.equal(control.state,'off');assert.equal(releases,3,'late grant must release after stop');
+  const unsupported=screenAwake({navigator:{},document:{hidden:false}});await unsupported.setActive(true);await unsupported.enable(true);assert.equal(unsupported.state,'unsupported');
+  console.log('Mobile capability detection and wake lock opt-in, hidden/reopen, denial and late-grant release passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,4 +1,4 @@
-const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
 const html=fs.readFileSync('index.html','utf8');
 const rows=html.slice(html.indexOf('  function renderManagerRows('),html.indexOf('  function renderManagerSummary('));
 const exporter=html.slice(html.indexOf('  function managerImageDateLabel('),html.indexOf('  document.getElementById("managerLoad").addEventListener'));
@@ -20,7 +20,7 @@ renderManagerRows(managerData);
 managerGenerate.onclick=generateManagerImage;managerShare.onclick=shareManagerImage;managerDownload.onclick=downloadManagerImage;
 </script>`;
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']});
+ const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
  try{
   const page=await browser.newPage({viewport:{width:412,height:820},timezoneId:'America/Los_Angeles'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setContent(fixture);
