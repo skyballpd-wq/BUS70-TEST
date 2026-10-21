@@ -120,7 +120,7 @@ final class DriverTracker: NSObject, CLLocationManagerDelegate {
             DispatchQueue.main.async { completion(result); if task != .invalid { UIApplication.shared.endBackgroundTask(task) } }
         }.resume()
     }
-    private func bindingError(_ r: [String: Any]) -> Bool { ["AUTH_REQUIRED", "INVALID_TOKEN", "TOKEN_EXPIRED", "DISPATCH_MISMATCH", "VEHICLE_MISMATCH", "TRIP_NOT_SCHEDULED"].contains(r["error"] as? String ?? "") }
+    private func bindingError(_ r: [String: Any]) -> Bool { ["AUTH_REQUIRED", "INVALID_TOKEN", "TOKEN_EXPIRED", "DISPATCH_NOT_FOUND", "DISPATCH_MISMATCH", "VEHICLE_NOT_ASSIGNED", "VEHICLE_MISMATCH", "TRIP_NOT_SCHEDULED"].contains(r["error"] as? String ?? "") }
     private func sendLive(_ body: [String: Any]) {
         guard !liveBusy, now-lastLive >= 20000, let token = store.token(owner) else { return }
         liveBusy = true; lastLive = now; let captured = binding

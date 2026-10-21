@@ -18,7 +18,14 @@ final class DriverController: UIViewController, WKNavigationDelegate, WKScriptMe
     private var web: WKWebView!
     private let status = UILabel()
     private static let home = URL(string: "https://skyballpd-wq.github.io/BUS70-TEST/")!
-    static func trusted(_ url: URL?) -> Bool { url?.scheme == "https" && url?.host == home.host && (url?.path.hasPrefix("/BUS70-TEST/") == true) && (url?.port == nil || url?.port == 443) }
+    static func trusted(_ url: URL?) -> Bool {
+        guard let url = url else { return false }
+        guard url.scheme == "https" else { return false }
+        guard url.host == "skyballpd-wq.github.io" else { return false }
+        if let port = url.port { guard port == 443 else { return false } }
+        let path = url.standardized.path
+        return path == "/BUS70-TEST" || path.hasPrefix("/BUS70-TEST/")
+    }
     init(tracker: DriverTracker) { self.tracker = tracker; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
     override func viewDidLoad() {
