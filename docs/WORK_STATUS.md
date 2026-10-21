@@ -1,10 +1,12 @@
 # 공통 기술 작업현황
 
-## iOS 위치·음성 네이티브 시험 앱 준비 — 2026-10-21
+## iOS 위치·음성 네이티브 시험 앱 빌드 검증 — 2026-10-21
 
 - iOS 16 이상 대상 Core Location/JavaScriptCore/한국어 음성 시험 앱 작성. WKWebView와 독립된 공통 GPS 판정, 내구성 기점 기록, 기기별 인증정보 보관, 완료·로그아웃·운행일 종료 보호를 구현했다. 웹 v82.3은 iOS 위치 브리지를 Android 알람과 별도로 감지한다.
-- 합성 Node 검사에서 예정 전/보행 오출발 방지, 차량 대조·계정/차량 분리, 통신 재전송, 완료·지난 운행일 보호, 정류장별 10분 경고 경계 통과. Apple SDK 빌드/시뮬레이터 결과는 후속 기록한다.
+- 합성 Node 검사에서 예정 전/보행 오출발 방지, 차량 대조·계정/차량 분리, 통신 재전송, 완료·지난 운행일 보호, 정류장별 10분 경고 경계 통과. 최종 head `37647796399e25b9d56b7768cee3ecac78a86d2d`의 [iOS CI 39576561595](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39576561595)에서 iPhone 시뮬레이터 4개 XCTest와 서명 없는 실기기 대상 빌드 통과. [Chrome/WebKit CI 39576561476](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39576561476)도 통과했으며 iOS 네이티브 브리지의 브라우저 GPS 중복 방지·숨김 유지·중지를 합성 검증했다.
+- [PR54](https://github.com/skyballpd-wq/BUS70-TEST/pull/54) 병합 `887215e578fb63ebff96921135df997f816534fb`. 일반 GPS 상태 저장은 15초 간격으로 모으되 기점 이벤트·전송 응답·음성 상태는 즉시 저장한다. 전화 중단 시 이전 음성을 취소하고 이후 새 위치에서 재판단한다. 최초 Swift 초기화/기존 웹 격리검사 누락과 URL 루트 경로 검사를 수정해 최종 빌드에서 확인했다. 자동 검토에서 지적된 URL 조건은 HTTPS·호스트·포트를 독립적으로 필수 검사하도록 수정하고 외부 :443 주소 거부 검사를 통과했다.
 - 서명 IPA/TestFlight 배포·실물 iPhone 화면잠금·전화/Bluetooth 음성·장시간 운행은 미검증. Apple 개발자 팀/앱 등록·서명·아이콘·배포 개인정보 표시가 필요하다. 비용 지출·테스터 초대 없음. Android 네이티브 변경 없고 v82 설치/업그레이드 공용 APK 유지.
+- 웹 v82.3 [Pages 39577470256](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39577470256) 성공. 운영 index.html, sw.js, mobile-compat.js?v=823 HTTP 200 및 검증 파일 바이트 일치 확인. 기존 Android 설치본과 Safari는 유지되며 iOS 네이티브 설치본은 아직 없다. 서버 버전67·운영 DB 원장은 변경하지 않았다.
 - 구현 범위와 배포 준비는 `ios/README.md` 참조. 실제 기사·배차·인증정보는 공개 코드에서 제외한다.
 
 ## v82.2 조회 부하 절감 — 2026-10-21
