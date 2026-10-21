@@ -1,0 +1,55 @@
+name: SoshinDriver
+options:
+  deploymentTarget:
+    iOS: '16.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: '0.1.0'
+    DEVELOPMENT_TEAM: ''
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: '1'
+targets:
+  SoshinDriver:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+      - path: ../driver-automation.js
+        buildPhase: resources
+      - path: ../driver-outbox.js
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: kr.bus70.driver.ios
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: 소신여객 기사
+        UILaunchScreen: {}
+        UIBackgroundModes: [location, audio]
+        NSLocationWhenInUseUsageDescription: 운행 중 현재 위치와 배정 차량을 대조하여 출발·회차·도착을 기록합니다.
+        NSLocationAlwaysAndWhenInUseUsageDescription: 운행 중 화면이 잠겨도 위치를 수집하여 운행기록과 차고지 조기 도착 음성 안내를 제공합니다. 일시중지·로그아웃·막탕 완료 시 수집을 중지합니다.
+        NSCameraUsageDescription: 사고 보고에 현장과 차량 사진을 첨부하기 위해 카메라를 사용합니다.
+        NSPhotoLibraryUsageDescription: 사고 보고에 여러 장의 사진을 첨부하기 위해 사진을 선택합니다.
+        ITSAppUsesNonExemptEncryption: false
+  SoshinDriverTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: SoshinDriver
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: kr.bus70.driver.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  SoshinDriver:
+    build:
+      targets:
+        SoshinDriver: all
+    test:
+      targets: [SoshinDriverTests]

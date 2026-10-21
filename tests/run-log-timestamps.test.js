@@ -31,7 +31,8 @@ assert(!JSON.stringify(missing).includes('정시'));assert(JSON.stringify(missin
 // Poll the local Android bridge without multiplying network fetches.
 let calls=0,now=5000;const doc={hidden:false,getElementById:()=>({value:'2099-01-08'})};
 const poll=vm.createContext({document:doc,authToken:'synthetic',currentRole:'',lastSchedule:{},todayLocal:()=> '2099-01-08',hasNativeLocationBridge:()=>true,nativeLocationPolledAt:0,Date:{now:()=>now},window:{Bus70Android:{locationStatus:()=>calls++}}});
-vm.runInContext(extract('pollNativeLocation'),poll);poll.pollNativeLocation();poll.pollNativeLocation();assert.equal(calls,1);now+=2000;poll.pollNativeLocation();assert.equal(calls,2);doc.hidden=true;now+=2000;poll.pollNativeLocation();assert.equal(calls,2);
+vm.runInContext(extract('nativeLocationBridge'),poll);vm.runInContext(extract('pollNativeLocation'),poll);poll.pollNativeLocation();poll.pollNativeLocation();assert.equal(calls,1);now+=2000;poll.pollNativeLocation();assert.equal(calls,2);doc.hidden=true;now+=2000;poll.pollNativeLocation();assert.equal(calls,2);
+doc.hidden=false;now+=2000;delete poll.window.Bus70Android;poll.window.Bus70IOS={locationStatus:()=>calls++};poll.pollNativeLocation();assert.equal(calls,3,'iOS status uses the same bounded native polling');
 const cockpit=require('../driver-cockpit');
 const one=cockpit.nativePosition({latitude:37,longitude:127,accuracy:4,speed:0,timestamp:10000});assert.equal(one.coords.speed,0);
 const two=cockpit.nativePosition({latitude:37.0001,longitude:127,accuracy:4,speed:null,timestamp:12000},one);assert.equal(two.coords.heading,0);assert.equal(two.coords.speed,null,'missing speed is not fabricated');

@@ -5,7 +5,7 @@
     const nav=win.navigator||{},bridge=win.Bus70Android||{};
     const ios=/iPhone|iPad|iPod/.test(nav.userAgent||'')||(/Mac/.test(nav.platform||'')&&nav.maxTouchPoints>1);
     return {ios,standalone:nav.standalone===true||Boolean(win.matchMedia&&win.matchMedia('(display-mode: standalone)').matches),
-      nativeAlarm:typeof bridge.syncSchedule==='function',nativeLocation:typeof bridge.startLocationTracking==='function',
+      nativeAlarm:typeof bridge.syncSchedule==='function',nativeLocation:typeof (win.Bus70IOS||bridge).startLocationTracking==='function',
       vibration:typeof nav.vibrate==='function',voice:'speechSynthesis' in win,
       notification:'Notification' in win,wakeLock:Boolean(nav.wakeLock&&typeof nav.wakeLock.request==='function')};
   }

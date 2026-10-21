@@ -2,14 +2,15 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
 (async()=>{
  const browser=await (process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
  try{
-  for(const native of [false,true]){
-   const page=await browser.newPage({viewport:{width:390,height:844},serviceWorkers:'block',userAgent:native?'Android':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 Version/18.4 Mobile Safari/604.1'}),errors=[];
+  for(const native of [false,true,'ios']){
+   const page=await browser.newPage({viewport:{width:390,height:844},serviceWorkers:'block',userAgent:native===true?'Android':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 Version/18.4 Mobile Safari/604.1'}),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
    await page.addInitScript(native=>{
     window.watches=[];window.cleared=[];window.spoken=[];
     Object.defineProperty(navigator,'geolocation',{value:{watchPosition(ok){watches.push(ok);return watches.length;},clearWatch(id){cleared.push(id);}}});
     Object.defineProperty(window,'speechSynthesis',{value:{cancel(){},speak(value){spoken.push(value.text);}}});
-    if(native)window.Bus70Android={syncSchedule(){},startLocationTracking(){},stopLocationTracking(){},requestSetup(){}};
+    if(native===true)window.Bus70Android={syncSchedule(){},startLocationTracking(){},stopLocationTracking(){},requestSetup(){}};
+    if(native==='ios')window.Bus70IOS={startLocationTracking(){},ensureLocationTracking(raw){window.nativePayload=JSON.parse(raw);window.bus70NativeLocationStatus({active:true,permissionGranted:true,locationEnabled:true,driverId:'TEST',events:[],message:'합성 iOS 기록 중'});},stopLocationTracking(){window.nativeStopped=true;},locationStatus(){},syncPendingEvents(){}};
    },native);
    await page.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin!=='https://synthetic.test')return r.abort();const file=decodeURIComponent(u.pathname).slice(1)||'index.html';if(file.includes('..')||!fs.existsSync(file))return r.fulfill({status:404,body:''});return r.fulfill({contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'image/png',body:fs.readFileSync(file)});});
    await page.goto('https://synthetic.test/');
@@ -22,9 +23,9 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert.match(await page.locator('#sessionGreeting').innerText(),/시험 기사/);
    assert.equal(await page.evaluate(()=>loginRequests.filter(x=>x.action==='loginSecure').length),1);
    await page.evaluate(()=>{stopDriverLiveTimer();toggleDriverWorkMenu('ALERT');});
-   assert.equal(await page.locator('#nativeAlarmControls').isVisible(),native);
-   assert.equal(await page.locator('#alarmSoundMode').isVisible(),native);
-   assert.equal(await page.locator('#testBrowserVoice').isVisible(),!native);
+   assert.equal(await page.locator('#nativeAlarmControls').isVisible(),native===true);
+   assert.equal(await page.locator('#alarmSoundMode').isVisible(),native===true);
+   assert.equal(await page.locator('#testBrowserVoice').isVisible(),native!==true);
    if(!native){
     await page.locator('#testBrowserVoice').click();assert.equal(await page.evaluate(()=>spoken.length),1,'voice starts without awaiting service worker readiness');
     assert.match(await page.locator('#platformAlertHint').innerText(),/화면 잠금 중.*지원하지 않습니다/);
@@ -46,8 +47,23 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
     await page.evaluate(()=>{localStorage.setItem(driverLocationPreference(),'Y');tripCompleted=()=>true;window.dispatchEvent(new Event('pageshow'));});
     assert.equal(await page.evaluate(()=>watches.length),2,'finished shift does not restart');
    }
+   if(native==='ios'){
+    assert.equal(await page.locator('#iosInstallHint').isVisible(),false);
+    await page.evaluate(()=>{
+     lastSchedule={ok:true,route:'5',trips:[{trip:1,startTime:'08:00',endTime:'10:00',startPlace:'합성 출발',endPlace:'합성 도착'}],dispatch:{id:'TEST-D',seq:1},vehicle:{id:'TEST-V'}};
+     document.getElementById('workDate').value=todayLocal();
+     trackingCoverage=()=>({ready:true,assignmentReady:true,locationReady:true});
+     updateDriverLiveDashboard=()=>{};toggleDriverLocationTracking();
+    });
+    assert.equal(await page.evaluate(()=>nativePayload.vehicleId),'TEST-V');
+    assert.equal(await page.evaluate(()=>watches.length),0,'native iOS must not start a second browser GPS watch');
+    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});suspendBrowserLocation();});
+    assert.equal(await page.evaluate(()=>locationTrackingActive),true,'hiding WebView does not stop native location');
+    await page.evaluate(()=>stopDriverLocationTracking());
+    assert.equal(await page.evaluate(()=>nativeStopped),true,'native pause reaches iOS');
+   }
    assert.deepEqual(errors,[]);
-   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/mobile-compat-'+(native?'android':'iphone')+'.png',fullPage:true});}
+   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/mobile-compat-'+(native===true?'android':native==='ios'?'ios-native':'iphone')+'.png',fullPage:true});}
    await page.close();
   }
   console.log('Real page synthetic login, platform controls, direct voice, suspend/reopen, paused and completed guards passed');

@@ -4,6 +4,8 @@ const assert=require('node:assert/strict'),{capabilities,screenAwake}=require('.
   assert.equal(capabilities({navigator:{platform:'MacIntel',maxTouchPoints:5}}).ios,true);
   assert.equal(capabilities({navigator:{platform:'MacIntel',maxTouchPoints:0}}).ios,false);
   assert.equal(capabilities({navigator:{},Bus70Android:{syncSchedule(){},startLocationTracking(){}}}).nativeLocation,true);
+  const nativeIOS=capabilities({navigator:{userAgent:'iPhone'},Bus70IOS:{startLocationTracking(){}}});
+  assert.equal(nativeIOS.nativeLocation,true);assert.equal(nativeIOS.nativeAlarm,false,'iOS does not pretend to provide Android alarms');
   let calls=0,releases=0,resolve;
   const lock=()=>({addEventListener(){},async release(){releases++;}});
   const win={navigator:{wakeLock:{request:async()=>{calls++;return lock();}}},document:{hidden:false}};
