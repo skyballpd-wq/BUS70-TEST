@@ -92,10 +92,18 @@ function bus70SyncPrivatePlannedLeaves_(ss) {
 
 function bus70PlannedLeavesForDate_(ss, rawRoute, rawDate) {
   const route=String(rawRoute||'').replace(/\D/g,''),date=normalizeDate_(rawDate);if(!route||!date)return [];
-  let sheet=null;try{if(ss){bus70SyncPrivatePlannedLeaves_(ss);sheet=ss.getSheetByName('기사휴무계획DB');}}catch(error){sheet=null;}
+  // Ordinary schedule reads must not import/write the entire historical leave
+  // plan. Explicit imports remain available through bus70SyncPrivatePlannedLeaves_.
+  let sheet=null;try{if(ss)sheet=ss.getSheetByName('기사휴무계획DB');}catch(error){sheet=null;}
   if(!sheet||sheet.getLastRow()<2)return bus70PrivatePlannedLeaves_().filter(function(item){return item.route===route&&bus70PrivateLeaveApplies_(item,date)&&['취소','삭제','N'].indexOf(item.status)===-1;});
-  const rows=sheet.getDataRange().getDisplayValues(),c=bus70RoutePartitionHeaderMap_(rows[0]),latest={};rows.slice(1).forEach(function(row,index){
-    const item={planId:String(row[c['계획ID']]||''),route:String(row[c['노선']]||'').replace(/\D/g,''),shift:String(row[c['근무조']]||''),driverId:String(row[c['기사ID']]||''),driverName:String(row[c['기사명']]||'').trim(),aliases:String(row[c['별칭']]||'').split(',').map(function(name){return name.trim();}).filter(Boolean),type:String(row[c['유형']]||'휴무'),date:normalizeDate_(row[c['적용일']]),status:String(row[c['상태']]||'확정'),source:String(row[c['원본근거']]||''),index:index};if(item.route!==route||item.date!==date||!item.driverName)return;const key=item.driverId||item.driverName.replace(/\s/g,'');latest[key]=item;
+  const rows=bus70PartitionRows_(sheet),c=bus70RoutePartitionHeaderMap_(rows[0]),latest={};
+  // Keep unimported private plans readable, while explicit DB cancellations or
+  // overrides win. No cross-user cache and no synthetic leave records are saved.
+  bus70PrivatePlannedLeaves_().filter(function(item){return item.route===route&&bus70PrivateLeaveApplies_(item,date);}).forEach(function(item){latest['private:'+item.driverName.replace(/\s/g,'')]=item;});
+  rows.slice(1).forEach(function(row,index){
+    const item={planId:String(row[c['계획ID']]||''),route:String(row[c['노선']]||'').replace(/\D/g,''),shift:String(row[c['근무조']]||''),driverId:String(row[c['기사ID']]||''),driverName:String(row[c['기사명']]||'').trim(),aliases:String(row[c['별칭']]||'').split(',').map(function(name){return name.trim();}).filter(Boolean),type:String(row[c['유형']]||'휴무'),date:normalizeDate_(row[c['적용일']]),status:String(row[c['상태']]||'확정'),source:String(row[c['원본근거']]||''),index:index};if(item.route!==route||item.date!==date||!item.driverName)return;
+    Object.keys(latest).filter(function(key){const prior=latest[key];return key.indexOf('private:')===0&&((item.driverId&&prior.driverId===item.driverId)||prior.driverName.replace(/\s/g,'')===item.driverName.replace(/\s/g,''));}).forEach(function(key){delete latest[key];});
+    const key=item.driverId||item.driverName.replace(/\s/g,'');latest[key]=item;
   });
   return Object.keys(latest).map(function(key){return latest[key];}).filter(function(item){return ['취소','삭제','N'].indexOf(item.status)===-1;});
 }
@@ -440,3 +448,4 @@ function bus70PrivateRouteStatus_() {
   Object.keys(data||{}).filter(function(route){return /^\d+$/.test(route);}).forEach(function(route){routes[route]=Object.keys(data[route]||{}).sort();});
   return {configured:Boolean(data&&bus70PrivateConfig_()),source:source,routes:routes,shiftConfigured:Boolean(bus70PrivateConfig_()),bootstrapAccountsConfigured:bus70PrivateBootstrapAccounts_().length>0,driverOnlyIdsConfigured:bus70PrivateDriverOnlyIds_().length>0};
 }
+

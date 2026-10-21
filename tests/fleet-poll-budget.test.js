@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8'),start=html.indexOf('  function pollDriverLiveFleetIfNeeded()'),end=html.indexOf('  async function maybeShareDriverLiveLocation',start);
+let calls=0,now=20000,scope='A';
+const c={Date:{now:()=>now},liveFleet:{updatedAt:15000,requestScope:'A',error:''},liveLocationRequestInFlight:false,driverLiveRequestScope:()=>scope,loadDriverLiveLocations:()=>calls++};
+vm.createContext(c);vm.runInContext(html.slice(start,end),c);
+c.pollDriverLiveFleetIfNeeded();assert.equal(calls,0,'fresh upload response replaces duplicate read');
+now=31000;c.pollDriverLiveFleetIfNeeded();assert.equal(calls,1,'stationary/no upload still polls');
+c.liveLocationRequestInFlight={};c.pollDriverLiveFleetIfNeeded();assert.equal(calls,1,'upload in flight does not double traffic');
+c.liveLocationRequestInFlight=false;c.liveFleet.error='offline';c.pollDriverLiveFleetIfNeeded();assert.equal(calls,2,'failed upload resumes retrieval');
+c.liveFleet.error='';c.liveFleet.updatedAt=now;scope='B';c.pollDriverLiveFleetIfNeeded();assert.equal(calls,3,'old assignment freshness cannot suppress new assignment read');
+console.log('Fleet polling budget: fresh/save-in-flight deduplication; stale, failure and assignment recovery passed.');

@@ -89,6 +89,20 @@ const leaveFixture=JSON.parse(JSON.stringify(fixture));leaveFixture.config.plann
 const leaveSpreadsheet=makeSpreadsheet(),leaveContext=loadContext({moduleData:leaveFixture,spreadsheet:leaveSpreadsheet}),leaveSync=leaveContext.bus70SyncPrivatePlannedLeaves_(leaveSpreadsheet);
 assert.equal(leaveSync.ok,true);assert.equal(leaveSync.added,5);assert.equal(leaveContext.bus70SyncPrivatePlannedLeaves_(leaveSpreadsheet).added,0);assert.equal(leaveSpreadsheet.getSheetByName('기사휴무계획DB').rows.length,6);
 const leaveOn8=leaveContext.bus70PlannedLeavesForDate_(leaveSpreadsheet,'5','2099-01-08');assert.equal(leaveOn8.length,2);assert.equal(leaveOn8.find(v=>v.driverName==='가상휴무기사').aliases[0],'가상별칭기사');assert.equal(leaveOn8.find(v=>v.driverName==='가상휴직기사').type,'휴직');assert.equal(leaveContext.bus70PlannedLeavesForDate_(leaveSpreadsheet,'70','2099-01-08').length,0);
+const leaveSheet=leaveSpreadsheet.getSheetByName('기사휴무계획DB');
+let leaveReads=0;
+leaveSheet.getDataRange=()=>({getDisplayValues(){leaveReads++;return leaveSheet.rows.map(r=>r.slice());}});
+leaveContext.BUS70_PARTITION_READS_={};
+leaveContext.bus70SyncPrivatePlannedLeaves_=()=>{throw Error('READ MUST NOT IMPORT');};
+for(let i=0;i<20;i++)assert.equal(leaveContext.bus70PlannedLeavesForDate_(leaveSpreadsheet,'5','2099-01-08').length,2);
+assert.equal(leaveReads,1,'repeated leave lookups share a read within one request');
+const cancellation=leaveSheet.rows[1].slice();cancellation[8]='취소';leaveSheet.rows.push(cancellation);
+leaveContext.BUS70_PARTITION_READS_={};
+assert.equal(leaveContext.bus70PlannedLeavesForDate_(leaveSpreadsheet,'5','2099-01-08').length,1,'next request observes cancellation, without reintroducing private fallback');
+assert.equal(leaveReads,2);
+leaveFixture.config.plannedLeaves.push({route:'5',driverName:'추가가상기사',date:'2099-01-08'});
+assert.equal(leaveContext.bus70PlannedLeavesForDate_(leaveSpreadsheet,'5','2099-01-08').length,2,'unimported private source remains visible without writes');
+assert.equal(leaveSheet.rows.length,7,'ordinary reads never append leave rows');
 
 const spreadsheet = makeSpreadsheet();
 const partitioned = loadContext({moduleData:fixture, spreadsheet});

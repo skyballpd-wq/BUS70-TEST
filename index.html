@@ -1364,7 +1364,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v82.2";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2684,7 +2684,7 @@
     if(!result?.ok||!lastSchedule)return;
     const route=normalizedRoute(lastSchedule.route||lastSchedule.vehicle?.route||currentRoute),date=document.getElementById("workDate").value;if(normalizedRoute(result.route)!==route||String(result.date)!==date)return;
     rememberDriverVehicleIdentity(lastSchedule,result.crossCheck);
-    liveFleet={route:normalizedRoute(result.route),date:String(result.date||""),positions:Array.isArray(result.positions)?result.positions:[],front:result.front||null,rear:result.rear||null,own:result.own||null,crossCheck:result.crossCheck||null,updatedAt:Date.now(),error:""};
+    liveFleet={route:normalizedRoute(result.route),date:String(result.date||""),positions:Array.isArray(result.positions)?result.positions:[],front:result.front||null,rear:result.rear||null,own:result.own||null,crossCheck:result.crossCheck||null,updatedAt:Date.now(),requestScope:driverLiveRequestScope(),error:""};
     if(!hasNativeLocationBridge()&&result.own&&hasNumericValue(result.own.latitude)&&hasNumericValue(result.own.longitude)&&(!lastDriverPosition||Date.parse(result.own.recordedAt)>Number(lastDriverPosition.timestamp||0))){
       lastDriverPosition={coords:{latitude:Number(result.own.latitude),longitude:Number(result.own.longitude),accuracy:Number(result.own.accuracyM||0),speed:hasNumericValue(result.own.speedKmh)?Number(result.own.speedKmh)/3.6:null,heading:hasNumericValue(result.own.heading)?Number(result.own.heading):null},timestamp:Date.parse(result.own.recordedAt)||Date.now()};
       currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);
@@ -2717,7 +2717,16 @@
 
   function startDriverFleetTimer(){
     stopDriverFleetTimer();if(!authToken||currentRole||!lastSchedule||document.getElementById("workDate").value!==todayLocal())return;
-    loadDriverLiveLocations(true);liveFleetTimer=setInterval(()=>{if(!document.hidden)loadDriverLiveLocations(true);},15000);
+    pollDriverLiveFleetIfNeeded();liveFleetTimer=setInterval(()=>{if(!document.hidden)pollDriverLiveFleetIfNeeded();},15000);
+  }
+
+  function pollDriverLiveFleetIfNeeded(){
+    // Location-save replies already contain fleet data. Avoid a simultaneous
+    // read, but resume polling on a failed save, stale data or a new assignment.
+    const sameScope=liveFleet.requestScope===driverLiveRequestScope();
+    if(sameScope&&!liveFleet.error&&Date.now()-Number(liveFleet.updatedAt||0)<15000)return;
+    if(liveLocationRequestInFlight)return;
+    loadDriverLiveLocations(true);
   }
 
   async function maybeShareDriverLiveLocation(position,navigation,trip){
