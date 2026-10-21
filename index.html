@@ -4102,14 +4102,14 @@
 
   function configureMobileCompatibility(){
     const caps=Bus70Mobile.capabilities(window);
-    document.getElementById("iosInstallHint").hidden=!caps.ios||caps.standalone;
+    document.getElementById("iosInstallHint").hidden=!caps.ios||caps.standalone||caps.nativeLocation;
     document.getElementById("nativeAlarmControls").hidden=!caps.nativeAlarm;
     document.getElementById("alarmSoundMode").hidden=!caps.nativeAlarm;
     document.querySelector('label[for="alarmSoundMode"]').hidden=!caps.nativeAlarm;
     document.getElementById("vibrationAlarm").closest("label").hidden=!caps.vibration&&!caps.nativeAlarm;
     document.getElementById("testBrowserVoice").hidden=caps.nativeAlarm||!caps.voice;
     document.getElementById("requestNotification").hidden=!caps.nativeAlarm&&(!caps.notification||(caps.ios&&!caps.standalone));
-    document.getElementById("platformAlertHint").textContent=caps.nativeAlarm?"출근·발차 알림은 Android 앱의 알림·정확한 알람 권한과 배터리 설정을 확인하세요.":"이 화면이 열려 있을 때만 준비·발차 알림을 안내합니다. 화면 잠금 중 GPS 자동기록·예약 알람·10분 전착 음성은 지원하지 않습니다.";
+    document.getElementById("platformAlertHint").textContent=caps.nativeAlarm?"출근·발차 알림은 Android 앱의 알림·정확한 알람 권한과 배터리 설정을 확인하세요.":caps.nativeLocation?"아이폰 설치형 앱의 위치·전착 음성은 항상 위치 허용이 필요합니다. 준비·발차 예약 알람은 화면 잠금 중 지원하지 않습니다.":"이 화면이 열려 있을 때만 준비·발차 알림을 안내합니다. 화면 잠금 중 GPS 자동기록·예약 알람·10분 전착 음성은 지원하지 않습니다.";
   }
   function updateBrowserScreenStatus(){
     const button=document.getElementById("browserScreenAwake"),note=document.getElementById("browserScreenStatus");if(!button||!note)return;

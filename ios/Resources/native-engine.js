@@ -47,7 +47,8 @@ function reference(previous,response,now){
  const e=JSON.parse(JSON.stringify(previous)),s=e.schedule,r=response.crossCheck,p=e.position;if(!s||!r||!p)return e;
  if(r.date!==s.date||r.dispatchId!==s.dispatchId||r.vehicleId!==s.vehicleId)return e;e.reference=r;
  const trip=s.trips.find(t=>t.trip===e.currentTrip),path=trip?.course;
- if(path&&p.coords.speed>=2.8&&now-p.timestamp<=20000&&r.status!=='DIFFERENT'&&gps.referenceIndex(path,{...r}, {lat:p.coords.latitude,lng:p.coords.longitude},now)>=0)e.identityAt=Number(r.fetchedAt)||0;
+ const here={lat:p.coords.latitude,lng:p.coords.longitude},index=path?gps.referenceIndex(path,r,here,now):-1;
+ if(index>=0&&gps.distance(here,path.stops[index])<=120&&p.coords.speed>=2.8&&now-p.timestamp<=20000&&r.status!=='DIFFERENT')e.identityAt=Number(r.fetchedAt)||0;
  return e;
 }
 function next(e,driver,now){return box.next(e.outbox||[],driver,now)||null;}
