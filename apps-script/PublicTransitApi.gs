@@ -414,8 +414,48 @@ function bus70GyeonggiLiveFetch_(route){
     else if(result.available&&Number(global.retryAt||0)<=now)properties.deleteProperty(globalKey);
   }finally{lock.releaseLock();}
   // An old lease cannot replace a newer request's result.
-  if(read(stateKey).lease===lease)cache.put(cacheKey,JSON.stringify(result),result.available?45:http===429?300:120);
+  if(read(stateKey).lease===lease){if(result.available)try{result=bus70GyeonggiObserveHeadways_(config.routeId,result);}catch(ignore){}cache.put(cacheKey,JSON.stringify(result),result.available?45:http===429?300:120);}
   return result;
+}
+// Reuse the shared route fetch; never poll per driver for headways. Intervals
+// describe successive provider observations, not a fabricated exact arrival.
+function bus70GyeonggiObserveHeadways_(routeId,result){
+  const cache=CacheService.getScriptCache(),key='BUS70_GBIS_PASSAGES_V83_'+routeId,now=result.fetchedAt;
+  let previous={};try{previous=JSON.parse(cache.get(key)||'{}');}catch(ignore){}
+  const next={};
+  (result.items||[]).slice(0,100).forEach(function(item){
+    const id=item.plateNo,old=previous[id],same=old&&old.vehicleId===item.vehicleId&&now>old.at&&now-old.at<=90000&&item.stationSeq>=old.seq;
+    const stableQuery=same&&result.queryTime&&result.queryTime===old.queryTime;
+    const passages=same?(old.passages||[]).filter(function(p){return now-p.hi<=1800000;}):[];
+    if(same&&!stableQuery&&item.stationSeq===old.seq+1)passages.push({order:item.stationSeq,lo:old.at,hi:now});
+    const record={vehicleId:item.vehicleId,seq:item.stationSeq,at:stableQuery?old.at:now,queryTime:result.queryTime,passages:passages.slice(-12)};
+    next[id]=record;item.passages=record.passages;item.observedAt=record.at;
+  });
+  cache.put(key,JSON.stringify(next),1800);return result;
+}
+function bus70GyeonggiHeadways_(items,own,stops,now){
+  const leg=function(order){const stop=stops.find(function(s){return Number(s.order)===Number(order);});return stop&&String(stop.direction||'');};
+  const ownLeg=leg(own.stationSeq);if(!ownLeg)return {};
+  const peers=items.filter(function(v){return v!==own&&v.plateNo!==own.plateNo&&leg(v.stationSeq)===ownLeg&&now-Number(v.observedAt||0)<=90000;});
+  const front=peers.filter(function(v){return v.stationSeq>own.stationSeq;}).sort(function(a,b){return a.stationSeq-b.stationSeq;})[0];
+  const rear=peers.filter(function(v){return v.stationSeq<own.stationSeq;}).sort(function(a,b){return b.stationSeq-a.stationSeq;})[0];
+  const compare=function(peer,direction){
+    if(!peer||now-Number(own.observedAt||0)>90000)return null;
+    // Two vehicles reporting the same occurrence cannot be ordered reliably.
+    if(peers.filter(function(v){return v.stationSeq===peer.stationSeq;}).length!==1)return null;
+    let best=null;
+    (own.passages||[]).forEach(function(a){
+      const b=(peer.passages||[]).find(function(p){return p.order===a.order;});
+      if(!b||leg(a.order)!==ownLeg||now-Math.max(a.hi,b.hi)>180000)return;
+      const lo=direction==='front'?a.lo-b.hi:b.lo-a.hi,hi=direction==='front'?a.hi-b.lo:b.hi-a.lo;
+      if(lo<0||hi>1800000||hi-lo>180000)return;
+      if(!best||a.order>best.stopOrder)best={stopOrder:a.order,estimatedGapMinutes:Math.round((lo+hi)/12000)/10,gapMinMinutes:Math.round(lo/6000)/10,gapMaxMinutes:Math.round(hi/6000)/10,gapEstimateBasis:'OBSERVED_STOP_INTERVAL',freshnessSeconds:Math.round((now-Math.min(own.observedAt,peer.observedAt))/1000),source:'GYEONGGI_BUS_LOCATION_V2'};
+    });
+    return best||{gapEstimateBasis:'COLLECTING',freshnessSeconds:Math.round((now-peer.observedAt)/1000)};
+  };
+  // A same-stop peer could be either ahead or behind, so do not skip over it.
+  if(peers.some(function(v){return v.stationSeq===own.stationSeq;}))return {};
+  return {front:compare(front,'front'),rear:compare(rear,'rear')};
 }
 function bus70GyeonggiSelectVehicle_(items,plate){
   const normalize=function(value){return String(value||'').replace(/[\s.-]/g,'');},wanted=normalize(plate);
@@ -444,7 +484,8 @@ function bus70GyeonggiCrossCheck_(assignment,own){
   if(!plate&&/^VEH-\d{4}$/.test(assignment.vehicleId))plate=assignment.vehicleId.slice(-4);
   const vehicle=bus70GyeonggiSelectVehicle_(fetched.items,plate);
   if(!vehicle)return {available:false,message:'경기도 배정 차량정보 수신 대기',fetchedAt:fetched.fetchedAt};
-  const result=bus70GyeonggiCompare_(vehicle,bus70RouteStopsFromDb_(assignment.route,assignment.date).stops||[],own,Date.now());
+  const stops=bus70RouteStopsFromDb_(assignment.route,assignment.date).stops||[],result=bus70GyeonggiCompare_(vehicle,stops,own,Date.now()),headways=bus70GyeonggiHeadways_(fetched.items,vehicle,stops,Date.now());
+  result.front=headways.front||null;result.rear=headways.rear||null;
   result.fetchedAt=fetched.fetchedAt;result.source=fetched.source;result.vehicleId=String(assignment.vehicleId);result.dispatchId=String(assignment.dispatchId);result.date=assignment.date;return result;
 }
 function BUS70_checkGyeonggiLiveConnection(){

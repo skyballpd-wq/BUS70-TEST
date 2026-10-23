@@ -229,7 +229,7 @@ public class DriverLocationService extends Service implements LocationListener {
         if (state == null) state = new JSONObject();
         JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation"), control = point(trip,"controlLocation"), returned = point(trip,"returnLocation");
         long previousSample=state.optLong("sampleTime");
-        try{if(previousSample>0&&fix-previousSample>45000)state.remove("seenStart");if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
+        try{if(previousSample>0&&fix-previousSample>45000)state.remove("seenStart");if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         JSONObject navigation=state.optJSONObject("navigation");
         JSONObject hint=routeReference;
@@ -258,11 +258,12 @@ public class DriverLocationService extends Service implements LocationListener {
         try {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
             if (actualStart.isEmpty() && start != null && reliable(location, start) && plannedStart>0 && now<=plannedStart+7200000L) {
+                DepartureOnset.update(state,start,plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1,location.hasBearing()?location.getBearing():Double.NaN);
                 double distance = distance(location, start);
                 JSONObject proofNav=navigation;
                 if((proofNav==null||!proofNav.optBoolean("configured"))&&fix>=plannedStart){proofNav=RouteMatcher.match(trip.optJSONObject("course"),state.optJSONObject("departureNavigation"),location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,false,hint);state.put("departureNavigation",proofNav);}
                 JSONObject proof=DepartureEvidence.update(state,trip,proofNav,hint,states.optLong("vehicleIdentityAt"),plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1);
-                if(proof!=null){state.put("departureFix",proof);trip.put("departureEvidenceSource","GPS_CONTINUOUS_PRIOR_VEHICLE");postEvent(trip,"DEPART",rememberedFix(state,"departure",location));actualStart=trip.optString("actualStart");}
+                if(proof!=null){state.put("departureFix",DepartureOnset.first(state,proof));trip.put("departureEvidenceSource","GPS_CONTINUOUS_PRIOR_VEHICLE");postEvent(trip,"DEPART",rememberedFix(state,"departure",location));actualStart=trip.optString("actualStart");}
                 if(!actualStart.isEmpty())state.remove("gpsDeparture");
                 if (!actualStart.isEmpty()) { state.put("startOutside",0); }
                 else if (distance <= radius(start) && matchesDirection(location,start,"approachBearing")) {
@@ -272,7 +273,7 @@ public class DriverLocationService extends Service implements LocationListener {
                     state.put("startOutside", state.optInt("startOutside") + 1);
                     JSONObject candidate=state.optJSONObject("gpsDeparture");
                     if(state.optInt("startOutside")==1&&candidate!=null&&candidate.optBoolean("ready"))state.put("departureFix",candidate.getJSONObject("first"));else rememberFix(state,"departure",location,state.optInt("startOutside")==1);
-                    if (state.optInt("startOutside") >= 2) postEvent(trip, "DEPART", rememberedFix(state,"departure",location));
+                    if (state.optInt("startOutside") >= 2) {state.put("departureFix",DepartureOnset.first(state,state.getJSONObject("departureFix")));postEvent(trip, "DEPART", rememberedFix(state,"departure",location));}
                     state.put("startInside", 0);
                 } else { state.put("startInside", 0).put("startOutside", 0);state.remove("departureFix"); }
             }

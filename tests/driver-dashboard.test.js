@@ -127,7 +127,7 @@ assert.equal(context.driverTripProgress(navigationData,navigation),25);
 assert.equal(context.tripProgressValue(data,trips[0],0,null),100);
 assert.equal(context.tripProgressValue(data,trips[1],1,{configured:true,trip:2,tripProgressPercent:42}),42);
 assert.equal(context.tripProgressValue(data,trips[2],2,null),0);
-assert.match(context.liveHeadwayLabel({sequence:14,estimatedGapMinutes:4.2,gapEstimateBasis:'ROUTE_PROGRESS',freshnessSeconds:7},navigationData.trips[0],'front'),/4\.2분 · 노선 진행률 추정/);
+assert.match(context.liveHeadwayLabel({sequence:14,estimatedGapMinutes:4.2,gapEstimateBasis:'OBSERVED_STOP_INTERVAL',freshnessSeconds:7},navigationData.trips[0],'front'),/4\.2분 · 정류장 관측/);
 assert.equal(context.driverAssignmentBinding({dispatch:{dispatchId:'DSP-15',sequence:15,vehicleId:'VEH-15'}}).ready,true);
 assert.equal(context.driverAssignmentBinding({dispatch:{dispatchId:'DSP-15',sequence:15}}).ready,false);
 

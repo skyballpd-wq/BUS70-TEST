@@ -509,14 +509,8 @@ function bus70LiveLocationNeighbour_(snapshot, own, direction) {
   if(!snapshot||!own)return null;
   const publicSnapshot=bus70LiveLocationPublic_(snapshot,false),distance=bus70LiveLocationDistance_(own,snapshot);
   publicSnapshot.distanceFromOwnM=distance;
-  if(String(snapshot.direction||'')&&String(snapshot.direction||'')===String(own.direction||'')&&Number(snapshot.trip)===Number(own.trip)&&snapshot.routeProgressPercent!==null&&own.routeProgressPercent!==null){
-    const progressDifference=direction==='front'?Number(snapshot.routeProgressPercent)-Number(own.routeProgressPercent):Number(own.routeProgressPercent)-Number(snapshot.routeProgressPercent),duration=Math.max(Number(snapshot.segmentDurationMinutes||0),Number(own.segmentDurationMinutes||0));
-    if(progressDifference>=0&&duration>0){publicSnapshot.estimatedGapMinutes=Math.round(progressDifference*duration)/100;publicSnapshot.gapEstimateBasis='ROUTE_PROGRESS';}
-  }
-  if(publicSnapshot.estimatedGapMinutes===undefined&&distance!==null&&String(snapshot.direction||'')&&String(snapshot.direction||'')===String(own.direction||'')&&Number(snapshot.trip)===Number(own.trip)){
-    const speeds=[Number(snapshot.speedKmh||0),Number(own.speedKmh||0)].filter(function(value){return value>=5;}),speed=speeds.length?speeds.reduce(function(sum,value){return sum+value;},0)/speeds.length:20;
-    publicSnapshot.estimatedGapMinutes=Math.round(distance/Math.max(10,speed)/1000*60*10)/10;publicSnapshot.gapEstimateBasis='GPS_DISTANCE_SPEED';
-  }
+  // Coordinate distance / assumed speed is not an observed temporal headway.
+  // GBIS shared observations supply a separately labelled interval estimate.
   return publicSnapshot;
 }
 
@@ -935,8 +929,8 @@ function bus70AttachPlannedHeadways_(schedule) {
   });
   schedule.trips.forEach(function(trip){
     const no=Number(trip.trip), own=bus70OperationalMinutes_(trip.startTime), front=bus70OperationalMinutes_(starts[(sequence-1)+'-'+no]), rear=bus70OperationalMinutes_(starts[(sequence+1)+'-'+no]);
-    if(own!==null&&front!==null)trip.plannedFrontGapMinutes=own-front;
-    if(own!==null&&rear!==null)trip.plannedRearGapMinutes=rear-own;
+    if(own!==null&&front!==null)trip.plannedFrontGapMinutes=own>=front&&own-front<=120?own-front:null;
+    if(own!==null&&rear!==null)trip.plannedRearGapMinutes=rear>=own&&rear-own<=120?rear-own:null;
   });
   schedule.headwayRules={basis:'발차시간',unit:'분',serviceDayCutoff:'03:30',sequence:sequence};
   return schedule;
