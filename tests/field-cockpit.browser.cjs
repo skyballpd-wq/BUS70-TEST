@@ -16,7 +16,7 @@ renderSchedule();
  assert(await page.locator('.trip-chip-list').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'seven circular tabs fit');
  assert.equal(await page.locator('#ring .route-tick').count(),114);
  const fill=await page.locator('#ring .route-fill').nth(25).getAttribute('stroke-dasharray');assert(Number(fill.split(' ')[0])>0&&Number(fill.split(' ')[0])<1,'partial arc follows movement between stops');
- const swipe=async(dx,dy)=>page.locator('.orbit-cockpit').evaluate((n,{dx,dy})=>{n.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',pointerId:1,clientX:200,clientY:200}));n.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:1,clientX:200+dx,clientY:200+dy}));},{dx,dy});
+ const swipe=async(dx,dy)=>page.locator('.orbit-cockpit').evaluate((n,{dx,dy})=>{n.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',isPrimary:true,pointerId:1,clientX:200,clientY:200}));n.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',isPrimary:true,pointerId:1,clientX:200+dx,clientY:200+dy}));},{dx,dy});
  await swipe(-90,5);assert.equal(await page.evaluate(()=>activeTripIndex),1);
  await swipe(5,90);assert.equal(await page.evaluate(()=>activeTripIndex),1,'vertical scrolling does not switch');
  await page.locator('.trip-chip').nth(2).click();assert.equal(await page.evaluate(()=>followCurrentTrip),true,'tap current trip resumes following');
