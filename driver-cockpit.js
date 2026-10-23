@@ -35,7 +35,18 @@
     return Array.from({length:n},(_,i)=>({start:-90+i*360/n,end:-90+(i+1)*360/n-Math.min(1.5,90/n),done:i<p}));
   }
   function svgNode(doc,name,attrs={}){const node=doc.createElementNS('http://www.w3.org/2000/svg',name);Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,String(value)));return node;}
-  function drawRing(host,total,passed,progress,held=false){
+  function movement(position,now,held){
+    const t=telemetry(position,now),speed=Number(position?.coords?.speed)*3.6;
+    if(held||!t.fresh||t.speed==='— km/h')return {key:'unknown',color:'#7b8b9e',label:'위치·속도 확인 중'};
+    return speed>=10?{key:'moving',color:'#078564',label:'주행'}:speed>=1?{key:'slow',color:'#d28a00',label:'서행'}:{key:'stopped',color:'#b64239',label:'정차'};
+  }
+  function bindSwipe(host,change){
+    let start=null;
+    host.addEventListener('pointerdown',e=>{if(e.isPrimary!==false&&e.pointerType==='touch'&&!e.target.closest('button,input,select,textarea,a,summary'))start={x:e.clientX,y:e.clientY,at:e.timeStamp,id:e.pointerId};});
+    host.addEventListener('pointercancel',()=>{start=null;});
+    host.addEventListener('pointerup',e=>{const a=start;start=null;if(!a||a.id!==e.pointerId)return;const dx=e.clientX-a.x,dy=e.clientY-a.y;if(Math.abs(dx)>=48&&Math.abs(dx)>Math.abs(dy)*1.5&&e.timeStamp-a.at<1500)change(dx<0?1:-1);});
+  }
+  function drawRing(host,total,passed,progress,held=false,motion){
     const fraction=Number.isFinite(progress)?Math.max(0,Math.min(100,progress))/100:(total?passed/total:0),doc=host.ownerDocument;
     let svg=host.querySelector('svg');
     if(!svg||host.dataset.ringTotal!==String(total)){
@@ -43,11 +54,11 @@
       svg=svgNode(doc,'svg',{viewBox:'0 0 120 120','aria-hidden':'true',class:'stop-segment-ring'});
       const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0);
       if(!segments.length)svg.append(svgNode(doc,'circle',{cx:60,cy:60,r:49,fill:'none',stroke:'#dce4ed','stroke-width':7}));
-      segments.forEach(s=>{const a=point(s.start),b=point(s.end);svg.append(svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7}));});
+      segments.forEach(s=>{const a=point(s.start),b=point(s.end);const arc=svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7});svg.append(arc);const fill=arc.cloneNode();fill.setAttribute('class','route-fill');fill.setAttribute('pathLength','1');fill.style.transition='stroke-dasharray 1s linear';svg.append(fill);});
       const arrow=svgNode(doc,'g',{class:'route-arrow'});arrow.append(svgNode(doc,'path',{d:'M 104 55 L 114 55 L 109 66 Z'}));arrow.style.transformOrigin='60px 60px';arrow.style.transition='transform 1s linear';svg.append(arrow);host.prepend(svg);
     }
-    svg.querySelectorAll('.route-tick').forEach((node,i)=>node.setAttribute('stroke',i<passed?(held?'#7b8b9e':'#0d9488'):'#dce4ed'));
-    const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${-90+fraction*360}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',held?'#7b8b9e':'#075e56');
+    svg.querySelectorAll('.route-fill').forEach((node,i)=>{node.setAttribute('stroke',held?'#7b8b9e':'#0d9488');node.setAttribute('stroke-dasharray',Math.max(0,Math.min(1,fraction*total-i))+' 1');});
+    const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${-90+fraction*360}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',motion?.color||(held?'#7b8b9e':'#075e56'));host.dataset.movement=motion?.key||'unknown';
   }
   function drawRoute(host,path,position,navigation){
     if(!path?.stops?.length){host.replaceChildren();return;}
@@ -68,5 +79,5 @@
     if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '날씨 갱신 대기';
     return Number(weather.temperature).toFixed(1)+'° · '+(weather.condition||'관측정보');
   }
-  return {nativePosition,telemetry,phases,ringSegments,drawRing,drawRoute,weatherLabel};
+  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,drawRing,drawRoute,weatherLabel};
 });

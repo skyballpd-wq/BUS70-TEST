@@ -90,7 +90,7 @@
     if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||Number(c.accuracy)>60||Number(c.accuracy)<0||!ts||now-ts>20000||ts>now+5000||ts<=Number(state.lastTimestamp||0))return {state,event:null};
     // Cached samples and repeated callbacks cannot satisfy a dwell requirement.
     if(state.lastTimestamp&&ts-state.lastTimestamp<1500)return {state,event:null};
-    if(state.lastTimestamp&&ts-state.lastTimestamp>45000)for(const key of ["seenStart","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
+    if(state.lastTimestamp&&ts-state.lastTimestamp>45000)for(const key of ["seenStart","departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
     state.lastTimestamp=ts;
     const here={lat:Number(c.latitude),lng:Number(c.longitude)},points=input.points||{},log=input.log||{};
     const direction=(point,field)=>!number(point?.[field])||!number(c.heading)||!number(c.speed)||Number(c.speed)<1.5||Math.abs((Number(c.heading)-Number(point[field])+540)%360-180)<=100;
@@ -104,16 +104,17 @@
     const recoveredArrival=input.navigation?.configured&&!input.navigation.waiting&&input.navigation.returnConfirmed&&input.navigation.returnEvidence?.length===2&&(!Number.isFinite(plannedStart)||now>=plannedStart);
     if(!log.actualStart&&!recoveredArrival){
       const planned=moment(input.date,input.startTime);
+      departureOnset(state,input);
       if(!Number.isFinite(planned)||ts<planned||now>planned+120*60000){if(inside("start")&&count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;delete state.departureFix;return {state,event:null};}
       if(!validPoint(points.start))return {state,event:null};
       const proofInput=Object.assign({},input);
       if(!input.navigation?.configured&&input.course){proofInput.navigation=navigate(input.course,p,{date:input.date,startTime:input.startTime,startLocation:points.start,trackingActive:true},state.departureNavigation,now,input.vehicleReference);state.departureNavigation=proofInput.navigation;}
       const offlineFix=gpsDeparture(state,proofInput);
-      if(offlineFix)return {state,event:"DEPART",position:offlineFix,evidenceSource:"GPS_CONTINUOUS_PRIOR_VEHICLE"};
+      if(offlineFix)return {state,event:"DEPART",position:departureObservedFix(state,offlineFix),evidenceSource:"GPS_CONTINUOUS_PRIOR_VEHICLE"};
       if(inside("start")){if(count("startInside",true)>=2)state.seenStart=true;state.startOutside=0;}
       else {state.startInside=0;const outside=direction(points.start,"departureBearing")&&distance(here,points.start)>Number(points.start.radiusM||80)+Math.max(30,Number(c.accuracy));
         const verified=outside&&vehicleDeparture(state,input.course,input.navigation,p,input.vehicleReference,planned,now);
-        if(state.seenStart&&verified){if(!state.startOutside)state.departureFix=state.gpsDeparture?.ready?state.gpsDeparture.first:p;if(count("startOutside",true)>=2)return {state,event:"DEPART",position:state.departureFix};}
+        if(state.seenStart&&verified){if(!state.startOutside)state.departureFix=state.gpsDeparture?.ready?state.gpsDeparture.first:p;if(count("startOutside",true)>=2)return {state,event:"DEPART",position:departureObservedFix(state,state.departureFix)};}
         else {state.startOutside=0;delete state.departureFix;}
       }
       return {state,event:null};
@@ -174,18 +175,37 @@
   // A day-bound vehicle identity is not a fresh position. During an outage,
   // require a new, continuous outbound motion sequence for each trip.
   function identityFresh(at,now){return number(at)&&at>0&&now>=at&&now-at<=20*3600000;}
+  // This candidate changes the observation time only after independent departure proof.
+  function departureOnset(state,input){
+    const p=input.position,c=p.coords,start=input.points?.start,ts=p.timestamp,planned=moment(input.date,input.startTime);let proof=state.departureOnset;
+    let valid=state.seenStart&&validPoint(start)&&Number.isFinite(planned)&&ts>=planned&&ts<=planned+7200000&&number(c.accuracy)&&c.accuracy>=0&&c.accuracy<=25&&number(c.speed)&&c.speed>=0&&c.speed<=25;
+    if(c.speed>=1.5&&number(start?.departureBearing)&&(!number(c.heading)||Math.abs((c.heading-start.departureBearing+540)%360-180)>75))valid=false;
+    const here={lat:c.latitude,lng:c.longitude};
+    if(proof){const dt=(ts-proof.lastAt)/1000;if(dt<=0)return;if(dt>15||ts-proof.first.timestamp>180000||distance(here,proof.last)>dt*30+2*c.accuracy)valid=false;}
+    if(!valid){delete state.departureOnset;return;}
+    if(!proof&&c.speed>=2.8&&distance(here,start)<=Number(start.radiusM||80))proof={first:p,moved:0};
+    if(!proof)return;
+    const moved=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
+    if(c.speed<1.5&&moved<Math.max(12,c.accuracy)&&ts-proof.first.timestamp>15000){delete state.departureOnset;return;}
+    proof.last=here;proof.lastAt=ts;proof.moved=Math.max(moved,proof.moved);state.departureOnset=proof;
+  }
+  function departureObservedFix(state,fallback){
+    const proof=state.departureOnset;
+    return proof&&proof.moved>=20&&proof.first.timestamp<=fallback.timestamp&&fallback.timestamp-proof.first.timestamp<=180000?proof.first:fallback;
+  }
   function gpsDeparture(state,input){
     const p=input.position||{},c=p.coords||{},ts=Number(p.timestamp),path=input.course,nav=input.navigation,planned=moment(input.date,input.startTime),start=input.points?.start;
     const clear=()=>{delete state.gpsDeparture;return null;};
-    if(!state.seenStart||!Number.isFinite(planned)||ts<planned||ts>planned+7200000||!validPoint(start)||!nav?.configured||nav.returnConfirmed||nav.timestamp!==ts||!path?.stops?.length||!number(nav.fraction)||nav.fraction<.2||nav.fraction>=Math.min(8,path.turnIndex>0?path.turnIndex:8)||!number(c.accuracy)||c.accuracy>25||!number(c.speed)||c.speed<2.8||c.speed>25||input.vehicleReference?.status==='DIFFERENT')return clear();
+    if(!state.seenStart||!Number.isFinite(planned)||ts<planned||ts>planned+7200000||!validPoint(start)||!nav?.configured||nav.returnConfirmed||nav.timestamp!==ts||!path?.stops?.length||!number(nav.fraction)||nav.fraction<.2||nav.fraction>=Math.min(8,path.turnIndex>0?path.turnIndex:8)||!number(c.accuracy)||c.accuracy>25||!number(c.speed)||c.speed<0||c.speed>25||input.vehicleReference?.status==='DIFFERENT')return clear();
     const here={lat:Number(c.latitude),lng:Number(c.longitude)};
     if(distance(here,start)<=Number(start.radiusM||80)+Math.max(30,c.accuracy))return clear();
     let proof=state.gpsDeparture;
     if(proof){const dt=(ts-proof.lastAt)/1000,travel=distance(here,proof.last);if(dt<=0)return null;if(dt>15||nav.fraction<proof.lastFraction-.1||travel>dt*30+2*c.accuracy||ts-proof.first.timestamp>180000)proof=null;}
+    if(!proof&&c.speed<2.8)return null;
     if(!proof)proof={first:p,firstFraction:nav.fraction,lastFraction:nav.fraction,last:here,lastAt:ts,samples:0};
     proof.samples++;proof.last=here;proof.lastAt=ts;proof.lastFraction=nav.fraction;state.gpsDeparture=proof;
     const seconds=(ts-proof.first.timestamp)/1000,meters=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
-    proof.ready=proof.samples>=6&&seconds>=20&&meters>=180&&meters/seconds>=4&&nav.fraction-proof.firstFraction>=.75;
+    proof.ready=proof.samples>=6&&seconds>=20&&meters>=180&&meters/seconds>=2.8&&nav.fraction-proof.firstFraction>=.75;
     return proof.ready&&identityFresh(input.vehicleIdentityAt,ts)?proof.first:null;
   }
   function remainingRoute(path,nav,log){

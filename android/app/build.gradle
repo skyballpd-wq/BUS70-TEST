@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 82
-        versionName "0.82-live-recovery"
+        versionCode 83
+        versionName "0.83-field-cockpit"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }
