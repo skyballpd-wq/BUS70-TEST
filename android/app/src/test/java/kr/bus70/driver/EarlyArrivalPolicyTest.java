@@ -74,6 +74,14 @@ public class EarlyArrivalPolicyTest {
         t.put("route","71");assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
         t.put("route","70");t.getJSONObject("course").put("pivotIndex",4);assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
     }
+    @Test public void route23UsesSixthExitAndNeverRoute70Gate()throws Exception{
+        JSONObject t=trip().put("route","23");JSONArray stops=t.getJSONObject("course").getJSONArray("stops");
+        stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK_ROUTE23);
+        JSONObject r=arrive(new JSONObject(),t,base+2400000);
+        assertTrue(r.optBoolean("notify"));assertEquals("115000051",r.optString("gateStationId"));
+        stops.getJSONObject(2).put("stationId",EarlyArrivalPolicy.INBOUND_HWAGOK);
+        assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+    }
     @Test public void excludesUnstartedCompleteStaleWrongDirectionPoorFixAndNonDepot()throws Exception{
         for(int mode=0;mode<9;mode++){
             JSONObject t=trip(),s=new JSONObject();arrive(s,t,base+2400000);

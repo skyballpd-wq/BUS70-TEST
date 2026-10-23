@@ -222,7 +222,7 @@ function bus70AuthDispatchRoute_(row, columns) {
   const direct=columns['노선']!==undefined?String(row[columns['노선']]||'').replace(/\D/g,''):'';
   if(direct)return direct;
   const marker=String(row[columns['dispatchId']]||'')+' '+String(row[columns['시간표버전']]||'');
-  const match=marker.match(/(?:DSP-|R)(5|70)-/i)||marker.match(/R(5|70)/i);
+  const match=marker.match(/(?:DSP-|R)(\d+)-/i)||marker.match(/R(\d+)/i);
   return match?match[1]:'70';
 }
 
@@ -240,6 +240,7 @@ function bus70RouteReferenceDataForAuth_(route, date, driver) {
   try{
     if(route==='5'&&typeof bus70Route5ReferenceData_==='function')return bus70Route5ReferenceData_(date,driver);
     if(route==='70'&&typeof bus70Route70ReferenceData_==='function')return bus70Route70ReferenceData_(date,driver);
+    if(typeof bus70DbRouteReferenceData_==='function')return bus70DbRouteReferenceData_(route,date);
   }catch(error){console.error('Confirmed route timetable failed: '+route,error);}
   return null;
 }

@@ -7,11 +7,12 @@ import org.json.JSONObject;
 final class EarlyArrivalPolicy {
     static final String INBOUND_KKACHIUL="212000105";
     static final String INBOUND_HWAGOK="115000108";
+    static final String INBOUND_HWAGOK_ROUTE23="115000051";
     static final String MESSAGE="차고지에 예정 시각보다 10분 이상 일찍 도착할 것으로 예상됩니다. 배차 시간을 확인하고 안전하게 운행하세요.";
     static void resetMotion(JSONObject state){state.remove("samples");state.remove("candidate");}
     static JSONObject update(JSONObject state,JSONObject trip,JSONObject nav,String binding,String route,long planned,long fix,long now,double accuracy,double lat,double lng)throws Exception {
-        String station="5".equals(route)?INBOUND_KKACHIUL:"70".equals(route)?INBOUND_HWAGOK:"";
-        String gateName="70".equals(route)?"하행 화곡역5번출구":"하행 까치울역5번출구";
+        String station="5".equals(route)?INBOUND_KKACHIUL:"70".equals(route)?INBOUND_HWAGOK:"23".equals(route)?INBOUND_HWAGOK_ROUTE23:"";
+        String gateName="70".equals(route)?"하행 화곡역5번출구":"23".equals(route)?"하행 화곡역6번출구":"하행 까치울역5번출구";
         String key="stops-v4|"+route+"|"+station+"|"+binding+"|"+trip.optInt("trip")+"|"+planned+"|"+trip.optString("actualStart");
         if(!key.equals(state.optString("key"))){for(String k:new String[]{"samples","candidate","lastEstimate","checkedIndex","lastAttemptAt","attemptIndex"})state.remove(k);state.put("key",key);}
         JSONObject out=new JSONObject().put("available",false).put("timestamp",fix).put("trip",trip.optInt("trip")).put("plannedAt",planned).put("warning",false).put("notify",false);

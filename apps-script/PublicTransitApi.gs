@@ -493,3 +493,21 @@ function BUS70_checkGyeonggiLiveConnection(){
   const properties=PropertiesService.getScriptProperties(),config=bus70PublicTransitRouteConfig_('5');
   console.log(JSON.stringify({available:result.available,error:result.error||'',message:result.message||'',vehicleCount:(result.items||[]).length,fetchedAt:result.fetchedAt||null,retryAt:result.retryAt||null,requestStats:JSON.parse(properties.getProperty('BUS70_GBIS_REQUEST_'+config.routeId)||'{}'),cooldown:JSON.parse(properties.getProperty('BUS70_GBIS_COOLDOWN')||'{}')}));
 }
+
+// Editor-only setup for newly registered routes. Existing route configuration
+// and API credentials are preserved. Verify provider identity before saving.
+function BUS70_connectRegisteredGyeonggiRoutes(){
+  const key=bus70PublicTransitProperty_('BUS70_DATA_GO_KR_SERVICE_KEY'),date=bus70GyeonggiToday_();
+  if(!key)throw new Error('PUBLIC_API_KEY_REQUIRED');
+  const root=bus70PublicTransitConfigObject_(),target=root.routes||root;
+  bus70ActiveRouteIds_().filter(function(route){return !target[route];}).forEach(function(route){
+    const list=bus70GyeonggiRequest_('getBusRouteListv2',{keyword:route},key);
+    if(!list.ok)throw new Error(list.error);
+    const candidates=bus70GyeonggiList_(list.body.busRouteList).filter(function(item){return String(item.routeName).trim()===route&&/부천/.test(String(item.adminName||'')+' '+String(item.regionName||''));});
+    const ids=Array.from(new Set(candidates.map(function(item){return String(item.routeId);})));if(ids.length!==1)throw new Error('PUBLIC_ROUTE_AMBIGUOUS');
+    const config={route:route,routeId:ids[0],routeNo:route,provider:BUS70_GYEONGGI_ROUTE_PROVIDER_,companyName:'소신여객',coordinateEnabled:false};
+    const checked=bus70GyeonggiFetchRouteStops_(config,date,key);if(!checked.ok)throw new Error(checked.error);
+    target[route]=config;PropertiesService.getScriptProperties().setProperty('BUS70_PUBLIC_ROUTE_API_CONFIG_JSON',JSON.stringify(root));
+    console.log(JSON.stringify({route:route,configured:true,stopCount:checked.stops.length}));
+  });
+}
