@@ -1,9 +1,12 @@
-# v84 복수 노선 DB 연결 — 구현·배포 검증 중
+# v84 복수 노선 DB 연결 — 배포 완료, 실차 검증 대기
 
 - 활성 노선을 노선마스터DB에서 읽고 추가 노선의 확정 시간표를 날짜별 DB에서 조회한다. 기사 당일 타노선 배차와 대체 차량을 기존 소속 변경 없이 연결한다. 전체 노선 현황·시간표·배차 이미지·통합 DB 메뉴에 신규 노선을 포함한다.
 - 23번 상하행 정류장과 회차점은 운영 DB에서 제공한다. Android/iOS 전착 안내는 23번 하행 화곡역6번출구 이후 정류장별로 재판단한다. Android versionCode84, 기존 고정 서명 업그레이드 빌드 대상. iOS 서명 배포는 보류 유지.
 - 로컬 검증: DB 전용 추가 노선, 날짜 없는 조회 차단, 타노선 기사/차량, 자정 도착, 전체 현황, 정규화 연결·권한 검사, iOS 경고 경계, GPS 재현 검사 통과. 기존 authstep9.test.js 240행의 ROUTE_PROGRESS 기대값은 변경 전 기준본에서도 실패하여 별도 기존 실패로 기록한다.
-- 현재 단계: 운영 DB 원본 대조 완료. 공개 코드 게시·CI·웹·Apps Script 배포·APK 전달 및 실제 모바일 검증은 별도로 확인 중. 실제 기사·사번·배차·원본 사진·좌표 원장·API 키는 공개 파일에 포함하지 않는다.
+- [PR56](https://github.com/skyballpd-wq/BUS70-TEST/pull/56) 병합 `e2fda227c8680eb06ca56ff7830399930979a922`. Android APK, mascot, iOS pilot, Chrome/WebKit 검사 4종 통과. [Pages 39912209413](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39912209413) 성공 후 운영 index.html·sw.js HTTP 200과 검증본 바이트 일치 확인.
+- Apps Script 기존 배포를 버전 69로 갱신했다. URL·실행 계정·접근 권한을 유지했다. 운영 원본의 다른 편집을 보존하여 PrivateRouteStore/AuthStep9/ManagerDispatch/PublicTransitApi 저장본을 대조했다. 임시 진단은 제거했다. 서버에서 추가 노선 기사 스케줄과 관리자 배차·정비·마스터 조회 정상 응답을 확인했다. GBIS 신규 노선 현재 차량 응답도 정상이며 장시간 안정성 검증과 구분한다.
+- [고정 서명 APK 빌드 39911013757](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/39911013757) 성공. `kr.bus70.driver`, versionCode 84 / versionName 0.84-multi-route. v83과 서명 인증서 일치. APK SHA-256 `0feedbb67f050deb7c57e2ffa7c7a29cc453425e672bebd5a4b655459bf31ca9`. 최초 설치와 기존 앱 업그레이드에 같은 파일을 사용한다.
+- 운영 DB 원본 대조와 재조회 완료. 개인별 배차·시각·원본 근거는 비공개 작업연계DB에 기록한다. 실제 기사·사번·배차·원본 사진·좌표 원장·API 키는 공개 파일에 포함하지 않는다. 사번 미제공 기사의 로그인은 비활성 상태다. 실물 모바일 로그인·화면 잠금·23번 실차 GPS와 전착 음성·350명 부하 검증은 미완료다. 23번 화곡역6번출구 경고 기준은 기존 운영 규칙을 적용한 구성으로 현장 확인이 필요하다.
 
 # 공통 기술 작업현황
 
