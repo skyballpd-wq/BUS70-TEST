@@ -955,7 +955,7 @@
       <h2>소장 배차 현황 작성</h2>
       <p class="hint">운행 날짜를 선택하면 전 노선 공통 A/B 격일 근무조가 자동 적용되고 그날 시간표의 실제 운행 순차만 표시됩니다. 사진 OCR은 저장 데이터와 다른 항목을 찾는 보조 확인입니다.</p>
       <div class="manager-tools">
-        <div><label for="managerRoute">관리 노선</label><select id="managerRoute"><option value="ALL">전체 노선 현황</option><option value="70">70번</option><option value="5">5번</option></select></div>
+        <div><label for="managerRoute">관리 노선</label><select id="managerRoute"><option value="ALL">전체 노선 현황</option><option value="70">70번</option><option value="5">5번</option><option value="23">23번</option></select></div>
         <div><label for="managerDate">운행 날짜</label><input id="managerDate" type="date"></div>
         <div><label for="managerShift">근무조 (날짜 자동)</label><select id="managerShift" disabled><option value="">서버 확인 대기</option><option value="A">A조</option><option value="B">B조</option></select></div>
       </div>
@@ -1054,7 +1054,7 @@
         <hr>
         <h3>당일 배차시간 변경</h3>
         <div class="manager-tools">
-          <div><label for="adjustmentRoute">노선</label><select id="adjustmentRoute"><option value="70">70번</option><option value="5">5번</option></select></div>
+          <div><label for="adjustmentRoute">노선</label><select id="adjustmentRoute"><option value="70">70번</option><option value="5">5번</option><option value="23">23번</option></select></div>
           <div><label for="adjustmentDate">운행 날짜</label><input id="adjustmentDate" type="date"></div>
           <div><label for="adjustmentSequence">순차</label><select id="adjustmentSequence"></select></div>
           <div><label for="adjustmentTrip">탕</label><select id="adjustmentTrip"></select></div>
@@ -1150,7 +1150,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v83
+    소신여객 통합 운행관리 TEST · v84
   </footer>
 
 </div>
@@ -1360,7 +1360,7 @@
     const text=String(value??"").trim().toUpperCase();
     if(text==="ALL")return "ALL";
     const route=text.replace(/\D/g,"");
-    return route==="5"||route==="70"?route:"";
+    return /^\d+$/.test(route)?route:"";
   }
 
   function routeBrand(route) {
@@ -1373,7 +1373,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v83.3";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v84";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -3689,6 +3689,8 @@
       const result = await apiPost({action:"managerDispatchBootstrap",token:authToken,date,route});
       if(requestId!==managerRequestId||date!==document.getElementById("managerDate").value||route!==document.getElementById("managerRoute").value)return;
       if (!result.ok) return managerNotice(result.message || "배차 자료를 불러오지 못했습니다.", true);
+      const registered=result.availableRoutes||(result.routes||[]).map(item=>item.route);
+      ["managerRoute","adjustmentRoute"].forEach(id=>{const select=document.getElementById(id);registered.forEach(value=>{const route=normalizedRoute(value);if(route&&route!=="ALL"&&!Array.from(select.options).some(option=>option.value===route))select.add(new Option(route+"번",route));});});
       if(route==="ALL"&&(result.mode!=="SUMMARY"||normalizedRoute(result.route)!=="ALL"))return managerNotice("전체 노선 요청과 다른 서버 응답을 차단했습니다.",true);
       if(route!=="ALL"&&(result.mode==="SUMMARY"||normalizedRoute(result.route)!==normalizedRoute(route)||result.date!==date))return managerNotice("선택한 "+route+"번·"+date+"와 다른 배차 자료를 차단했습니다. 노선별 DB를 확인하세요.",true);
       const shift=syncManagerShiftToDate(result.operatingShift);

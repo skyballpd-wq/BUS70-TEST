@@ -2,7 +2,7 @@
 (function(root){
 'use strict';
 const gps=typeof module==='object'?require('../../driver-automation'):root.Bus70Automation;
-const gates={'5':'212000105','70':'115000108'};
+const gates={'5':'212000105','70':'115000108','23':'115000051'};
 const message='차고지에 예정 시각보다 10분 이상 일찍 도착할 것으로 예상됩니다. 배차 시간을 확인하고 안전하게 운행하세요.';
 function update(s,t,n,binding,route,planned,p,now){
  const fix=p.timestamp,c=p.coords,station=gates[route]||'',stops=t.course?.stops;

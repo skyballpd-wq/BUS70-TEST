@@ -8,7 +8,7 @@ const binding=s=>[s.driverId,s.date,s.dispatchId,s.vehicleId].join('|');
 const complete=t=>Boolean(t.actualEnd&&(!t.deadheadDestination||t.deadheadDestination===t.endPlace||t.deadheadReturnedAt));
 const clean=s=>{const copy=JSON.parse(JSON.stringify(s));delete copy.token;return copy;};
 function valid(s,now){
- if(!s||!['5','70'].includes(String(s.route))||!s.driverId||!s.dispatchId||!s.vehicleId||!Array.isArray(s.trips)||!s.trips.length)return false;
+ if(!s||!/^\d+$/.test(String(s.route))||!s.driverId||!s.dispatchId||!s.vehicleId||!Array.isArray(s.trips)||!s.trips.length)return false;
  const day=gps.moment(s.date,'03:30'),end=gps.moment(s.date,'27:30');
  return Number.isFinite(day)&&now>=day&&now<end&&s.trips.every(t=>Number.isInteger(t.trip)&&t.trip>0&&Number.isFinite(gps.moment(s.date,t.startTime))&&t.course?.stops?.length>=2);
 }

@@ -439,6 +439,32 @@ function bus70PrivateRouteProfile_(rawRoute, source, rawDate, dbSchedule) {
   return {route:route,displayName:String(profile.displayName||source&&source.displayName||route+'번'),stops:stops,stopCount:stops.length,boardAvailable:Boolean(source&&Array.isArray(source.assignments)),timetableAvailable:Boolean(dbSchedule&&dbSchedule.available||source&&(Array.isArray(source.tripTimings)||Array.isArray(source.timings)||Array.isArray(source.departures))),storage:{partitioned:true,stopSheet:names&&names.stops||'',scheduleSheet:dbSchedule&&dbSchedule.sheetName||names&&names.schedule||'',stopSource:stored.stops.length?'ROUTE_DB':'PRIVATE_REFERENCE',scheduleSource:dbSchedule&&dbSchedule.available?'ROUTE_DB':'PRIVATE_REFERENCE'},viewModes:['SUMMARY','ROUTE']};
 }
 
+// The master table owns the active route list. Keep the legacy fallback only
+// when the table itself is absent; an explicitly empty/disabled table is final.
+function bus70ActiveRouteIds_() {
+  try {
+    const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('노선마스터DB');
+    if(sheet){
+      const rows=bus70PartitionRows_(sheet),c=bus70RoutePartitionHeaderMap_(rows[0]||[]);
+      return Array.from(new Set(rows.slice(1).filter(function(r){return /^(Y|YES|TRUE|1|사용)$/i.test(String(r[c['사용여부']]||''));}).map(function(r){return String(r[c.routeId]||'').trim();}).filter(function(route){return /^\d+$/.test(route);}))).sort(function(a,b){return Number(a)-Number(b);});
+    }
+  } catch(error) { return []; }
+  return ['5','70'];
+}
+
+// Additional routes read only a dated, approved DB timetable. No roster or
+// guessed timetable is bundled in public code, and missing dates stay missing.
+function bus70DbRouteReferenceData_(rawRoute, rawDate) {
+  const route=String(rawRoute||''),date=normalizeDate_(rawDate);
+  if(bus70ActiveRouteIds_().indexOf(route)===-1)return null;
+  const stored=bus70RouteScheduleFromDb_(route,date);
+  if(!stored.available)return {ok:false,route:route,date:date,error:'ROUTE_REFERENCE_NOT_CONFIGURED',message:date+' '+route+'번 확정 시간표가 없습니다.'};
+  const trips=bus70PrivateNormalizeTrips_(stored.trips),groups={};
+  trips.forEach(function(t){const key=t.trip+'|'+t.startPlace;(groups[key]||(groups[key]=[])).push(t);});
+  Object.keys(groups).forEach(function(key){const group=groups[key].sort(function(a,b){return bus70Route70OperationalMinutes_(a.startTime)-bus70Route70OperationalMinutes_(b.startTime);});group.forEach(function(t,i){const front=group[i-1],rear=group[i+1],own=bus70Route70OperationalMinutes_(t.startTime);t.frontSequence=front?front.sequence:null;t.rearSequence=rear?rear.sequence:null;t.plannedFrontGapMinutes=front?own-bus70Route70OperationalMinutes_(front.startTime):null;t.plannedRearGapMinutes=rear?bus70Route70OperationalMinutes_(rear.startTime)-own:null;});});
+  return {ok:true,route:route,date:date,shift:stored.shift,serviceType:stored.serviceType,scheduleVersion:stored.scheduleVersion,timetableSequences:trips.reduce(function(n,t){return Math.max(n,t.sequence);},0),assignments:[],trips:trips,tripNumbersBySequence:bus70PrivateTripNumbersBySequence_(trips),routeProfile:bus70PrivateRouteProfile_(route,{},date,stored),patternSummary:bus70RoutePatternSummary_(trips),sourceNote:'노선별 배차스케줄DB · '+stored.sheetName,verificationStatus:'노선별 배차스케줄DB 적용'};
+}
+
 function bus70PrivateRouteStatus_() {
   const routes={};
   let source='NONE';

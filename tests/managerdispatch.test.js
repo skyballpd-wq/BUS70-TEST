@@ -320,3 +320,32 @@ contactSheet.rows[1][6]='N';contactSheet.rows[2][6]='N';
 assert.equal(context.bus70DepotContactsGet_('D3').contacts.length,0,'disabled DB does not resurrect stale legacy phones');
 context.PropertiesService=originalProperties;
 console.log('Authenticated emergency contact DB, multiple phones, metadata and safe updates passed');
+
+// A DB-only route has no embedded roster; confirmed cross-route assignments
+// must remain visible without changing the driver's or vehicle's home route.
+sheets['노선마스터DB']=sheet([['routeId','사용여부'],['5','Y'],['23','Y'],['70','Y'],['999','N']],'노선마스터DB');
+const extraHeader=context.bus70RoutePartitionHeaders_('schedule');
+const extraPlan=(seq,time)=>{const data={'시간표ID':'SYN23-'+seq,'노선':'23','운행일':'2099-01-08','시간표버전':'SYN23','운행구분':'평일','근무조':'B','순차':seq,'탕':1,'발차지':'가상기점','발차시간':time,'회차지':'가상회차','회차시간':'23:30','도착지':'가상기점','도착시간':'00:20','상태':'사용'};return extraHeader.map(h=>data[h]??'');};
+sheets['노선_23_배차스케줄DB_2099_01']=sheet([extraHeader,extraPlan(1,'22:00'),extraPlan(2,'22:15')],'노선_23_배차스케줄DB_2099_01');
+context.bus70InvalidatePartition_(sheets['노선마스터DB']);
+assert.equal(context.bus70ManagerNormalizeRoute_('23'),'23');
+assert.equal(context.bus70ManagerNormalizeRoute_('999'),'');
+const extraReference=context.bus70ManagerReferenceData_('23','2099-01-08');
+assert.equal(extraReference.route,'23');assert.equal(extraReference.trips.length,2);
+assert.equal(extraReference.trips[0].endTime,'00:20');assert.equal(extraReference.trips[0].plannedRearGapMinutes,15);
+assert.equal(context.bus70ManagerReferenceData_('23','2099-01-09').ok,false,'no fallback to another service date');
+vehicles.rows.push(['SYN23V','9999','일반','운행가능','70','',999,'']);drivers.rows.push(['SYN23D','','가상교대기사','B','노선','','','70',999,'재직']);
+const dc=context.makeHeaderMap_(dispatch.rows[0]);const extraDispatch=new Array(dispatch.rows[0].length).fill('');
+Object.entries({dispatchId:'R23-SYN-B-01','날짜':'2099-01-08','근무조':'B','순차':1,'기사ID':'SYN23D','차량ID':'SYN23V','시간표버전':'SYN23','상태':'확정','노선':'23','비고':'[타노선 승인]'}).forEach(([k,v])=>extraDispatch[dc[k]]=v);
+dispatch.rows.push(extraDispatch);context.bus70InvalidatePartition_(dispatch);
+const extraBoard=context.bus70ManagerBootstrap_('2099-01-08','23');
+assert.equal(extraBoard.ok,true);assert.ok(extraBoard.vehicles.some(v=>v.id==='SYN23V'),'dated replacement vehicle is selectable');
+assert.ok(extraBoard.assignments.some(d=>d.driverId==='SYN23D'&&d.crossRouteAuthorized));
+assert.ok(context.bus70ManagerBootstrap_('2099-01-08','ALL').routes.some(r=>r.route==='23'));
+assert.equal(vehicles.rows.find(r=>r[0]==='SYN23V')[4],'70','permanent vehicle route preserved');
+vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'),context);
+assert.equal(context.bus70ConfirmedAssignedRoute_('SYN23D','2099-01-08'),'23');
+const extraDriver=context.bus70ConfirmedRouteScheduleForDriver_({driverId:'SYN23D',route:'70'},'2099-01-08','23');
+assert.equal(extraDriver.ok,true);assert.equal(extraDriver.route,'23');assert.equal(extraDriver.dispatch.sequence,1);assert.equal(extraDriver.trips.length,1);
+assert.equal(context.bus70ConfirmedRouteScheduleForDriver_({driverId:'SYN23D'},'2099-01-09','23'),null);
+console.log('DB-only route, master registry, cross-route driver/vehicle, dated lookup and midnight plan passed');

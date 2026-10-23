@@ -1,5 +1,5 @@
 // BUS70 TEST: 정적 리소스만 캐시. 기사 개인정보 및 API 결과는 캐시하지 않음.
-const CACHE = "soshin-ops-static-v83-field-cockpit";
+const CACHE = "soshin-ops-static-v84-multi-route";
 const ASSETS = ["./", "./index.html", "./mobile-compat.js?v=823", "./accident-report.js?v=821", "./accident-report.css?v=77", "./login-korean.js", "./driver-automation.js?v=83", "./driver-recording.js?v=82", "./driver-cockpit.js?v=83", "./driver-outbox.js?v=771", "./driver-ledger.js?v=78", "./manager-ocr.js?v=11", "./manifest.webmanifest", "./icons/bus70-192.png", "./icons/bus70-512.png", "./icons/bus70-180.png", "./icons/mascot-0.png", "./icons/mascot-1.png", "./icons/mascot-2.png", "./icons/mascot-3.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
