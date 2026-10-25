@@ -4,6 +4,7 @@ function section(name,next){return html.slice(html.indexOf('  function '+name+'(
 const fixture=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body class="driver-mode"><div class="app"><main class="content" id="test-root"></main></div><input id="workDate" type="hidden" value="2099-01-10">
 <script>${fs.readFileSync('driver-recording.js','utf8')}</script><script>${fs.readFileSync('driver-cockpit.js','utf8')}</script><script>${fs.readFileSync('driver-automation.js','utf8')}</script><script>
 const localStorage={getItem:()=>null};
+const todayLocal=()=> '2099-01-10';
 const trip={trip:5,startTime:'10:00',startPlace:'합성기점',endPlace:'합성종점'},log={};
 let lastSchedule={ok:true,temporalState:'CURRENT',route:'5',trips:[trip],dispatch:{seq:2},vehicle:{displayNo:'가상1234'},routeProfile:{stops:[]}},activeTripIndex=0,followCurrentTrip=true,currentRoute='5';
 let nativeArrivalEstimate=null;

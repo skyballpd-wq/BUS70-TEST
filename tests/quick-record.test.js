@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),cockpit=require('../driver-cockpit');
+const base={date:'2099-01-08',today:'2099-01-08',live:true,plannedAt:100,now:200,trip:{turnPlace:'합성회차'},log:{}};
+const enabled=input=>cockpit.manualActions({...base,...input}).filter(a=>!a.disabled).map(a=>a.event);
+assert.deepEqual(enabled({}),['DEPART']);
+assert.deepEqual(enabled({now:99}),[],'a manual tap cannot authorize early departure');
+assert.deepEqual(enabled({date:'2099-01-07'}),[]);
+assert.deepEqual(enabled({live:false}),[],'viewing another trip cannot record it');
+assert.deepEqual(enabled({plannedAt:NaN}),[]);
+assert.deepEqual(enabled({pending:'DEPART'}),[],'one request disables all phase buttons');
+assert.deepEqual(enabled({log:{actualStart:'10:01'}}),['TURN','ARRIVE'],'arrival can recover a missed turn');
+assert.deepEqual(enabled({log:{actualStart:'10:01',actualTurn:'11:00'}}),['ARRIVE']);
+assert.deepEqual(enabled({log:{actualStart:'10:01',actualEnd:'12:00'}}),[]);
+assert.deepEqual(cockpit.manualActions({...base,trip:{}}).map(a=>a.event),['DEPART','ARRIVE']);
+assert.equal(cockpit.phaseDifference({label:'+20분 지연',state:'late'},'수동').label,'기록 기준');
+assert.equal(cockpit.phaseDifference({label:'+20분 지연',state:'late'},'GPS 자동').label,'+20분 늦음');
+console.log('Quick record eligibility, prior/future/completed trips, pending lock and manual provenance passed');

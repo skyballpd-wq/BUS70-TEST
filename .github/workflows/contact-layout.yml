@@ -64,6 +64,8 @@ jobs:
           node tests/departure-onset.test.js
           node tests/observed-headway.test.js
           node tests/field-cockpit.browser.cjs
+          node tests/quick-record.test.js
+          node tests/quick-record.browser.cjs
           node tests/gbis-outage-recovery.test.js
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
@@ -116,6 +118,7 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
           node tests/mobile-compat.browser.cjs
           node tests/field-cockpit.browser.cjs
+          node tests/quick-record.browser.cjs
           node tests/schedule-controls.browser.cjs
           node tests/realtime-health.browser.cjs
           node tests/accident-report.browser.cjs
