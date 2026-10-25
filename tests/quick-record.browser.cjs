@@ -63,6 +63,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.match(await page.locator('#driverCrossCheckStatus').innerText(),/429/);
   assert(!/출발\s+10:00/.test(await page.locator('.selected-trip-tools').innerText()));
   await page.locator('.schedule-options>summary').click();
+  await page.evaluate(()=>{
+   document.getElementById('driverRecordFeedback').replaceChildren();
+   routeNavigationState=()=>({trip:5,configured:true,tripProgressPercent:42.5,tripPassedStops:49,tripStopCount:114,previousStop:'가상중앙공원.도서관',nextStop:'가상행정복지센터.대학병원',direction:'회차 방면',path:{stops:[]}});
+   lastDriverPosition={timestamp:Date.now(),coords:{latitude:37,longitude:127,accuracy:2,speed:24/3.6}};updateDriverLiveDashboard();
+  });
+  assert.equal(await page.locator('#driverTripProgressRing .route-tick').count(),114);
+  assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
+  assert(await page.locator('.orbit-stops').evaluate(n=>n.scrollWidth<=n.clientWidth+1));
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/quick-record-'+width+'.png'});}
   await page.evaluate(()=>selectDriverTrip(5));
   assert.equal(await page.locator('.quick-run-actions').count(),0,'future selection has no record buttons');

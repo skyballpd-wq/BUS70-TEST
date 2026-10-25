@@ -751,11 +751,13 @@
     /* One driving card, direct recording, and one optional details area. */
     .driver-mode .orbit-cockpit{padding:8px}
     .driver-mode .orbit-cockpit .orbit-ring{max-width:228px;margin:3px auto}
-    .orbit-ring>.orbit-center{inset:21% 15%;gap:12px}
-    .orbit-ring .orbit-speed{order:-1;font-size:30px!important;white-space:nowrap}
-    .orbit-stops{gap:6px}
+    .orbit-ring>.orbit-center{inset:21% 15%;gap:10px}
+    .orbit-ring .orbit-speed{order:-1;font-size:36px!important;white-space:normal}
+    .orbit-speed .speed-unit{display:inline;font-size:.45em;margin-left:4px}
+    .orbit-center .orbit-progress{font-size:12px;line-height:1.4;word-break:keep-all}
+    .orbit-stops{gap:12px;margin:4px 0 6px}
     .orbit-stops small{font-size:10px}
-    .orbit-stops strong{font-size:12px;line-height:1.35;-webkit-line-clamp:3;word-break:keep-all;overflow-wrap:break-word}
+    .orbit-stops strong{font-size:14px;line-height:1.35;-webkit-line-clamp:3;word-break:keep-all;overflow-wrap:break-word}
     .orbit-cockpit>.orbit-progress{font-size:12px;margin:3px 0}
     .orbit-cockpit>.cockpit-gaps{margin:5px 0;gap:8px}
     .orbit-cockpit>.cockpit-gaps>div{padding:5px 8px;border-radius:6px}
@@ -763,7 +765,7 @@
     .orbit-cockpit>.cockpit-gaps small{font-size:11px;margin-top:2px;white-space:nowrap}
     .cockpit-target{gap:3px 8px;margin:4px 0}
     .quick-run-actions{display:flex;gap:6px;margin:5px 0 0}
-    .driver-mode .quick-run-actions button{flex:1;min-width:0;margin:0;padding:7px 3px;min-height:46px;height:auto;font-size:14px;line-height:1.3;border-radius:8px;white-space:nowrap}
+    .driver-mode .quick-run-actions button{flex:1;min-width:0;margin:0;padding:7px 3px;min-height:46px;height:auto;font-size:14px;line-height:1.3;border-radius:8px;word-break:keep-all;white-space:normal}
     .quick-run-actions button:disabled{background:#edf1f4;color:#667085;opacity:1}
     .quick-run-note{display:block;margin:3px 0 6px;color:#667085;font-size:10px}
     .quick-run-feedback:empty{display:none}
@@ -2846,6 +2848,7 @@
     const stateNode=document.getElementById("driverLiveState");if(stateNode)stateNode.textContent=context.trip.trip+"탕 · "+(provisional?"출발 기록 확인 중":recordingHealth.blocked?"차량 확인 불가":context.state);
     const dashboard=document.getElementById("driverLiveDashboard");if(dashboard)dashboard.classList.toggle("recording-warning",Boolean(displayLive&&recordingHealth.warning));
     if(speed&&waiting)speed.textContent="출발 대기";
+    else if(speed&&displayLive){const match=/^([\d.]+) km\/h$/.exec(speed.textContent);if(match)speed.replaceChildren(el("span",match[1]),el("small","km/h","speed-unit"));}
     const countdown=document.getElementById("driverLiveCountdown"),target=document.getElementById("driverLiveTarget");
     if(countdown&&context){
       const passed=displayLive&&!waiting&&(navigation.configured||navigation.retained)&&navigation.turnPassed;
@@ -2963,8 +2966,8 @@
     const ring=el("div",undefined,"cockpit-ring orbit-ring");ring.id="driverTripProgressRing";ring.setAttribute("role","progressbar");ring.setAttribute("aria-label","선택한 탕의 정류장별 운행 진행률");ring.setAttribute("aria-valuemin","0");ring.setAttribute("aria-valuemax","100");
     const inner=el("div",undefined,"orbit-center");
     const gaps=el("div",undefined,"cockpit-gaps");[["앞차","front"],["뒷차","rear"]].forEach(([label,dir])=>{const cell=el("div"),plan=dir==="front"?context.trip.plannedFrontGapMinutes:context.trip.plannedRearGapMinutes,strong=el("strong",hasNumericValue(plan)&&Number(plan)>=0?Number(plan)+"분":"—"),live=el("small","");live.id=dir==="front"?"driverLiveFrontGap":"driverLiveRearGap";cell.append(el("span",label+" 예정 "),strong,live);gaps.append(cell);});
-    const nav=el("div",undefined,"orbit-stops");[["지난 정류장","driverNavPrevious"],["다음 정류장","driverNavNext"]].forEach(([label,id])=>{const item=el("div"),name=el("strong","—");name.id=id;item.append(el("small",label),name);nav.append(item);});inner.append(nav);
-    const speed=el("strong","—","orbit-speed"),weather=el("div","날씨 연결 대기","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";weather.id="driverWeather";weatherTime.id="driverWeatherTime";value.id="driverTripProgressValue";inner.prepend(speed);ring.append(inner);box.append(ring,value,gaps);
+    const nav=el("div",undefined,"orbit-stops");[["지난 정류장","driverNavPrevious"],["다음 정류장","driverNavNext"]].forEach(([label,id])=>{const item=el("div"),name=el("strong","—");name.id=id;item.append(el("small",label),name);nav.append(item);});
+    const speed=el("strong","—","orbit-speed"),weather=el("div","날씨 연결 대기","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";weather.id="driverWeather";weatherTime.id="driverWeatherTime";value.id="driverTripProgressValue";inner.append(speed,value);ring.append(inner);box.append(ring,nav,gaps);
     const target=el("div",undefined,"cockpit-target"),count=el("small","");count.id="driverLiveCountdown";count.dataset.nextTime=context.time||"";const targetLabel=el("strong",context.action+(context.time?" · "+displayTime(context.time):""));targetLabel.id="driverLiveTarget";target.append(targetLabel,count);box.append(target);
     renderQuickRunActions(box,data,context);
     box.append(cockpitPhaseTable(data,context.trip,context.log,true));
@@ -3147,6 +3150,7 @@
 
   async function saveRunEvent(trip,event,button,extra,feedbackId){
     if(button)button.disabled=true;
+    const feedbackOwner={token:authToken,driverId:currentDriverId,date:document.getElementById("workDate").value};
     try{
       const data=lastSchedule,date=document.getElementById("workDate").value,token=authToken,driverId=currentDriverId,d=data.dispatch,vehicle=data.vehicle||{},result=await apiPost(Object.assign({action:"managerAccountUpsert",operation:"driverRunLogSave",token:authToken,date:document.getElementById("workDate").value,route:data.route||vehicle.route||"",dispatchId:d.dispatchId||d.id||"",vehicleId:vehicle.vehicleId||vehicle.id||d.vehicleId||"",sequence:d.seq||d.sequence,trip:trip.trip,event:event,plannedStart:trip.startTime,plannedTurn:trip.turnTime,plannedEnd:trip.endTime,plannedFrontGap:trip.plannedFrontGapMinutes,plannedRearGap:trip.plannedRearGapMinutes,source:"MANUAL"},extra||{}));
       if(authToken!==token||currentDriverId!==driverId||document.getElementById("workDate").value!==date||driverAssignmentBinding(lastSchedule).dispatchId!==driverAssignmentBinding(data).dispatchId)return result;
@@ -3154,7 +3158,7 @@
       const feedback=document.getElementById(feedbackId||"confirmResult");if(feedback)feedback.replaceChildren(el("div",result.message||"운행시간을 기록하지 못했습니다.",result.ok?"notice":"notice error"));
       return result;
     } catch(error){
-      const feedback=document.getElementById(feedbackId||"confirmResult");if(feedback)feedback.replaceChildren(el("div","저장 확인 실패 · 연결 후 다시 확인해 주세요.","notice error"));return {ok:false,error:"RECORD_SAVE_UNCONFIRMED"};
+      if(feedbackOwner.token===authToken&&feedbackOwner.driverId===currentDriverId&&feedbackOwner.date===document.getElementById("workDate").value){const feedback=document.getElementById(feedbackId||"confirmResult");if(feedback)feedback.replaceChildren(el("div","저장 확인 실패 · 연결 후 다시 확인해 주세요.","notice error"));}return {ok:false,error:"RECORD_SAVE_UNCONFIRMED"};
     } finally {if(button)button.disabled=false;}
   }
 
@@ -3282,6 +3286,7 @@
 
   function renderSchedule(rearmAlarms=true) {
     const root = document.getElementById("scheduleResult");
+    const detailsOpen=Boolean(root.querySelector?.(".schedule-options")?.open);
     root.replaceChildren();
     const data = lastSchedule ? scheduleForRequestedDate(lastSchedule,document.getElementById("workDate").value) : null;
     lastSchedule=data;
@@ -3364,6 +3369,7 @@
     });
     root.append(list);
     const options=el("details",undefined,"schedule-options");options.append(el("summary","운행 상세·설정"));
+    options.open=detailsOpen;
     const diagnostics=root.querySelector("#driverDiagnostics");if(diagnostics){diagnostics.hidden=false;options.append(diagnostics);}
     options.append(selectedTools,basic);renderLocationPanel(options,data);root.append(options);
     if(Array.isArray(data.timeAdjustments)&&data.timeAdjustments.length){
