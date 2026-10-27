@@ -101,7 +101,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),true,'returning to current trip restores '+selector);
   assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'63');
   // A future service date must stay isolated even when its trip is unfinished.
-  await page.evaluate(()=>{lastSchedule.temporalState='FUTURE';document.getElementById('workDate').value='2099-01-09';renderSchedule(false);});
+  await page.evaluate(()=>{lastSchedule.temporalState='FUTURE';lastSchedule.date='2099-01-09';document.getElementById('workDate').value='2099-01-09';renderSchedule(false);});
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'future date hides '+selector);
   await page.evaluate(()=>selectDriverTrip(0));
   await page.evaluate(()=>{
