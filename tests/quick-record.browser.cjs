@@ -102,14 +102,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'63');
   // A future service date must stay isolated even when its trip is unfinished.
   await page.evaluate(()=>{lastSchedule.temporalState='FUTURE';lastSchedule.date='2099-01-09';document.getElementById('workDate').value='2099-01-09';renderSchedule(false);});
+  assert.equal(await page.locator('#driverLiveDashboard').count(),1,'future date renders its own schedule');
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'future date hides '+selector);
-  await page.evaluate(()=>selectDriverTrip(0));
   await page.evaluate(()=>{
    lastSchedule.temporalState='PAST';lastSchedule.date='2099-01-07';document.getElementById('workDate').value='2099-01-07';
    lastSchedule.trips[0].startTime='07:00';lastSchedule.trips[0].turnTime='08:30';lastSchedule.trips[0].endTime='10:00';
    Object.assign(lastSchedule.runLogs[0],{date:'2099-01-07',actualStart:'2099-01-07 07:00:10',actualTurn:'2099-01-07 08:19:35',actualEnd:'2099-01-07 09:50:46',startRecordMode:'GPS 자동',turnRecordMode:'GPS 자동',endRecordMode:'GPS 자동'});
    cockpitWeather={available:true,temperature:0,condition:'눈',provider:'기상청',observedAt:'2099-01-08T10:00:00+09:00'};
-   renderSchedule(false);
+   selectDriverTrip(0);
   });
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverWeatherTime','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'historical date hides '+selector);
   assert.equal(await page.locator('#driverLiveDashboard .phase-actual').first().innerText(),'07:00:10');
