@@ -175,23 +175,30 @@
   // A day-bound vehicle identity is not a fresh position. During an outage,
   // require a new, continuous outbound motion sequence for each trip.
   function identityFresh(at,now){return number(at)&&at>0&&now>=at&&now-at<=20*3600000;}
-  // This candidate changes the observation time only after independent departure proof.
+  // A continuous queue can outlast three minutes. Keep the measured onset for
+  // at most ten minutes; independent vehicle proof still authorizes the event.
+  const DEPARTURE_ONSET_MAX_MS=600000;
   function departureOnset(state,input){
     const p=input.position,c=p.coords,start=input.points?.start,ts=p.timestamp,planned=moment(input.date,input.startTime);let proof=state.departureOnset;
     let valid=state.seenStart&&validPoint(start)&&Number.isFinite(planned)&&ts>=planned&&ts<=planned+7200000&&number(c.accuracy)&&c.accuracy>=0&&c.accuracy<=25&&number(c.speed)&&c.speed>=0&&c.speed<=25;
     if(c.speed>=1.5&&number(start?.departureBearing)&&(!number(c.heading)||Math.abs((c.heading-start.departureBearing+540)%360-180)>75))valid=false;
     const here={lat:c.latitude,lng:c.longitude};
-    if(proof){const dt=(ts-proof.lastAt)/1000;if(dt<=0)return;if(dt>15||ts-proof.first.timestamp>180000||distance(here,proof.last)>dt*30+2*c.accuracy)valid=false;}
+    if(proof){const dt=(ts-proof.lastAt)/1000;if(dt<=0)return;if(dt>15||ts-proof.first.timestamp>DEPARTURE_ONSET_MAX_MS||distance(here,proof.last)>dt*30+2*c.accuracy)valid=false;}
     if(!valid){delete state.departureOnset;return;}
     if(!proof&&c.speed>=2.8&&distance(here,start)<=Number(start.radiusM||80))proof={first:p,moved:0};
     if(!proof)return;
     const moved=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
     if(c.speed<1.5&&moved<Math.max(12,c.accuracy)&&ts-proof.first.timestamp>15000){delete state.departureOnset;return;}
+    // Repositioning and parking within the depot is not a queued departure.
+    if(c.speed<1.5&&distance(here,start)<=Number(start.radiusM||80)){
+      if(!proof.idleAt||distance(here,proof.idlePoint)>Math.max(12,c.accuracy)){proof.idleAt=ts;proof.idlePoint=here;}
+      if(ts-proof.idleAt>=45000){delete state.departureOnset;return;}
+    }else {delete proof.idleAt;delete proof.idlePoint;}
     proof.last=here;proof.lastAt=ts;proof.moved=Math.max(moved,proof.moved);state.departureOnset=proof;
   }
   function departureObservedFix(state,fallback){
     const proof=state.departureOnset;
-    return proof&&proof.moved>=20&&proof.first.timestamp<=fallback.timestamp&&fallback.timestamp-proof.first.timestamp<=180000?proof.first:fallback;
+    return proof&&proof.moved>=20&&proof.first.timestamp<=fallback.timestamp&&fallback.timestamp-proof.first.timestamp<=DEPARTURE_ONSET_MAX_MS?proof.first:fallback;
   }
   function gpsDeparture(state,input){
     const p=input.position||{},c=p.coords||{},ts=Number(p.timestamp),path=input.course,nav=input.navigation,planned=moment(input.date,input.startTime),start=input.points?.start;
@@ -200,12 +207,16 @@
     const here={lat:Number(c.latitude),lng:Number(c.longitude)};
     if(distance(here,start)<=Number(start.radiusM||80)+Math.max(30,c.accuracy))return clear();
     let proof=state.gpsDeparture;
-    if(proof){const dt=(ts-proof.lastAt)/1000,travel=distance(here,proof.last);if(dt<=0)return null;if(dt>15||nav.fraction<proof.lastFraction-.1||travel>dt*30+2*c.accuracy||ts-proof.first.timestamp>180000)proof=null;}
+    if(proof){const dt=(ts-proof.lastAt)/1000,travel=distance(here,proof.last);if(dt<=0)return null;
+      if(dt>15||nav.fraction<proof.lastFraction-.1||travel>dt*30+2*c.accuracy||ts-proof.first.timestamp>DEPARTURE_ONSET_MAX_MS)proof=null;
+      else if(c.speed>=2.8&&travel/dt>=2.8){proof.movingSamples=(proof.movingSamples||0)+1;proof.movingSeconds=(proof.movingSeconds||0)+dt;proof.movingMeters=(proof.movingMeters||0)+travel;}
+    }
     if(!proof&&c.speed<2.8)return null;
     if(!proof)proof={first:p,firstFraction:nav.fraction,lastFraction:nav.fraction,last:here,lastAt:ts,samples:0};
     proof.samples++;proof.last=here;proof.lastAt=ts;proof.lastFraction=nav.fraction;state.gpsDeparture=proof;
-    const seconds=(ts-proof.first.timestamp)/1000,meters=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
-    proof.ready=proof.samples>=6&&seconds>=20&&meters>=180&&meters/seconds>=2.8&&nav.fraction-proof.firstFraction>=.75;
+    const meters=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
+    // Stops contribute no motion evidence and do not dilute measured driving.
+    proof.ready=proof.movingSamples>=5&&proof.movingSeconds>=20&&proof.movingMeters>=180&&meters>=180&&nav.fraction-proof.firstFraction>=.75;
     return proof.ready&&identityFresh(input.vehicleIdentityAt,ts)?proof.first:null;
   }
   function remainingRoute(path,nav,log){

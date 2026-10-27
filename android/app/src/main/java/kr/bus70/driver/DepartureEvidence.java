@@ -13,12 +13,15 @@ final class DepartureEvidence {
             state.remove("gpsDeparture");return null;
         }
         JSONObject proof=state.optJSONObject("gpsDeparture");
-        if(proof!=null){double dt=(time-proof.optLong("lastAt"))/1000.0,travel=RouteMatcher.distance(lat,lng,proof.getJSONObject("last"));if(dt<=0)return null;if(dt>15||fraction<proof.optDouble("lastFraction")-.1||travel>dt*30+2*accuracy||time-proof.getJSONObject("first").optLong("time")>180000)proof=null;}
+        if(proof!=null){double dt=(time-proof.optLong("lastAt"))/1000.0,travel=RouteMatcher.distance(lat,lng,proof.getJSONObject("last"));if(dt<=0)return null;
+            if(dt>15||fraction<proof.optDouble("lastFraction")-.1||travel>dt*30+2*accuracy||time-proof.getJSONObject("first").optLong("time")>600000)proof=null;
+            else if(speed>=2.8&&travel/dt>=2.8)proof.put("movingSamples",proof.optInt("movingSamples")+1).put("movingSeconds",proof.optDouble("movingSeconds",0)+dt).put("movingMeters",proof.optDouble("movingMeters",0)+travel);
+        }
         if(proof==null&&speed<2.8)return null;
         if(proof==null)proof=new JSONObject().put("first",new JSONObject().put("latitude",lat).put("longitude",lng).put("accuracy",accuracy).put("time",time)).put("firstFraction",fraction).put("samples",0);
         proof.put("last",new JSONObject().put("lat",lat).put("lng",lng)).put("lastAt",time).put("lastFraction",fraction).put("samples",proof.optInt("samples")+1);state.put("gpsDeparture",proof);
-        JSONObject first=proof.getJSONObject("first");double seconds=(time-first.optLong("time"))/1000.0,meters=RouteMatcher.distance(lat,lng,new JSONObject().put("lat",first.optDouble("latitude")).put("lng",first.optDouble("longitude")));
-        boolean ready=proof.optInt("samples")>=6&&seconds>=20&&meters>=180&&meters/seconds>=2.8&&fraction-proof.optDouble("firstFraction")>=.75;proof.put("ready",ready);
+        JSONObject first=proof.getJSONObject("first");double meters=RouteMatcher.distance(lat,lng,new JSONObject().put("lat",first.optDouble("latitude")).put("lng",first.optDouble("longitude")));
+        boolean ready=proof.optInt("movingSamples")>=5&&proof.optDouble("movingSeconds",0)>=20&&proof.optDouble("movingMeters",0)>=180&&meters>=180&&fraction-proof.optDouble("firstFraction")>=.75;proof.put("ready",ready);
         return ready&&identityFresh(identityAt,time)?first:null;
     }
 }
