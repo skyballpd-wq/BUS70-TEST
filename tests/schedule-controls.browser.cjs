@@ -3,8 +3,8 @@ const assert=require('assert');
 const {chromium,webkit}=require('playwright');
 const html=fs.readFileSync('index.html','utf8');
 const css=html.match(/<style>([\s\S]*?)<\/style>/)[1];
-const start=html.indexOf('<details id="scheduleQueryOptions"');
-const controls=html.slice(start,html.indexOf('</details>',start)+10);
+const start=html.indexOf('<div id="scheduleQueryOptions"');
+const controls=html.slice(start,html.indexOf('<div id="scheduleResult"',start));
 const handlers=html.slice(html.indexOf('  document.getElementById("timeMode").addEventListener'),html.indexOf('  function resetBoardReview('));
 const output=process.env.CONTACT_LAYOUT_OUTPUT||require('os').tmpdir()+'/bus70-schedule-controls';
 fs.mkdirSync(output,{recursive:true});
@@ -25,7 +25,10 @@ loadMySchedule();
     for(const [width,height] of [[320,568],[360,640],[412,824]]){
       const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1});
       await page.setContent(fixture);
-      await page.getByText('날짜·시간 표시 변경',{exact:true}).click();
+      assert.equal(await page.locator('#workDate').isVisible(),true,'date is directly selectable');
+      assert.equal(await page.getByText('날짜·시간 표시 변경',{exact:true}).count(),0);
+      assert.equal(await page.getByLabel('조회 날짜').count(),1);
+      assert.equal(await page.getByLabel('시간 표시',{exact:true}).count(),1);
       const metrics=await page.evaluate(()=>{
         const date=document.getElementById('workDate').getBoundingClientRect();
         const mode=document.getElementById('timeMode').getBoundingClientRect();
