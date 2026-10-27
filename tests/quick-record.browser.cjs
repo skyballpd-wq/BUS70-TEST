@@ -71,27 +71,49 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37,longitude:127,accuracy:2,speed:24/3.6}};updateDriverLiveDashboard();
   });
   assert.equal(await page.locator('#driverTripProgressRing .route-tick').count(),114);
+  assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'42.5');
+  const arrowBefore=await page.locator('#driverTripProgressRing .route-arrow').getAttribute('style');
+  const clockBefore=await page.locator('#driverLiveClock').innerText();
+  await page.clock.fastForward('00:00:05');
+  await page.evaluate(()=>{
+   const previous=routeNavigationState;routeNavigationState=(...args)=>({...previous(...args),tripProgressPercent:63,tripPassedStops:72});
+   cockpitWeather={available:true,temperature:0,condition:'눈',provider:'기상청',observedAt:'2099-01-08T10:00:00+09:00'};
+   updateDriverLiveDashboard();
+  });
+  assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'63','position updates increase live progress');
+  assert.notEqual(await page.locator('#driverTripProgressRing .route-arrow').getAttribute('style'),arrowBefore);
+  const clockAfter=await page.locator('#driverLiveClock').innerText(),seconds=text=>text.split(':').reduce((total,value)=>total*60+Number(value),0);
+  assert(seconds(clockAfter)-seconds(clockBefore)>=5,'live clock advances with elapsed time across browser speeds');
+  assert.match(await page.locator('#driverWeather').innerText(),/0.0°C/);
+  assert.match(await page.locator('#driverWeatherTime').innerText(),/10:00 관측/);
   assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
   assert(await page.locator('.orbit-stops').evaluate(n=>n.scrollWidth<=n.clientWidth+1));
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/quick-record-'+width+'.png'});}
   await page.evaluate(()=>selectDriverTrip(5));
   assert.equal(await page.locator('.quick-run-actions').count(),0,'future selection has no record buttons');
+  for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'future trip hides '+selector);
   await page.evaluate(()=>selectDriverTrip(0));
   assert.equal(await page.locator('.quick-run-actions').count(),0,'completed selection has no record buttons');
   assert.equal(await page.locator('#driverTripProgressRing').isVisible(),false,'completed result does not repeat completion in a ring');
   assert.equal(await page.locator('.orbit-stops').isVisible(),false);
   assert.equal(await page.locator('.cockpit-target').isVisible(),false);
   assert.equal(await page.locator('.cockpit-gaps').isVisible(),false,'unsaved historical gaps do not occupy the result card');
+  for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather'])assert.equal(await page.locator(selector).isVisible(),false,'completed trip hides '+selector);
+  await page.evaluate(()=>selectDriverTrip(4));
+  for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),true,'returning to current trip restores '+selector);
+  assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'63');
+  // A future service date must stay isolated even when its trip is unfinished.
+  await page.evaluate(()=>{lastSchedule.temporalState='FUTURE';lastSchedule.date='2099-01-09';document.getElementById('workDate').value='2099-01-09';renderSchedule(false);});
+  assert.equal(await page.locator('#driverLiveDashboard').count(),1,'future date renders its own schedule');
+  for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'future date hides '+selector);
   await page.evaluate(()=>{
    lastSchedule.temporalState='PAST';lastSchedule.date='2099-01-07';document.getElementById('workDate').value='2099-01-07';
    lastSchedule.trips[0].startTime='07:00';lastSchedule.trips[0].turnTime='08:30';lastSchedule.trips[0].endTime='10:00';
    Object.assign(lastSchedule.runLogs[0],{date:'2099-01-07',actualStart:'2099-01-07 07:00:10',actualTurn:'2099-01-07 08:19:35',actualEnd:'2099-01-07 09:50:46',startRecordMode:'GPS 자동',turnRecordMode:'GPS 자동',endRecordMode:'GPS 자동'});
    cockpitWeather={available:true,temperature:0,condition:'눈',provider:'기상청',observedAt:'2099-01-08T10:00:00+09:00'};
-   renderSchedule(false);
+   selectDriverTrip(0);
   });
-  assert.match(await page.locator('#driverLiveDate').innerText(),/1월 8일/,'current clock never adopts selected historical date');
-  assert.match(await page.locator('#driverWeather').innerText(),/0.0°C/);
-  assert.match(await page.locator('#driverWeatherTime').innerText(),/10:00 관측/);
+  for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverWeatherTime','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'historical date hides '+selector);
   assert.equal(await page.locator('#driverLiveDashboard .phase-actual').first().innerText(),'07:00:10');
   assert.match(await page.locator('#driverLiveDashboard .time-deviation').first().innerText(),/\+0:10\s*늦음/);
   assert.equal((await page.locator('#driverLiveDashboard').innerText()).match(/운행 완료/g)?.length,1);
@@ -103,7 +125,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await page.evaluate(()=>document.getElementById('scheduleResult').style.zoom='1');
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/trip-result-'+width+'.png'});
   await page.evaluate(()=>{cockpitWeather.observedAt='2099-01-07T10:00:00+09:00';updateDriverLiveDashboard();});
-  assert(!/°C/.test(await page.locator('#driverWeather').innerText()),'old temperature is never presented as current');
+  assert(!/°C/.test(await page.locator('#driverWeather').textContent()),'old temperature is never presented as current');
   assert.deepEqual(errors,[]);await page.close();
  }console.log('Full app 320/360/412px: direct recording, duplicate tap, provenance, save failure, details and selected-trip isolation passed');
  }finally{await browser.close();}

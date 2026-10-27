@@ -599,7 +599,6 @@
     #schedulePanel {padding:18px;}
     #schedulePanel>h2 {font-size:24px;margin:0 0 10px;}
     #scheduleQueryOptions {margin-bottom:12px;}
-    #scheduleQueryOptions>summary {color:#475569;cursor:pointer;}
     .compact-live {border-radius:14px 14px 0 0;margin:0;padding:16px;background:#f1f5fa;color:#182b42;box-shadow:none;}
     .compact-live .driver-live-head p {margin:0 0 5px;font-size:13px;color:#526177;}
     .compact-live .driver-live-head h3 {margin:0;font-size:23px;}
@@ -638,7 +637,7 @@
     @media(max-width:520px){header{padding:18px 20px;}header h1{font-size:30px;margin:5px 0;}header p{font-size:13px;}main{padding:14px;}#apiStatus{padding:10px;font-size:12px;}.session-bar{margin:8px 0;font-size:14px;}.session-bar button{font-size:12px;padding:9px;}}
 
     .driver-mode header{padding:7px 14px;display:flex;align-items:center;gap:12px}.driver-mode header h1{font-size:18px;margin:0}.driver-mode header .subtitle{display:none}.driver-mode header .route{font-size:12px}
-    .driver-mode main{padding:8px;max-width:650px}.driver-mode .api-status{font-size:11px;padding:5px 8px;margin:4px 0}.driver-mode .session-bar{margin:4px 0;font-size:12px}.driver-mode .session-bar button{padding:6px;font-size:11px}.driver-mode #driverCard{margin:5px 0;padding:7px 10px}.driver-mode #driverCard summary{font-size:12px}.driver-mode #schedulePanel{padding:0;border:0;margin-top:5px}.driver-mode #schedulePanel>h2{display:none}.driver-mode #scheduleQueryOptions>summary{font-size:11px}.driver-mode .trip-chip-list{margin:4px 0;gap:4px}.driver-mode .trip-chip{padding:5px 8px;font-size:11px}.driver-mode .result{margin-top:5px}
+    .driver-mode main{padding:8px;max-width:650px}.driver-mode .api-status{font-size:11px;padding:5px 8px;margin:4px 0}.driver-mode .session-bar{margin:4px 0;font-size:12px}.driver-mode .session-bar button{padding:6px;font-size:11px}.driver-mode #driverCard{margin:5px 0;padding:7px 10px}.driver-mode #driverCard summary{font-size:12px}.driver-mode #schedulePanel{padding:0;border:0;margin-top:5px}.driver-mode #schedulePanel>h2{display:none}.driver-mode .trip-chip-list{margin:4px 0;gap:4px}.driver-mode .trip-chip{padding:5px 8px;font-size:11px}.driver-mode .result{margin-top:5px}
     .cockpit{margin:0;padding:10px 12px;background:#f8fafc;color:#182d46;border:0;border-radius:0}.cockpit-head{display:flex;justify-content:space-between;gap:8px;font-size:12px}.cockpit-hero{display:grid;grid-template-columns:116px 1fr;gap:15px;align-items:center;margin:3px 0}.cockpit-ring{width:116px;height:116px;position:relative;display:grid;place-items:center}.cockpit-ring svg{position:absolute;inset:0;width:100%;height:100%}.cockpit-ring>div{text-align:center;z-index:1}.cockpit-ring strong{display:block;font-size:24px}.cockpit-ring small{display:block;font-size:10px}.cockpit-speed>span{font-size:12px;color:#536a81}.cockpit-speed>strong{display:block;font-size:31px;line-height:1.1;font-variant-numeric:tabular-nums}.cockpit-speed>p{font-size:13px;margin:4px 0 0}.cockpit-speed>small{font-size:10px;color:#536a81}
     .cockpit-target{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0}.cockpit-target strong{font-size:14px}.cockpit-target small{font-size:10px;color:#52657a}.cockpit-nav{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:6px 0}.cockpit-nav>small:first-child{grid-column:1/-1}.cockpit-nav small{font-size:10px;color:#52657a}.cockpit-nav strong{font-size:15px}.cockpit-route{background:#eef3f8;border-radius:9px}.cockpit-route svg{width:100%;height:88px;display:block}.cockpit-conditions{display:flex;justify-content:space-between;font-size:10px;color:#596d83;margin:4px 0}.cockpit-gaps{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:5px 0}.cockpit-gaps>div{padding:6px 8px;background:#e8eff7;border-radius:7px;min-width:0}.cockpit-gaps span{font-size:10px}.cockpit-gaps strong{float:right;font-size:16px}.cockpit-gaps small{clear:both;display:block;font-size:10px;overflow-wrap:anywhere;margin-top:3px}
     .cockpit-phases{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px}.cockpit-phases th{font-size:10px;font-weight:500;color:#617389;text-align:right}.cockpit-phases th:first-child{text-align:left;width:38%}.cockpit-phases td{border-top:1px solid #dce5ef;padding:5px 2px;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.cockpit-phases td:first-child{text-align:left}.cockpit-phases td strong{font-size:11px;display:block}.cockpit-phases td small{display:block;font-size:9px;color:#617389}.cockpit-phases .time-deviation{font-size:10px}.cockpit .location-status{font-size:10px;line-height:1.3;margin:5px 0}.cockpit .driver-live-location-action{min-height:38px;height:auto;font-size:12px;margin:3px 0;padding:8px}.cockpit .driver-live-maintenance.ok{display:none}.cockpit .driver-live-maintenance{font-size:11px}.driver-mode .manual-run-tools{padding:7px 0}.driver-mode .manual-run-tools summary{font-size:11px}.driver-mode .schedule-options{margin:6px 0}.driver-mode #scheduleFreshness{font-size:10px;margin:4px 0}
@@ -926,12 +925,12 @@
 
     <section id="schedulePanel" class="schedule-panel" hidden>
       <h2>내 운행</h2>
-      <details id="scheduleQueryOptions"><summary>날짜·시간 표시 변경</summary>
+      <div id="scheduleQueryOptions">
       <div class="control-row">
-        <div><label for="workDate">조회 날짜</label><input id="workDate" type="date"></div>
-        <div><label for="timeMode">시간 표시</label><select id="timeMode"><option value="24H">24시간</option><option value="BOTH">동시 표시</option><option value="12H">오전·오후</option></select></div>
+        <div><input id="workDate" type="date" aria-label="조회 날짜"></div>
+        <div><select id="timeMode" aria-label="시간 표시"><option value="24H">24시간</option><option value="BOTH">동시 표시</option><option value="12H">오전·오후</option></select></div>
       </div>
-      </details>
+      </div>
       <div id="scheduleResult" class="result"></div><p id="scheduleFreshness" class="compact-help"></p>
       <button id="confirmScheduleButton" class="confirm-button" type="button" hidden>이 배차 확인하기</button>
       <div id="confirmResult" class="result" aria-live="polite"></div>
@@ -1222,7 +1221,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v86
+    소신여객 통합 운행관리 TEST · v86.1
   </footer>
 
 </div>
@@ -1445,7 +1444,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v86";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v86.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2884,7 +2883,7 @@
     const dashboard=document.getElementById("driverLiveDashboard");if(dashboard){
       dashboard.classList.toggle("recording-warning",Boolean(displayLive&&recordingHealth.warning));
       dashboard.classList.toggle("record-view",!displayLive);
-      for(const selector of [".orbit-ring",".orbit-stops",".cockpit-target"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
+      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
       const gaps=dashboard.querySelector(".cockpit-gaps");if(gaps)gaps.hidden=!displayLive&&!context.log.actualFrontGap&&!context.log.actualRearGap;
     }
     if(speed)speed.classList.toggle("waiting",waiting);
@@ -2974,8 +2973,8 @@
   }
 
   async function refreshCockpitWeather(data){
-    // The selected dispatch authorizes the request; the API returns current
-    // weather, never historical weather for the selected service date.
+    // Current conditions belong only to the current operating trip.
+    if(!isDisplayedTripLive(data))return;
     const key=currentDriverId+"|"+String(data.route||currentRoute)+"|"+document.getElementById("workDate").value;
     if(cockpitWeatherBusy||!authToken||currentRole||key===cockpitWeatherKey&&Date.now()-cockpitWeatherAt<(cockpitWeather.available?600000:120000))return;
     if(key!==cockpitWeatherKey)cockpitWeather={};cockpitWeatherKey=key;cockpitWeatherAt=Date.now();cockpitWeatherBusy=true;
@@ -3005,6 +3004,7 @@
   function renderDriverLiveDashboard(root,data){
     const context=driverDisplayedContext(data),d=data.dispatch||{},vehicle=data.vehicle||{},box=el("section",undefined,"driver-live-dashboard cockpit orbit-cockpit");box.id="driverLiveDashboard";Bus70Cockpit.bindSwipe(box,delta=>selectDriverTrip(activeTripIndex+delta));
     const conditions=el("div",undefined,"cockpit-now"),today=el("div"),dateLabel=el("small","","current-date"),clock=el("strong","","current-clock"),weatherBox=el("div",undefined,"current-weather");
+    conditions.hidden=!isDisplayedTripLive(data);
     dateLabel.id="driverLiveDate";clock.id="driverLiveClock";today.append(dateLabel,clock);conditions.append(today,weatherBox);box.append(conditions);
     const head=el("div",undefined,"cockpit-head");head.append(el("strong",(data.route||currentRoute)+"번 · "+(d.seq||d.sequence)+"순차 · "+(vehicle.displayNo||vehicle.vehicleNo||"차량 미확인")),el("span",context.trip.trip+"탕 · "+context.state));head.lastElementChild.id="driverLiveState";box.append(head);
     const ring=el("div",undefined,"cockpit-ring orbit-ring");ring.id="driverTripProgressRing";ring.setAttribute("role","progressbar");ring.setAttribute("aria-label","선택한 탕의 정류장별 운행 진행률");ring.setAttribute("aria-valuemin","0");ring.setAttribute("aria-valuemax","100");
