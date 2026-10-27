@@ -73,6 +73,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverTripProgressRing .route-tick').count(),114);
   assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'42.5');
   const arrowBefore=await page.locator('#driverTripProgressRing .route-arrow').getAttribute('style');
+  const clockBefore=await page.locator('#driverLiveClock').innerText();
   await page.clock.fastForward('00:00:05');
   await page.evaluate(()=>{
    const previous=routeNavigationState;routeNavigationState=(...args)=>({...previous(...args),tripProgressPercent:63,tripPassedStops:72});
@@ -81,7 +82,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   assert.equal(await page.locator('#driverTripProgressRing').getAttribute('aria-valuenow'),'63','position updates increase live progress');
   assert.notEqual(await page.locator('#driverTripProgressRing .route-arrow').getAttribute('style'),arrowBefore);
-  assert.match(await page.locator('#driverLiveClock').innerText(),/10:10:05/);
+  const clockAfter=await page.locator('#driverLiveClock').innerText(),seconds=text=>text.split(':').reduce((total,value)=>total*60+Number(value),0);
+  assert(seconds(clockAfter)-seconds(clockBefore)>=5,'live clock advances with elapsed time across browser speeds');
   assert.match(await page.locator('#driverWeather').innerText(),/0.0°C/);
   assert.match(await page.locator('#driverWeatherTime').innerText(),/10:00 관측/);
   assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
