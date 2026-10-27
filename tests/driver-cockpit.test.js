@@ -23,6 +23,6 @@ assert.equal(gps.navigate(path,{...pos,coords:{...pos.coords,longitude:127.1}},{
 const ring=cockpit.ringSegments(114,42);assert.equal(ring.length,114);assert.equal(ring.filter(s=>s.done).length,42);
 const phases=cockpit.phases({...trip,controlPoint:'합성중간',deadheadDestination:'합성복귀지'},log,{midStart:true});assert.deepEqual(phases.map(p=>p.label),['중간 시작','회차 도착','회차 출발','중간 기준','영업 종료','차고지 복귀']);assert.equal(phases[2].planned,'');assert.equal(phases[5].planned,'');
 assert.equal(cockpit.weatherLabel({available:true,temperature:null,observedAt:new Date(now).toISOString()},now),'날씨 갱신 대기');
-assert.equal(cockpit.weatherLabel({available:true,temperature:0,condition:'눈',observedAt:new Date(now).toISOString()},now),'0.0° · 눈');
+assert.equal(cockpit.weatherLabel({available:true,temperature:0,condition:'눈',observedAt:new Date(now).toISOString()},now),'0.0°C · 눈');
 assert.equal(cockpit.weatherLabel({available:true,temperature:12,observedAt:'invalid'},now),'날씨 갱신 대기');
 console.log('Extended GPS stages, direction gates, operational course, freshness, N-stop ring and missing-data tests passed');

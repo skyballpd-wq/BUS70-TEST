@@ -19,4 +19,20 @@ public class DepartureOnsetTest {
    sample(s,140,kind==3?30:12,9,0);assertEquals(planned+37000,DepartureOnset.first(s,fallback(37)).getLong("time"));
   }
  }
+ @Test public void continuousLongQueueRetainsMeasuredOnsetButExpiresAfterTenMinutes()throws Exception{
+  for(int until:new int[]{242,482,622}){
+   JSONObject s=new JSONObject().put("seenStart",true);sample(s,10,2,4,0);sample(s,30,7,4,0);
+   for(int t=12;t<=until;t+=5)sample(s,140,t,0,0);
+   sample(s,200,until+5,9,0);
+   assertEquals(planned+(until<600?2:until+5)*1000L,DepartureOnset.first(s,fallback(until+5)).getLong("time"));
+  }
+ }
+ @Test public void longQueueDoesNotRetainOnsetAcrossGpsGapOrReturnToPark()throws Exception{
+  for(boolean parked:new boolean[]{false,true}){
+   JSONObject s=new JSONObject().put("seenStart",true);sample(s,10,2,4,0);sample(s,30,7,4,0);
+   for(int t=12;t<=242;t+=5)sample(s,parked?70:140,t,0,0);
+   sample(s,200,parked?247:272,9,0);
+   assertEquals(planned+(parked?247000:272000),DepartureOnset.first(s,fallback(parked?247:272)).getLong("time"));
+  }
+ }
 }

@@ -34,4 +34,16 @@ public class DepartureEvidenceTest {
         }
         assertNotNull(result);assertEquals(planned+45000,result.getLong("time"));
     }
+    @Test public void stopAndGoDoesNotDiluteMeasuredVehicleMotion()throws Exception{
+        for(boolean walking:new boolean[]{false,true}){
+            JSONObject state=new JSONObject().put("seenStart",true),result=null,t=trip();long at=planned;
+            for(int i=0;i<100;i++){
+                at+=5000;double fraction=.3+Math.floor(i/10.0)*.1;
+                JSONObject nav=new JSONObject().put("configured",true).put("fraction",fraction).put("timestamp",at);
+                result=DepartureEvidence.update(state,t,nav,null,planned-60000,planned,at,37+fraction*.0045,127,5,i%10==0?(walking?1.2:10):0);
+                if(result!=null)break;
+            }
+            if(walking)assertNull(result);else {assertNotNull(result);assertEquals(planned+5000,result.getLong("time"));}
+        }
+    }
 }

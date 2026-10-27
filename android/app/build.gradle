@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 85
-        versionName "0.85-driver-screen"
+        versionCode 86
+        versionName "0.86-trip-results"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

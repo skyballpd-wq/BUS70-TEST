@@ -77,7 +77,12 @@
   function weatherLabel(weather,now){
     if(!weather?.available)return weather?.message||'날씨 연결 대기';
     if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '날씨 갱신 대기';
-    return Number(weather.temperature).toFixed(1)+'° · '+(weather.condition||'관측정보');
+    return Number(weather.temperature).toFixed(1)+'°C · '+(weather.condition||'관측정보');
+  }
+  function weatherObservation(weather,now){
+    if(!weatherLabel(weather,now).includes('°C'))return '현재 날씨 · 수신 대기';
+    const time=new Date(weather.observedAt).toLocaleTimeString('en-GB',{timeZone:'Asia/Seoul',hourCycle:'h23',hour:'2-digit',minute:'2-digit'});
+    return (weather.provider||'날씨')+' · '+time+' 관측';
   }
   function manualActions(input){
     const t=input.trip||{},log=input.log||{},active=input.live&&input.date===input.today&&!log.actualEnd;
@@ -88,9 +93,13 @@
     return rows.map(r=>({...r,disabled:pending||Boolean(r.actual)||!r.allowed,text:r.label+(r.actual?' 완료':input.pending===r.event?' 저장 중…':' 기록')}));
   }
   // A manual receipt time is a record, not evidence of when the vehicle moved.
-  function phaseDifference(comparison,mode){
-    if(mode==='수동')return {label:'기록 기준',state:'manual',title:'수동 입력 시각과 계획의 차이: '+comparison.label.replace(/ 지연$| 빠름$/,'')};
+  function phaseDifference(comparison,mode,compact=false){
+    if(mode==='수동')return {label:compact?'—':'기록 기준',state:'manual',title:'수동 입력 시각이며 실제 출발 지연으로 판단하지 않음. 계획과 기록 차이: '+comparison.label.replace(/ 지연$| 빠름$/,'')};
+    if(compact&&Number.isFinite(comparison.deltaSeconds)&&comparison.deltaSeconds!==0){
+      const seconds=Math.abs(comparison.deltaSeconds),minutes=Math.floor(seconds/60);
+      return {label:(comparison.deltaSeconds>0?'+':'−')+minutes+':'+String(seconds%60).padStart(2,'0'),suffix:comparison.deltaSeconds>0?'늦음':'빠름',state:comparison.state,title:comparison.label};
+    }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,drawRing,drawRoute,weatherLabel,manualActions,phaseDifference};
+  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });
