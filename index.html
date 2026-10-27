@@ -803,11 +803,12 @@
     .orbit-cockpit .cockpit-phases th:nth-child(3){width:29%}
     .orbit-cockpit .cockpit-phases td{padding:10px 4px;vertical-align:middle}
     .orbit-cockpit .cockpit-phases td:first-child strong{font-size:12px;word-break:keep-all}
-    .orbit-cockpit .cockpit-phases td:first-child small{font-size:10px;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;margin-top:3px}
+    .orbit-cockpit .cockpit-phases td:first-child small{display:block;font-size:10px;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;margin-top:3px}
     .orbit-cockpit .cockpit-phases td.phase-planned{font-size:13px}
     .orbit-cockpit .cockpit-phases td.phase-actual{font-size:14px;letter-spacing:-.02em}
     .orbit-cockpit .cockpit-phases .time-deviation{font-size:12px;white-space:nowrap;word-break:keep-all;font-variant-numeric:tabular-nums}
-    .cockpit-phases .difference-direction{display:block;font-size:10px;line-height:1.5;white-space:nowrap}
+    .orbit-cockpit .cockpit-phases td .difference-direction{display:block;font-size:10px;line-height:1.5;white-space:nowrap}
+    .orbit-ring .orbit-speed.waiting{font-size:24px!important}
     .record-view .cockpit-phases{margin:4px 0 6px}
     .orbit-cockpit{container-type:inline-size}
     @container(max-width:260px){
@@ -2886,7 +2887,8 @@
       for(const selector of [".orbit-ring",".orbit-stops",".cockpit-target"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
       const gaps=dashboard.querySelector(".cockpit-gaps");if(gaps)gaps.hidden=!displayLive&&!context.log.actualFrontGap&&!context.log.actualRearGap;
     }
-    if(speed&&waiting)speed.textContent="대기";
+    if(speed)speed.classList.toggle("waiting",waiting);
+    if(speed&&waiting)speed.textContent="출발 대기";
     else if(speed&&displayLive){const match=/^([\d.]+) km\/h$/.exec(speed.textContent);if(match)speed.replaceChildren(el("span",match[1]),el("small","km/h","speed-unit"));}
     const countdown=document.getElementById("driverLiveCountdown"),target=document.getElementById("driverLiveTarget");
     if(countdown&&context){
