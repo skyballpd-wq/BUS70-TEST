@@ -60,7 +60,7 @@ function bus70Route5ApplyTripException_(item, exception) {
   }else if(exception.serviceEndPlace)item.endPlace=String(exception.serviceEndPlace);
   Object.keys(exception).forEach(function(key){item[key]=exception[key];});
   if(item.controlPoint&&item.controlTime&&item.turnTime===item.controlTime){
-    item.turnPlace='';item.turnTime='';item.phaseStatus='OBSERVED_CHECKPOINT';
+    item.turnTime='';item.phaseStatus='OBSERVED_CHECKPOINT';
   }
   return item;
 }

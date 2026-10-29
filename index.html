@@ -357,6 +357,12 @@
     .manager-panel h2 { margin:0 0 8px; font-size:20px; }
     .manager-tools { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .manager-tools input, .manager-tools select { width:100%; min-height:48px; box-sizing:border-box; }
+    .road-safety { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:13px; }
+    .road-safety button { width:auto; padding:6px 10px; min-height:44px; font-size:12px; }
+    .road-safety.warning { color:#b42318; font-weight:700; }
+    .ring-peer-label { font-size:12px; line-height:1.5; color:#334155; grid-column:1 / -1; overflow-wrap:anywhere; }
+    .manager-savebar { position:sticky; top:0; z-index:8; background:#fff; padding:8px 0; display:grid; gap:4px; }
+    #managerStatus { font-size:13px; overflow-wrap:anywhere; }
     .manager-row { display:grid; grid-template-columns:42px minmax(0,1fr) minmax(0,1fr) 70px; gap:8px; align-items:center; margin-top:8px; }
     .manager-row select { width:100%; min-width:0; height:44px; }
     .manager-row strong { text-align:center; }
@@ -1031,12 +1037,13 @@
         <div><label for="managerShift">근무조 (날짜 자동)</label><select id="managerShift" disabled><option value="">서버 확인 대기</option><option value="A">A조</option><option value="B">B조</option></select></div>
       </div>
       <button id="managerLoad" type="button">기사·차량 불러오기</button>
+      <div class="manager-savebar"><button id="managerSave" type="button" hidden>배차 저장</button><div id="managerStatus" class="manager-status" aria-live="polite"></div></div>
+      <details id="managerSupport"><summary>다른 노선 지원기사 배정</summary><label><input id="managerCrossRoute" type="checkbox"> 타노선 지원 배차 승인</label><label for="managerCrossRouteReason">지원 사유</label><input id="managerCrossRouteReason" placeholder="지원 사유 입력"></details>
       <div id="managerRows"></div>
       <details id="operationsDataPanel" class="timetable-editor-panel">
         <summary>통합 DB · 기사·차량·운행계획 연결</summary>
         <div id="operationsDataView" aria-live="polite">열면 선택한 날짜와 노선의 연결 상태를 확인합니다.</div>
       </details>
-      <button id="managerSave" type="button" hidden>배차 저장</button>
       <details id="managerTimetablePanel" class="timetable-editor-panel" hidden>
         <summary>노선별 배차시간표 전체 편집</summary>
         <p class="hint">선택한 노선·날짜의 전용 배차스케줄DB를 불러옵니다. 여러 발차·회차·도착 시간을 수정한 뒤 한 번에 저장하며, 원본 행과 변경 이력은 보존됩니다.</p>
@@ -1067,7 +1074,7 @@
       <label for="managerTimePhoto">배차 시간표 사진</label><input id="managerTimePhoto" type="file" accept="image/jpeg,image/png,image/webp">
       <button id="managerOcr" class="secondary" type="button" hidden>사진 OCR 대조</button>
       <button id="managerGenerate" class="secondary" type="button" hidden>배차 현황 이미지 생성</button>
-      </details><div id="managerStatus" class="manager-status" aria-live="polite"></div>
+      </details>
       <div id="managerOutput" class="manager-output" hidden>
         <img id="managerResultImage" alt="생성된 날짜별 배차 현황">
         <button id="managerShare" type="button">휴대폰 공유 · 카카오톡 선택</button>
@@ -1221,7 +1228,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v86.1
+    소신여객 통합 운행관리 TEST · v87
   </footer>
 
 </div>
@@ -1231,7 +1238,8 @@
 <script src="./login-korean.js"></script>
 <script src="./driver-automation.js?v=86"></script>
 <script src="./driver-recording.js?v=82"></script>
-<script src="./driver-cockpit.js?v=86"></script>
+<script src="./driver-cockpit.js?v=87"></script>
+<script src="./road-safety.js?v=87"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
 <script src="./mobile-compat.js?v=823"></script>
@@ -1444,7 +1452,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v86.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v87";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2850,6 +2858,19 @@
     nativeLocationPolledAt=Date.now();nativeLocationBridge().locationStatus();
   }
 
+  let roadSafetyState={},roadSafetyAudio=null,roadSafetyAudioReady=false;
+  async function enableRoadSafetyAudio(){
+    try{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error();roadSafetyAudio=roadSafetyAudio||new C();await roadSafetyAudio.resume();roadSafetyAudioReady=roadSafetyAudio.state==='running';
+      const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.15);
+    }catch(error){roadSafetyAudioReady=false;}
+    const b=document.getElementById('roadSafetyEnable');if(b)b.textContent=roadSafetyAudioReady?'경고음 준비됨':'경고음 켜기 다시 시도';
+  }
+  function updateRoadSafety(context,navigation,active){
+    const root=document.getElementById('driverRoadSafety');if(!root)return;root.hidden=!active;if(!active)return;
+    const result=Bus70RoadSafety.evaluate({active:active&&Boolean(context?.log.actualStart)&&!context?.log.actualEnd,now:Date.now(),position:lastDriverPosition,navigation,data:lastSchedule?.roadSafety,stopOrder:navigation.path?.stops?.[navigation.matchedIndex]?.order,scope:{route:String(lastSchedule?.route||''),date:document.getElementById('workDate').value,dispatchId:lastSchedule?.dispatch?.dispatchId||lastSchedule?.dispatch?.id,trip:context?.trip.trip}},roadSafetyState);roadSafetyState=result.state;
+    const button=root.querySelector('button');button.hidden=!lastSchedule?.roadSafety?.zones?.length;button.textContent=roadSafetyAudioReady?'경고음 준비됨':'경고음 켜기';root.querySelector('.road-safety-status').textContent=result.status+(result.warning&&!roadSafetyAudioReady?' · 소리 꺼짐':'');root.classList.toggle('warning',Boolean(result.warning?.overspeed));
+    if(result.notify&&roadSafetyAudioReady&&roadSafetyAudio?.state==='running'&&!document.hidden){try{const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=result.warning.overspeed?880:660;g.gain.value=.12;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.3);Bus70RoadSafety.notified(result,Date.now());if('speechSynthesis' in window&&!speechSynthesis.speaking){const message=new SpeechSynthesisUtterance(result.message);message.lang='ko-KR';speechSynthesis.speak(message);}}catch(ignore){roadSafetyAudioReady=false;}}
+  }
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
     driverLiveTimer=setInterval(()=>{
@@ -2875,6 +2896,7 @@
     const navigation=displayLive?(currentNavigation||{}):{},previous=document.getElementById("driverNavPrevious"),current=document.getElementById("driverNavCurrent"),nextStop=document.getElementById("driverNavNext"),distance=document.getElementById("driverNavDistance"),direction=document.getElementById("driverNavDirection"),progressBar=document.getElementById("driverTripProgressBar"),progressLabel=document.getElementById("driverTripProgressLabel"),ring=document.getElementById("driverTripProgressRing"),ringLabel=document.getElementById("driverTripProgressValue"),tripProgress=context?tripProgressValue(lastSchedule,context.trip,context.index,navigation):0;
     const recordingHealth=Bus70Recording.health({live:displayLive,now:Date.now(),plannedAt:context?Bus70Automation.moment(document.getElementById("workDate").value,context.trip.startTime):null,actualStart:context?.log.actualStart,reference:liveFleet.crossCheck,serverError:liveFleet.error,active:locationTrackingActive,gpsFresh:telemetry.fresh,paused:localStorage.getItem(driverLocationPreference())==="N",pending:gpsPendingCount(),syncError:nativeSyncError,inactiveReason:locationPermissionState==="denied"?"위치 권한 필요":nativeLocationEnabled===false?"휴대폰 위치 꺼짐":locationStatusType==="error"?locationStatusText:"GPS 수집 준비 중"});
     updateQuickRunActions(lastSchedule,context);
+    if(typeof Bus70RoadSafety!=="undefined")updateRoadSafety(context,navigation,displayLive);
     const recordSummary=document.getElementById("driverRecordingSummary");
     if(recordSummary){recordSummary.hidden=!displayLive&&!gpsPendingCount();recordSummary.textContent=localStorage.getItem(driverLocationPreference())==="N"?"자동기록 일시중지":!locationTrackingActive?"위치 설정 확인":!telemetry.fresh?"GPS 수신 대기":nativeSyncError?"기록 전송 확인 필요":gpsPendingCount()?"기록 "+gpsPendingCount()+"건 전송 대기":recordingHealth.blocked?"출발 미기록 · 차량 확인 대기":recordingHealth.warning?"GPS 수신 중 · 차량정보 대기":"자동기록 정상";recordSummary.classList.toggle("warning",recordingHealth.warning);}
     const waiting=Boolean(displayLive&&!recordingHealth.blocked&&!context.log.actualStart&&(navigation.waiting||context.state==="출발 대기"));
@@ -2883,7 +2905,7 @@
     const dashboard=document.getElementById("driverLiveDashboard");if(dashboard){
       dashboard.classList.toggle("recording-warning",Boolean(displayLive&&recordingHealth.warning));
       dashboard.classList.toggle("record-view",!displayLive);
-      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
+      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target",".ring-peer-label"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
       const gaps=dashboard.querySelector(".cockpit-gaps");if(gaps)gaps.hidden=!displayLive&&!context.log.actualFrontGap&&!context.log.actualRearGap;
     }
     if(speed)speed.classList.toggle("waiting",waiting);
@@ -2906,7 +2928,7 @@
     if(progressBar)progressBar.style.width=tripProgress+"%";
     if(progressLabel)progressLabel.textContent=(navigation.configured||navigation.retained)?"정류장 "+navigation.tripPassedStops+" / "+navigation.tripStopCount+" · "+tripProgress+"%":"정류장 통과 정보 대기";
     if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(displayLive&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=provisional?tripProgress+"% · GPS 위치 · 출발 미기록":recordingHealth.blocked?"진행률 미확인 · 차량 대조 대기":waiting?"0% · 출발 대기":(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 · "+Math.max(0,Math.floor((Date.now()-Number(navigation.timestamp||0))/1000))+"초 전":navigation.direction):tripProgress===100?"100% · "+context.state:displayLive?"위치 대기":"선택한 탕의 계획·기록";}
-    if(displayLive&&ring&&typeof Bus70Cockpit!=="undefined")try{const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained),Bus70Cockpit.movement(lastDriverPosition,Date.now(),!displayLive||navigation.retained||!navigation.configured));}catch(error){console.warn("진행률 그림 갱신 실패",error);}
+    if(displayLive&&ring&&typeof Bus70Cockpit!=="undefined")try{const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;const peers=Bus70Cockpit.ringPeers(path,liveFleet,navigation,{route:String(lastSchedule.route),date:document.getElementById("workDate").value,vehicleId:lastSchedule.vehicle?.vehicleId||lastSchedule.dispatch?.vehicleId},Date.now());let peerLabel=document.getElementById("driverRingPeers");if(!peerLabel){peerLabel=el("div",null,"ring-peer-label");peerLabel.id="driverRingPeers";ring.parentElement.append(peerLabel);}peerLabel.textContent=Bus70Cockpit.ringPeerLabel(peers);peerLabel.hidden=!displayLive;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained),Bus70Cockpit.movement(lastDriverPosition,Date.now(),!displayLive||navigation.retained||!navigation.configured),peers);}catch(error){console.warn("진행률 그림 갱신 실패",error);}
     if(ringLabel&&displayLive&&(navigation.configured||navigation.retained))ringLabel.textContent+=" · "+Bus70Cockpit.movement(lastDriverPosition,Date.now(),navigation.retained).label;
     if(ring&&recordingHealth.blocked&&!provisional){ring.removeAttribute("aria-valuenow");ring.setAttribute("aria-valuetext","진행률 미확인 · 차량정보 확인 불가");}
     const arrivalNode=document.getElementById("driverArrivalEstimate"),estimate=nativeArrivalEstimate,binding=driverAssignmentBinding(lastSchedule);
@@ -2989,6 +3011,7 @@
     Bus70Cockpit.phases(trip,log,{midStart}).filter(phase=>{const extra=["회차 출발","중간 출발","중간 종료","중간 기준","차고지 복귀"].includes(phase.label);return compact==="additional"?extra:!compact||!extra;}).forEach(phase=>{
       const row=el("tr"),point=el("td"),compare=scheduleComparison(document.getElementById("workDate").value,phase.planned,phase.actual);
       point.append(el("strong",phase.label),el("small",phase.place||"지점 확인 필요"));
+      if(phase.label==="연계 출발")point.append(el("small","전철 막차 연계 · 시각 준수"));
       const observed=actualMoment(document.getElementById("workDate").value,phase.actual);
       const comparison=Bus70Cockpit.phaseDifference(compare,phase.mode,compact===true);
       const planned=el("td",phase.planned?displayTime(phase.planned):"—","phase-planned"),actual=el("td",(actualClock(phase.actual)?(observed&&/\d{1,2}:\d{2}:\d{2}/.test(String(phase.actual)) ? observed.toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour12:false}) : actualClock(phase.actual)):"")|| (phase.actual?"시각 확인 필요":"미기록"),"phase-actual"),diff=el("td",phase.actual&&phase.planned?comparison.label:"—",phase.actual&&phase.planned?"time-deviation "+comparison.state:"");
@@ -3002,7 +3025,7 @@
   }
 
   function renderDriverLiveDashboard(root,data){
-    const context=driverDisplayedContext(data),d=data.dispatch||{},vehicle=data.vehicle||{},box=el("section",undefined,"driver-live-dashboard cockpit orbit-cockpit");box.id="driverLiveDashboard";Bus70Cockpit.bindSwipe(box,delta=>selectDriverTrip(activeTripIndex+delta));
+    const context=driverDisplayedContext(data),d=data.dispatch||{},vehicle=data.vehicle||{},box=el("section",undefined,"driver-live-dashboard cockpit orbit-cockpit");box.id="driverLiveDashboard";const safety=el("div",null,"road-safety");safety.id="driverRoadSafety";const safetyText=el("span","안전경고 자료 확인 중","road-safety-status"),safetyButton=el("button","경고음 켜기","secondary");safetyButton.type="button";safetyButton.id="roadSafetyEnable";safety.hidden=!isDisplayedTripLive(data);safetyButton.addEventListener("click",()=>enableRoadSafetyAudio());safety.append(safetyText,safetyButton);box.append(safety);Bus70Cockpit.bindSwipe(box,delta=>selectDriverTrip(activeTripIndex+delta));
     const conditions=el("div",undefined,"cockpit-now"),today=el("div"),dateLabel=el("small","","current-date"),clock=el("strong","","current-clock"),weatherBox=el("div",undefined,"current-weather");
     conditions.hidden=!isDisplayedTripLive(data);
     dateLabel.id="driverLiveDate";clock.id="driverLiveClock";today.append(dateLabel,clock);conditions.append(today,weatherBox);box.append(conditions);
@@ -3718,7 +3741,7 @@
       const row = el("div", undefined, "manager-row"); row.dataset.sequence = String(seq);
       row.append(el("strong", seq));
       const driver = el("select", undefined, "manager-driver"); driver.append(new Option("기사 선택", ""));
-      data.drivers.filter(v=>String(v.route)===selectedRoute)
+      data.drivers.filter(v=>String(v.route)===selectedRoute||document.getElementById("managerCrossRoute")?.checked)
         .sort((a,b)=>Number(b.route===selectedRoute&&b.shift===selectedShift)-Number(a.route===selectedRoute&&a.shift===selectedShift)||Number(b.route===selectedRoute)-Number(a.route===selectedRoute)||a.name.localeCompare(b.name,"ko"))
         .forEach(v=>{
           const scope=v.route===selectedRoute&&v.shift===selectedShift?"추천":v.route===selectedRoute?"다른 조":"다른 노선";
@@ -3728,7 +3751,7 @@
       data.vehicles.forEach(v => vehicle.append(new Option(v.last3 + " · " + v.displayNo, v.id)));
       if (selected[seq]) {
         const assigned=data.drivers.find(v=>v.id===selected[seq].driverId);
-        if(assigned&&assigned.route!==selectedRoute&&selected[seq].crossRouteAuthorized){driver.append(new Option("[확정 대체] "+assigned.name+" · "+assigned.route+"번",assigned.id));}
+        if(assigned&&assigned.route!==selectedRoute&&!Array.from(driver.options).some(option=>option.value===assigned.id)){driver.append(new Option("[확정 대체] "+assigned.name+" · "+assigned.route+"번",assigned.id));}
         if(selected[seq].driverId&&!Array.from(driver.options).some(option=>option.value===selected[seq].driverId)){
           const missing=new Option("[확정 배차] "+(selected[seq].driverName||"기사 정보 확인 필요"),selected[seq].driverId);missing.disabled=true;driver.append(missing);
         }
@@ -3737,8 +3760,10 @@
         }
         driver.value = selected[seq].driverId; vehicle.value = selected[seq].vehicleId;
       }
-      const confirmation = el("span", selected[seq]?.confirmed ? "확인 완료" : selected[seq]?.predicted ? "예측" : "미확인", "manager-confirm" + (selected[seq]?.confirmed ? " done" : ""));
+      const confirmation = el("span", selected[seq]?.confirmed ? "기사 확인" : selected[seq]?.predicted ? "예측" : selected[seq]?.dispatchId ? "저장됨" : "미저장", "manager-confirm" + (selected[seq]?.confirmed ? " done" : ""));
       if (selected[seq]?.confirmedAt) confirmation.title = selected[seq].confirmedAt;
+      driver.setAttribute("aria-label",seq+"순차 기사");vehicle.setAttribute("aria-label",seq+"순차 차량");
+      [driver,vehicle].forEach(select=>select.addEventListener("change",()=>{confirmation.textContent="수정 중";confirmation.classList.remove("done");managerNotice("변경사항을 저장하세요.");}));
       row.append(driver, vehicle, confirmation); root.append(row);
     }
     document.getElementById("managerSave").hidden = false;
@@ -3947,17 +3972,28 @@
   }
 
   async function saveManagerDay() {
-    if (!managerData) return managerNotice("먼저 기사·차량을 불러오세요.", true);
-    const assignments = managerAssignments();
-    if (assignments.some(v => !v.driverId || !v.vehicleId)) return managerNotice("표시된 모든 운행 순차의 기사와 차량을 선택하세요.", true);
-    const button = document.getElementById("managerSave"); button.disabled = true; button.textContent = "저장 중...";
+    if (!managerData||managerData.mode==="SUMMARY") return managerNotice("먼저 노선의 기사·차량을 불러오세요.",true);
+    const button=document.getElementById("managerSave");if(button.disabled)return;
+    const assignments=managerAssignments(),date=document.getElementById("managerDate").value,route=document.getElementById("managerRoute").value,shift=document.getElementById("managerShift").value,token=authToken;
+    if(managerData.date!==date||String(managerData.route)!==route)return managerNotice("선택한 날짜·노선의 배차를 다시 불러오세요.",true);
+    const missing=assignments.find(v=>!v.driverId||!v.vehicleId);
+    if(missing)return managerNotice(missing.sequence+"순차의 기사와 차량을 선택하세요.",true);
+    if(new Set(assignments.map(v=>v.driverId)).size!==assignments.length||new Set(assignments.map(v=>v.vehicleId)).size!==assignments.length)return managerNotice("같은 기사나 차량이 중복 배정됐습니다.",true);
+    const crossRouteAssignment=document.getElementById("managerCrossRoute")?.checked,reason=document.getElementById("managerCrossRouteReason").value.trim();
+    if(crossRouteAssignment&&!reason)return managerNotice("타노선 지원 사유를 입력하세요.",true);
+    const request=managerRequestId,editors=[...document.querySelectorAll("#managerRows select,#managerCrossRoute,#managerCrossRouteReason")];editors.forEach(n=>n.disabled=true);button.disabled=true;button.textContent="저장 중…";managerNotice(route+"번 배차를 저장하고 있습니다.");
+    const current=()=>request===managerRequestId&&date===document.getElementById("managerDate").value&&route===document.getElementById("managerRoute").value&&authToken===token;
     try {
-      const result = await apiPost({action:"saveManagerDispatchDay",token:authToken,date:document.getElementById("managerDate").value,
-        route:document.getElementById("managerRoute").value,shift:document.getElementById("managerShift").value,assignments});
-      if (!result.ok) return managerNotice(result.message || "배차를 저장하지 못했습니다.", true);
-      managerData = result.data || managerData; managerNotice(result.message || "배차를 저장했습니다.");
-    } catch (error) { console.error(error); managerNotice("저장 결과를 확인하지 못했습니다. 다시 불러와 중복 여부를 확인하세요.", true); }
-    finally { button.disabled = false; button.textContent = assignments.length + "개 순차 저장"; }
+      const result=await apiPost({action:"saveManagerDispatchDay",token,date,route,shift,assignments,crossRouteAssignment,reason});
+      if(!current())return;
+      if(!result.ok)return managerNotice(result.message||"배차를 저장하지 못했습니다.",true);
+      const data=result.data;
+      if(!data||data.date!==date||String(data.route)!==route)return managerNotice("저장 응답의 날짜·노선을 확인하지 못했습니다. 다시 불러와 확인하세요.",true);
+      const saved=(data.assignments||[]).filter(v=>v.shift===shift);
+      if(assignments.some(a=>!saved.some(v=>v.sequence===a.sequence&&v.driverId===a.driverId&&v.vehicleId===a.vehicleId)))return managerNotice("저장 후 배차가 입력값과 다릅니다. 다시 불러와 확인하세요.",true);
+      managerData=data;renderManagerRows(data);managerNotice(result.message||"배차 저장 완료");
+    } catch(error){if(current())managerNotice("저장 결과를 확인하지 못했습니다. 입력값은 유지했습니다. 다시 불러와 확인하세요.",true);}
+    finally{editors.forEach(n=>n.disabled=false);button.disabled=false;if(current())button.textContent=assignments.length+"개 순차 저장";}
   }
 
   function loadTesseract() {
@@ -4109,6 +4145,7 @@
   }
 
   document.getElementById("managerLoad").addEventListener("click",loadManagerData);
+  document.getElementById("managerCrossRoute").addEventListener("change",()=>{if(!managerData||managerData.mode==="SUMMARY")return;const edits=managerAssignments();const shift=document.getElementById("managerShift").value;managerData={...managerData,assignments:edits.map(v=>({...managerData.assignments?.find(a=>a.sequence===v.sequence),...v,shift}))};renderManagerRows(managerData);});
   document.getElementById("managerSave").addEventListener("click",saveManagerDay);
   document.getElementById("managerTimetableLoad").addEventListener("click",()=>loadManagerTimetable());
   document.getElementById("managerTimetableReset").addEventListener("click",()=>{if(managerTimetableData)renderManagerTimetableEditor(managerTimetableData);else loadManagerTimetable();});

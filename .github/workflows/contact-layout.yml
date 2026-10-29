@@ -77,6 +77,8 @@ jobs:
           node tests/operations-data.test.js
           node tests/operations-data.browser.cjs
           node tests/managerdispatch.test.js
+          node tests/field-operations.test.js
+          node tests/field-operations.browser.cjs
           node tests/dispatch-share.browser.cjs
           node tests/driver-ledger.test.js
           python3 tests/ledger-workbook.py
@@ -126,6 +128,7 @@ jobs:
           node tests/accident-report.browser.cjs
           node tests/accident-flow.browser.cjs
           node tests/dispatch-share.browser.cjs
+          node tests/field-operations.browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

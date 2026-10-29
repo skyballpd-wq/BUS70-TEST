@@ -2,7 +2,7 @@ const fs=require('fs'),assert=require('assert'),{chromium,webkit}=require('playw
 const html=fs.readFileSync('index.html','utf8'),css=html.match(/<style>([\s\S]*?)<\/style>/)[1];
 function section(name,next){return html.slice(html.indexOf('  function '+name+'('),html.indexOf('  function '+next+'('));}
 const fixture=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body class="driver-mode"><div class="app"><main class="content" id="test-root"></main></div><input id="workDate" type="hidden" value="2099-01-10">
-<script>${fs.readFileSync('driver-recording.js','utf8')}</script><script>${fs.readFileSync('driver-cockpit.js','utf8')}</script><script>${fs.readFileSync('driver-automation.js','utf8')}</script><script>
+<script>${fs.readFileSync('road-safety.js','utf8')}</script><script>${fs.readFileSync('driver-recording.js','utf8')}</script><script>${fs.readFileSync('driver-cockpit.js','utf8')}</script><script>${fs.readFileSync('driver-automation.js','utf8')}</script><script>
 const localStorage={getItem:()=>null};
 const todayLocal=()=> '2099-01-10';
 const trip={trip:5,startTime:'10:00',startPlace:'합성기점',endPlace:'합성종점'},log={};
@@ -17,6 +17,7 @@ const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undef
 const driverDisplayedContext=()=>context,isDisplayedTripLive=()=>lastSchedule.temporalState==='CURRENT',firstActiveTripIndex=()=>0,runLogForTrip=()=>log;
 const driverLocationPreference=()=>'',gpsPendingCount=()=>0,refreshCockpitWeather=()=>{},routeNavigationState=()=>currentNavigation,matchingOpenIncidents=()=>[],hasNumericValue=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
 const displayTime=v=>v,driverCountdownLabel=()=>'',actualMoment=()=>null,liveHeadwayLabel=()=>'',scheduleSequence=()=>2,hasNativeLocationBridge=()=>false,cockpitPhaseTable=()=>document.createElement('table');
+${html.slice(html.indexOf('  let roadSafetyState='),html.indexOf('  function startDriverLiveTimer('))}
 ${section('tripProgressValue','driverTripProgress')}
 ${section('liveDistanceLabel','liveHeadwayLabel')}
 ${section('updateDriverLiveDashboard','liveMetric')}
