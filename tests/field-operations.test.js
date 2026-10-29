@@ -21,7 +21,7 @@ const html=fs.readFileSync('index.html','utf8');const body=html.slice(html.index
 const fields={managerSave:{disabled:false},managerDate:{value:scope.date},managerRoute:{value:'5'},managerShift:{value:'B'},managerCrossRoute:{checked:false},managerCrossRouteReason:{value:''}};
 const assignments=[{sequence:1,driverId:'TEST-DRIVER',vehicleId:'TEST-CAR'}],data={date:scope.date,route:'5',assignments:assignments.map(a=>({...a,shift:'B',dispatchId:'UNCHANGED'}))};
 let renders=0,posts=0,resolve;const notices=[];
-const ctx=vm.createContext({console,Set,document:{getElementById:id=>fields[id]},managerData:{...data,schedulePrediction:{predicted:true}},authToken:'synthetic',managerRequestId:1,managerAssignments:()=>assignments,managerNotice:(...x)=>notices.push(x),renderManagerRows:()=>renders++,apiPost:async()=>{posts++;return {ok:true,data}}});vm.runInContext(body,ctx);
+const ctx=vm.createContext({console,Set,document:{getElementById:id=>fields[id],querySelectorAll:()=>[]},managerData:{...data,schedulePrediction:{predicted:true}},authToken:'synthetic',managerRequestId:1,managerAssignments:()=>assignments,managerNotice:(...x)=>notices.push(x),renderManagerRows:()=>renders++,apiPost:async()=>{posts++;return {ok:true,data}}});vm.runInContext(body,ctx);
 (async()=>{
  await ctx.saveManagerDay();assert.equal(renders,1);assert.equal(ctx.managerData.schedulePrediction,undefined);assert.equal(posts,1);
  ctx.apiPost=()=>new Promise(r=>resolve=r);const pending=ctx.saveManagerDay();await ctx.saveManagerDay();assert.equal(posts,1,'duplicate call while disabled makes no extra request');fields.managerRoute.value='23';ctx.managerRequestId++;resolve({ok:true,data});await pending;assert.equal(renders,1,'late save response cannot replace another route');

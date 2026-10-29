@@ -18,7 +18,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.match(await page.locator('.manager-confirm').innerText(),/예측/);
   assert(await page.locator('#managerSave').isVisible());
   assert(await page.locator('#managerSave').evaluate(n=>n.getBoundingClientRect().height>=44));
-  await page.locator('#managerSave').click();assert(await page.locator('#managerSave').isDisabled());
+  await page.locator('#managerSave').click();assert(await page.locator('#managerSave').isDisabled());assert(await page.locator('.manager-driver').isDisabled());
   await page.evaluate(()=>resolveSave({ok:false,message:'합성 저장 실패'}));
   await page.waitForFunction(()=>!document.getElementById('managerSave').disabled);
   assert.equal(await page.locator('.manager-driver').inputValue(),'D1');assert.match(await page.locator('#managerStatus').innerText(),/합성 저장 실패/);

@@ -3981,7 +3981,7 @@
     if(new Set(assignments.map(v=>v.driverId)).size!==assignments.length||new Set(assignments.map(v=>v.vehicleId)).size!==assignments.length)return managerNotice("같은 기사나 차량이 중복 배정됐습니다.",true);
     const crossRouteAssignment=document.getElementById("managerCrossRoute")?.checked,reason=document.getElementById("managerCrossRouteReason").value.trim();
     if(crossRouteAssignment&&!reason)return managerNotice("타노선 지원 사유를 입력하세요.",true);
-    const request=managerRequestId;button.disabled=true;button.textContent="저장 중…";managerNotice(route+"번 배차를 저장하고 있습니다.");
+    const request=managerRequestId,editors=[...document.querySelectorAll("#managerRows select,#managerCrossRoute,#managerCrossRouteReason")];editors.forEach(n=>n.disabled=true);button.disabled=true;button.textContent="저장 중…";managerNotice(route+"번 배차를 저장하고 있습니다.");
     const current=()=>request===managerRequestId&&date===document.getElementById("managerDate").value&&route===document.getElementById("managerRoute").value&&authToken===token;
     try {
       const result=await apiPost({action:"saveManagerDispatchDay",token,date,route,shift,assignments,crossRouteAssignment,reason});
@@ -3993,7 +3993,7 @@
       if(assignments.some(a=>!saved.some(v=>v.sequence===a.sequence&&v.driverId===a.driverId&&v.vehicleId===a.vehicleId)))return managerNotice("저장 후 배차가 입력값과 다릅니다. 다시 불러와 확인하세요.",true);
       managerData=data;renderManagerRows(data);managerNotice(result.message||"배차 저장 완료");
     } catch(error){if(current())managerNotice("저장 결과를 확인하지 못했습니다. 입력값은 유지했습니다. 다시 불러와 확인하세요.",true);}
-    finally{button.disabled=false;if(current())button.textContent=assignments.length+"개 순차 저장";}
+    finally{editors.forEach(n=>n.disabled=false);button.disabled=false;if(current())button.textContent=assignments.length+"개 순차 저장";}
   }
 
   function loadTesseract() {
