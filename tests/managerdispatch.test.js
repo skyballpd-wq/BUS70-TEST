@@ -349,3 +349,19 @@ const extraDriver=context.bus70ConfirmedRouteScheduleForDriver_({driverId:'SYN23
 assert.equal(extraDriver.ok,true);assert.equal(extraDriver.route,'23');assert.equal(extraDriver.dispatch.sequence,1);assert.equal(extraDriver.trips.length,1);
 assert.equal(context.bus70ConfirmedRouteScheduleForDriver_({driverId:'SYN23D'},'2099-01-09','23'),null);
 console.log('DB-only route, master registry, cross-route driver/vehicle, dated lookup and midnight plan passed');
+
+// An edit preserves the dispatch identity used by recorded trips and confirmations.
+const identityBoot=context.bus70ManagerBootstrap_('2099-01-08','70');
+const identityInput=Object.keys(identityBoot.departures).map(Number).sort((a,b)=>a-b).map((sequence,i)=>({sequence,driverId:identityBoot.drivers.filter(d=>d.route==='70')[i].id,vehicleId:identityBoot.vehicles[i].id}));
+const identitySaved=context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:identityInput},'D1');assert(identitySaved.ok);
+const idColumn=dispatch.rows[0].indexOf('dispatchId'),dateColumn=dispatch.rows[0].indexOf('날짜');
+const identityRow=dispatch.rows.find(r=>r[dateColumn]==='2099-01-08'&&r[dispatch.rows[0].indexOf('노선')]==='70'&&Number(r[3])===1);identityRow[idColumn]='SYNTHETIC-ORIGINAL-ID';
+assert(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:identityInput},'D1').ok);assert.equal(identityRow[idColumn],'SYNTHETIC-ORIGINAL-ID');
+assert(dispatch.rows.some(r=>r[dateColumn]==='2099-01-08'&&r[idColumn]==='SYNTHETIC-ORIGINAL-ID'));
+
+confirmations.appendRow(['SYN-CONFIRM','2099-01-08',identityInput[0].driverId,'SYNTHETIC-ORIGINAL-ID',identityBoot.scheduleVersion,'2099-01-08 05:00','','','','']);
+assert(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:identityInput},'D1').ok);
+assert.equal(confirmations.rows.at(-1)[9],'','unchanged assignment keeps driver confirmation');
+const swapped=identityInput.map(v=>({...v}));[swapped[0].vehicleId,swapped[1].vehicleId]=[swapped[1].vehicleId,swapped[0].vehicleId];
+assert(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:swapped},'D1').ok);
+assert.equal(confirmations.rows.at(-1)[9],'Y','vehicle or driver change requires fresh driver confirmation');

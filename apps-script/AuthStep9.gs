@@ -346,6 +346,7 @@ function bus70EnrichDriverSchedule_(schedule, driverId, rawDate) {
   const stops=schedule.routeProfile&&Array.isArray(schedule.routeProfile.stops)?schedule.routeProfile.stops:[];
   const coordinateStops=stops.filter(function(stop){return bus70LocationNumber_(stop.lat,-90,90)!==null&&bus70LocationNumber_(stop.lng,-180,180)!==null;});
   schedule.liveNavigation={route:String(schedule.route||''),stopCount:stops.length,coordinateStopCount:coordinateStops.length,directions:coordinateStops.map(function(stop){return String(stop.direction||'');}).filter(function(value,index,all){return value&&all.indexOf(value)===index;}),locationSnapshotTtlSeconds:600,locationFreshSeconds:180,historyStored:false};
+  if(typeof bus70RoadSafetyData_==='function'){try{schedule.roadSafety=bus70RoadSafetyData_(String(schedule.route||''));}catch(ignore){schedule.roadSafety={available:false,zones:[],message:'안전경고 자료 연결 확인 필요'};}}
   return schedule;
 }
 
