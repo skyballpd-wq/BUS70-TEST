@@ -3014,7 +3014,7 @@
       if(phase.label==="연계 출발")point.append(el("small","전철 막차 연계 · 시각 준수"));
       const observed=actualMoment(document.getElementById("workDate").value,phase.actual);
       const comparison=Bus70Cockpit.phaseDifference(compare,phase.mode,compact===true);
-      const planned=el("td",phase.planned?((phase.label==="연계 출발"&&phase.planned<trip.startTime?"익일 ":"")+displayTime(phase.planned)):"—","phase-planned"),actual=el("td",(actualClock(phase.actual)?(observed&&/\d{1,2}:\d{2}:\d{2}/.test(String(phase.actual)) ? observed.toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour12:false}) : actualClock(phase.actual)):"")|| (phase.actual?"시각 확인 필요":"미기록"),"phase-actual"),diff=el("td",phase.actual&&phase.planned?comparison.label:"—",phase.actual&&phase.planned?"time-deviation "+comparison.state:"");
+      const planned=el("td",phase.planned?displayTime(phase.planned):"—","phase-planned"),actual=el("td",(actualClock(phase.actual)?(observed&&/\d{1,2}:\d{2}:\d{2}/.test(String(phase.actual)) ? observed.toLocaleTimeString("en-GB",{timeZone:"Asia/Seoul",hour12:false}) : actualClock(phase.actual)):"")|| (phase.actual?"시각 확인 필요":"미기록"),"phase-actual"),diff=el("td",phase.actual&&phase.planned?comparison.label:"—",phase.actual&&phase.planned?"time-deviation "+comparison.state:"");
       diff.title=comparison.title;
       planned.dataset.label="예정";actual.dataset.label="실제";diff.dataset.label=compact===true?"차이(분:초)":"차이";
       actual.title=actual.textContent+(phase.mode?" · "+phase.mode:"");

@@ -35,7 +35,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    const safety=document.createElement('div');safety.id='driverRoadSafety';safety.className='road-safety';safety.innerHTML='<span class="road-safety-status"></span><button>경고음 켜기</button>';root.append(safety);
    lastSchedule={route:'5',dispatch:{dispatchId:'TEST'},roadSafety:{zones:[]}};updateRoadSafety({trip:{trip:1},log:{actualStart:'10:00'}},{configured:false},true);
   });
-  assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/익일 00:05/);assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/시험복지회관/);
+  assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/다음날 00:05/);assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/시험복지회관/);
   assert.match(await page.locator('#driverRoadSafety').innerText(),/자료 미등록/);assert.equal(await page.locator('#driverRoadSafety button').isVisible(),false);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/field-operations-'+width+'.png',fullPage:true});}
   assert.deepEqual(errors,[]);await page.close();
