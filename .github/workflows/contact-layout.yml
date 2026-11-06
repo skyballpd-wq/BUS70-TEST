@@ -78,6 +78,7 @@ jobs:
           node tests/operations-data.browser.cjs
           node tests/managerdispatch.test.js
           node tests/field-operations.test.js
+          node tests/live-stop-peers.test.js
           node tests/field-operations.browser.cjs
           node tests/dispatch-share.browser.cjs
           node tests/driver-ledger.test.js

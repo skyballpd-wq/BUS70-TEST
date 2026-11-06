@@ -504,7 +504,28 @@ function bus70LiveLocationDistance_(a,b) {
 
 function bus70LiveLocationPublic_(snapshot, own) {
   if(!snapshot)return null;
-  return {route:snapshot.route,date:snapshot.date,sequence:snapshot.sequence,trip:snapshot.trip,vehicleId:snapshot.vehicleId,dispatchId:snapshot.dispatchId,latitude:snapshot.latitude,longitude:snapshot.longitude,accuracyM:snapshot.accuracyM,speedKmh:snapshot.speedKmh,heading:snapshot.heading,direction:snapshot.direction,previousStop:snapshot.previousStop,currentStop:snapshot.currentStop,nextStop:snapshot.nextStop,distanceToNextM:snapshot.distanceToNextM,routeProgressPercent:snapshot.routeProgressPercent,tripProgressPercent:snapshot.tripProgressPercent,segmentDurationMinutes:snapshot.segmentDurationMinutes,matchedStopOrder:snapshot.matchedStopOrder,recordedAt:snapshot.recordedAt,freshnessSeconds:Math.max(0,Math.round((Date.now()-Number(snapshot.recordedAtMs||0))/1000)),own:Boolean(own)};
+  return {route:snapshot.route,date:snapshot.date,sequence:snapshot.sequence,trip:snapshot.trip,vehicleId:snapshot.vehicleId,dispatchId:snapshot.dispatchId,running:snapshot.running===true,latitude:snapshot.latitude,longitude:snapshot.longitude,accuracyM:snapshot.accuracyM,speedKmh:snapshot.speedKmh,heading:snapshot.heading,direction:snapshot.direction,previousStop:snapshot.previousStop,currentStop:snapshot.currentStop,nextStop:snapshot.nextStop,distanceToNextM:snapshot.distanceToNextM,routeProgressPercent:snapshot.routeProgressPercent,tripProgressPercent:snapshot.tripProgressPercent,segmentDurationMinutes:snapshot.segmentDurationMinutes,matchedStopOrder:snapshot.matchedStopOrder,recordedAt:snapshot.recordedAt,freshnessSeconds:Math.max(0,Math.round((Date.now()-Number(snapshot.recordedAtMs||0))/1000)),own:Boolean(own)};
+}
+
+// Read actual run records for this response. A phone's GPS or planned start is
+// not evidence that its assigned bus has departed. Completion wins over duplicates.
+function bus70LiveRunningTrips_(route,date) {
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('운행일지'),trips={};
+  if(!sheet||sheet.getLastRow()<2)return trips;
+  const rows=typeof bus70PartitionRows_==='function'?bus70PartitionRows_(sheet):sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]||[]);
+  const required=['날짜','노선','기사ID','배차ID','차량ID','순차','탕','발차실제','도착실제'];
+  if(required.some(function(name){return c[name]===undefined;}))return trips;
+  rows.slice(1).forEach(function(row){
+    if(normalizeDate_(row[c['날짜']])!==date||bus70LiveLocationRoute_(row[c['노선']])!==String(route))return;
+    const binding=[row[c['기사ID']],row[c['배차ID']],row[c['차량ID']],Number(row[c['순차']])];
+    if(binding.some(function(value){return !value;}))return;
+    const trip=Number(row[c['탕']]),start=String(row[c['발차실제']]||''),ended=Boolean(row[c['도착실제']]);
+    if(!Number.isInteger(trip)||trip<1||(!start&&!ended))return;
+    const key=JSON.stringify(binding),previous=trips[key];
+    if(!previous||trip>previous.trip)trips[key]={trip:trip,ended:ended,running:/\d{1,2}:\d{2}/.test(start)&&!ended};
+    else if(trip===previous.trip&&ended){previous.ended=true;previous.running=false;}
+  });
+  return trips;
 }
 
 function bus70LiveLocationNeighbour_(snapshot, own, direction) {
@@ -517,8 +538,8 @@ function bus70LiveLocationNeighbour_(snapshot, own, direction) {
 }
 
 function bus70DriverLiveView_(assignment, driverId) {
-  const snapshots=bus70LiveLocationSnapshotMap_(assignment.route,assignment.date),now=Date.now(),active={};
-  Object.keys(snapshots).forEach(function(key){const item=snapshots[key];if(item&&now-Number(item.recordedAtMs||0)<=BUS70_LIVE_LOCATION_FRESH_MS)active[key]=item;});
+  const snapshots=bus70LiveLocationSnapshotMap_(assignment.route,assignment.date),now=Date.now(),active={},runningTrips=bus70LiveRunningTrips_(assignment.route,assignment.date);
+  Object.keys(snapshots).forEach(function(key){const item=snapshots[key];if(item&&now-Number(item.recordedAtMs||0)>=0&&now-Number(item.recordedAtMs||0)<=BUS70_LIVE_LOCATION_FRESH_MS){const run=runningTrips[JSON.stringify([item.driverId,item.dispatchId,item.vehicleId,Number(item.sequence)])];active[key]=Object.assign({},item,{running:Boolean(run&&run.running&&run.trip===Number(item.trip))});}});
   const own=active[String(assignment.sequence)]&&String(active[String(assignment.sequence)].driverId||'')===String(driverId)?active[String(assignment.sequence)]:null,front=active[String(assignment.sequence-1)]||null,rear=active[String(assignment.sequence+1)]||null;
   let crossCheck=null;if(typeof bus70GyeonggiCrossCheck_==='function'){try{crossCheck=bus70GyeonggiCrossCheck_(assignment,own);}catch(ignore){crossCheck={available:false,message:'경기도 차량정보 대조 대기'};}}
   return {ok:true,crossCheck:crossCheck,route:assignment.route,date:assignment.date,sequence:assignment.sequence,positions:Object.keys(active).map(function(key){return bus70LiveLocationPublic_(active[key],Boolean(own&&key===String(assignment.sequence)));}).sort(function(a,b){return a.sequence-b.sequence;}),own:bus70LiveLocationPublic_(own,true),front:bus70LiveLocationNeighbour_(front,own,'front'),rear:bus70LiveLocationNeighbour_(rear,own,'rear'),freshSeconds:Math.round(BUS70_LIVE_LOCATION_FRESH_MS/1000),retentionSeconds:BUS70_LIVE_LOCATION_TTL_SECONDS,historyStored:false};
@@ -1024,7 +1045,7 @@ function bus70DriverLeaveContext_(driver, rawDate) {
         function get(key){return c[key]===undefined?'':clean(row[c[key]]);}
         const id=get('기사ID'),nameMatch=get('기사명').replace(/\s/g,'')===clean(driver.name).replace(/\s/g,'');
         if(id?id!==String(driver.driverId):!nameMatch||!get('기사명'))return;
-        if(get('노선')&&get('노선').replace(/\D/g,'')!==route)return;
+        if(!id&&get('노선')&&get('노선').replace(/\D/g,'')!==route)return;
         const type=get('유형');if(!/휴무|연차|휴가|병가|휴직/.test(type))return;
         const start=normalizeDate_(get('시작일')||get('적용일')||get('날짜')),end=normalizeDate_(get('종료일')||start);
         if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start)return;

@@ -49,29 +49,25 @@
   // Each marker uses an observed stop occurrence, never timetable interpolation.
   function ringPeers(path,fleet,own,scope,now){
     const stops=path?.stops||[],result=[];
-    if(stops.length<2||!Number.isInteger(own?.matchedIndex)||own.matchedIndex<0||own.matchedIndex>=stops.length||!own?.configured||own.retained||!scope||fleet?.route!==String(scope.route)||fleet?.date!==scope.date)return result;
+    if(stops.length<2||!Number.isInteger(own?.matchedIndex)||own.matchedIndex<0||own.matchedIndex>=stops.length||!own?.configured||own.retained||scope?.running!==true||fleet?.route!==String(scope.route)||fleet?.date!==scope.date)return result;
     const index=Math.max(0,Math.min(stops.length-1,Number(own.matchedIndex)||0));
-    const pivot=path.pivotIndex>=0?path.pivotIndex:path.turnIndex;
-    const leg=s=>String(s?.direction||'')||(pivot>=0?(Number(s?.order)<=Number(stops[pivot]?.order)?'OUT':'BACK'):'UNKNOWN');
-    const currentLeg=leg(stops[index]);if(currentLeg==='UNKNOWN')return result;
-    const candidates=(fleet.positions||[]).filter(p=>!p.own&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
+    const candidates=(fleet.positions||[]).filter(p=>p.running===true&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
       const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder));
       const at=Date.parse(p.recordedAt),age=(now-at)/1000;
-      if(i<0||leg(stops[i])!==currentLeg||!Number.isFinite(age)||age<0||age>90||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),source:'앱 GPS',vehicle:p.vehicleId,sequence:p.sequence,stale:age>30};
+      if(i<0||!Number.isFinite(age)||age<0||age>45||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index)};
     }).filter(Boolean);
-    // Same-stop observations cannot establish an ordering; retain only a shared-location label.
-    if(candidates.some(p=>p.index===index))return [{sameStop:true,age:Math.min(...candidates.filter(p=>p.index===index).map(p=>p.age)),stopName:stops[index].name}];
+    // A route occurrence includes the return leg. Never wrap completed trips to the start.
+    // Same-stop observations cannot establish front/rear order; other neighbours remain visible.
+    const unique=[...new Map(candidates.sort((a,b)=>b.age-a.age).map(p=>[p.vehicle,p])).values()];
     for(const side of ['front','rear']){
-      const peers=candidates.filter(p=>side==='front'?p.index>index:p.index<index).sort((a,b)=>side==='front'?a.index-b.index:b.index-a.index);
-      if(!peers.length||peers.filter(p=>p.index===peers[0].index).length!==1)continue;
-      result.push({...peers[0],side,fraction:(peers[0].index+.5)/stops.length});
+      const peers=unique.filter(p=>side==='front'?p.index>index:p.index<index).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
+      peers.forEach((p,i)=>result.push({...p,side,rank:i+1,fraction:(p.index+.5)/stops.length}));
     }
     return result;
   }
   function ringPeerLabel(peers){
-    if(peers.some(p=>p.sameStop))return '다른 차량 같은 정류장 · 앞뒤 확인 중';
-    return ['front','rear'].map(side=>{const p=peers.find(p=>p.side===side);return (side==='front'?'● 앞차(파랑)':'● 뒷차(주황)')+' '+(p?(p.sequence+'순차 · '+p.stopName+' · '+p.source+' '+p.age+'초 전'+(p.stale?' (지연)':'')):'위치 수신 대기');}).join(' / ');
+    return peers.map(p=>(p.side==='front'?'앞':'뒤')+p.rank+' · '+p.stopGap+'정류장').join(', ');
   }
   function drawRing(host,total,passed,progress,held=false,motion,peers=[]){
     const fraction=Number.isFinite(progress)?Math.max(0,Math.min(100,progress))/100:(total?passed/total:0),doc=host.ownerDocument;
@@ -88,12 +84,17 @@
     const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${-90+fraction*360}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',motion?.color||(held?'#7b8b9e':'#075e56'));host.dataset.movement=motion?.key||'unknown';
     svg.querySelector('.route-peers')?.remove();
     const markers=svgNode(doc,'g',{class:'route-peers'});
-    peers.filter(p=>!p.sameStop).forEach(p=>{
-      const angle=(-90+p.fraction*360)*Math.PI/180,x=60+49*Math.cos(angle),y=60+49*Math.sin(angle),color=p.side==='front'?'#2563eb':'#c25916';
-      const marker=svgNode(doc,'circle',{cx:x,cy:y,r:3,class:'route-peer '+p.side,fill:p.stale?'white':color,stroke:color,'stroke-width':1.2});
-      if(p.stale)marker.setAttribute('stroke-dasharray','1 1');
-      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.sequence+'순차 · '+p.stopName+' · '+p.age+'초 전';marker.append(title);markers.append(marker);
-    });svg.append(markers);
+    const ticks=svg.querySelectorAll('.route-tick');
+    peers.filter(p=>Number.isInteger(p.index)&&ticks[p.index]).forEach(p=>{
+      const coincident=peers.filter(q=>q.index===p.index),slot=coincident.indexOf(p),count=coincident.length;
+      const marker=ticks[p.index].cloneNode();marker.setAttribute('class','route-peer '+p.side);marker.setAttribute('stroke',p.side==='front'?'#2563eb':'#c25916');
+      // Two vehicles at one stop occupy two radial stripes of that same tick.
+      if(count>1){const scale=(49-3.5+7*(slot+.5)/count)/49;marker.setAttribute('transform',`translate(60 60) scale(${scale}) translate(-60 -60)`);marker.setAttribute('stroke-width',String(6/count/scale));}
+      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName;marker.append(title);markers.append(marker);
+    });
+    const ownIndex=Math.min(ticks.length-1,Math.floor(Number(passed)||0)-1);
+    if(ownIndex>=0){const ownTick=ticks[ownIndex].cloneNode();ownTick.setAttribute('class','route-own');ownTick.setAttribute('stroke',held?'#7b8b9e':'#7c3aed');markers.append(ownTick);}
+    svg.append(markers);svg.append(arrow);
 
   }
   function drawRoute(host,path,position,navigation){
@@ -111,9 +112,10 @@
     host.replaceChildren(svg);
   }
   function weatherLabel(weather,now){
-    if(!weather?.available)return weather?.message||'날씨 연결 대기';
-    if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '날씨 갱신 대기';
-    return Number(weather.temperature).toFixed(1)+'°C · '+(weather.condition||'관측정보');
+    if(!weather?.available)return '🌡️ —';
+    if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '🌡️ —';
+    const condition=String(weather.condition||''),icon=/천둥|뇌우|번개/.test(condition)?'⛈️':/눈|진눈깨비/.test(condition)?'🌨️':/비|소나기|이슬비/.test(condition)?'🌧️':/안개/.test(condition)?'🌫️':/맑/.test(condition)?'☀️':/구름|흐림/.test(condition)?'☁️':'🌡️';
+    return icon+' '+Number(weather.temperature).toFixed(1)+'°C';
   }
   function weatherObservation(weather,now){
     if(!weatherLabel(weather,now).includes('°C'))return '현재 날씨 · 수신 대기';

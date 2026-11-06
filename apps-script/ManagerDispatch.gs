@@ -726,6 +726,11 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
       driverEvents.forEach(function(v){if(v.date>date)return;const nextRoute=String(v.row[wc['변경노선']]||'').trim(),nextShift=String(v.row[wc['변경근무조']]||'').trim(),nextEmpId=String(v.row[wc['새사원번호']]||'').trim(),nextType=String(v.row[wc['변경기사구분']]||'').trim();if(nextRoute)driver.route=nextRoute;if(nextShift)driver.shift=nextShift;if(nextEmpId)driver.empId=nextEmpId;if(nextType)driver.driverType=nextType;});
     });
   }
+  if(typeof bus70MonthlyRosterForDate_==='function')bus70MonthlyRosterForDate_(ss,date).forEach(function(plan){
+    const driver=allDrivers.find(function(item){return item.id===plan.driverId;});if(!driver)return;
+    driver.route=plan.route;driver.shift=plan.shift;driver.monthlyRosterRole=plan.role;
+    if(plan.role==='예비')driver.driverType='예비';
+  });
   let drivers = allDrivers.filter(function(v){return !unavailable[v.id]&&!unavailableNames[String(v.name||'').replace(/\s/g,'')];});
   let vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle',route);
   const maintenanceSheet=ss.getSheetByName('정비DB'), unavailableVehicles={};
@@ -746,14 +751,15 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   const assignedVehicleIds={};savedAssignments.forEach(function(item){assignedVehicleIds[item.vehicleId]=true;});
   bus70ManagerMasterRows_(vehicleSheet,'vehicle').forEach(function(vehicle){if(assignedVehicleIds[vehicle.id]&&!unavailableVehicles[vehicle.id]&&!vehicles.some(function(v){return v.id===vehicle.id;}))vehicles.push(vehicle);});
   const savedDriverIds={};savedAssignments.forEach(function(item){savedDriverIds[item.driverId]=true;});
-  const plannedLeaves=typeof bus70PlannedLeavesForDate_==='function'?bus70PlannedLeavesForDate_(ss,route,date):[],observedNames={},plannedLeaveOverrides=[],effectivePlannedLeaves=[];
+  const plannedLeaves=typeof bus70PlannedLeavesForDate_==='function'?bus70PlannedLeavesForDate_(ss,route,date,true):[],observedNames={},plannedLeaveOverrides=[],effectivePlannedLeaves=[];
   if(reference&&reference.ok&&!reference.predicted)(reference.assignments||[]).forEach(function(item){const name=String(item.driverName||'').replace(/\s/g,'');if(name)observedNames[name]=true;});
   plannedLeaves.forEach(function(plan){
     const names=[plan.driverName].concat(plan.aliases||[]).map(function(name){return String(name||'').replace(/\s/g,'');}).filter(Boolean),name=names[0];if(!name)return;
     const assignedById=plan.driverId?Boolean(savedDriverIds[String(plan.driverId)]):allDrivers.some(function(driver){return String(driver.route)===route&&savedDriverIds[driver.id]&&names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1;});
-    if(assignedById||names.some(function(candidate){return observedNames[candidate];})){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:assignedById?'당일 확정 배차 우선':'확정 배차상황판 우선'});return;}
-    effectivePlannedLeaves.push(plan);names.forEach(function(candidate){unavailableNames[candidate]=String(plan.type||'휴무');});
-    allDrivers.forEach(function(driver){if(names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1&&String(driver.route||'')===route)unavailable[driver.id]=String(plan.type||'휴무');});
+    if(assignedById||(!plan.driverId&&plan.route===route&&names.some(function(candidate){return observedNames[candidate];}))){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:assignedById?'당일 확정 배차 우선':'확정 배차상황판 우선'});return;}
+    effectivePlannedLeaves.push(plan);
+    if(plan.driverId)unavailable[String(plan.driverId)]=String(plan.type||'휴무');
+    else if(plan.route===route){names.forEach(function(candidate){unavailableNames[candidate]=String(plan.type||'휴무');});allDrivers.forEach(function(driver){if(names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1&&String(driver.route||'')===route)unavailable[driver.id]=String(plan.type||'휴무');});}
   });
   if(effectivePlannedLeaves.length)drivers=drivers.filter(function(driver){return !unavailable[driver.id]&&!unavailableNames[String(driver.name||'').replace(/\s/g,'')];});
   const routeStorageSync=reference&&reference.ok&&!reference.predicted&&!(reference.phaseInference&&reference.phaseInference.managerReviewRequired)?bus70SyncRouteReferenceToDb_(ss,route,reference):null;

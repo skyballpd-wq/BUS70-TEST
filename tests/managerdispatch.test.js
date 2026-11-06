@@ -365,3 +365,33 @@ assert.equal(confirmations.rows.at(-1)[9],'','unchanged assignment keeps driver 
 const swapped=identityInput.map(v=>({...v}));[swapped[0].vehicleId,swapped[1].vehicleId]=[swapped[1].vehicleId,swapped[0].vehicleId];
 assert(context.bus70SaveManagerDispatchDay_({route:'70',date:'2099-01-08',shift:'B',assignments:swapped},'D1').ok);
 assert.equal(confirmations.rows.at(-1)[9],'Y','vehicle or driver change requires fresh driver confirmation');
+
+// A reserve driver's leave follows identity across routes; a namesake remains
+// selectable, and a dated roster never rewrites the master or other months.
+drivers.appendRow(['SYN-RESERVE','','가상지원기사','B','양성','','','70',990,'재직']);
+drivers.appendRow(['SYN-NAMESAKE','','가상지원기사','B','노선','','','23',991,'재직']);
+sheets['월간근무명단DB']=sheet([
+  ['명단ID','기준월','노선','근무조','기사ID','기사명','명단구분','상태'],
+  ['SYN-ROSTER','2099-01','5','B','SYN-RESERVE','가상지원기사','예비','확정'],
+  ['SYN-NO-TRAINING','2099-01','70','B','SYN-NAMESAKE','가상지원기사','B조','확정']
+],'월간근무명단DB');
+assert.equal(context.bus70MonthlyRosterForDate_(spreadsheet,'2098-12-31').length,0);
+assert.equal(context.bus70MonthlyRosterForDate_(spreadsheet,'2099-02-01').length,0);
+assert.equal(context.bus70MonthlyRosterForDate_(spreadsheet,'2099-01-08').length,1,'no fixed training roster');
+let monthlyBoard=context.bus70ManagerBootstrap_('2099-01-08','23');
+assert.equal(monthlyBoard.drivers.find(d=>d.id==='SYN-RESERVE').route,'5');
+assert.equal(monthlyBoard.drivers.find(d=>d.id==='SYN-RESERVE').driverType,'예비');
+assert.equal(drivers.rows.find(r=>r[0]==='SYN-RESERVE')[7],'70','read-only monthly overlay');
+sheets['기사휴무계획DB']=sheet([
+  ['계획ID','노선','근무조','기사ID','기사명','별칭','유형','적용일','상태','원본근거'],
+  ['SYN-LEAVE','5','B','SYN-RESERVE','가상지원기사','','휴무','2099-01-08','확정','SYNTHETIC'],
+  ['SYN-IDLESS','5','B','','가상교대기사','','휴무','2099-01-08','확정','SYNTHETIC']
+],'기사휴무계획DB');
+monthlyBoard=context.bus70ManagerBootstrap_('2099-01-08','23');
+assert(!monthlyBoard.drivers.some(d=>d.id==='SYN-RESERVE'));
+assert(monthlyBoard.drivers.some(d=>d.id==='SYN-NAMESAKE'),'namesake is not excluded by another identity');
+assert(monthlyBoard.drivers.some(d=>d.id==='SYN23D'),'id-less cross-route name cannot block a driver');
+sheets['기사휴무계획DB'].appendRow(['SYN-LEAVE','5','B','SYN-RESERVE','가상지원기사','','휴무','2099-01-08','취소','SYNTHETIC']);
+context.bus70InvalidatePartition_(sheets['기사휴무계획DB']);
+assert(context.bus70ManagerBootstrap_('2099-01-08','23').drivers.some(d=>d.id==='SYN-RESERVE'));
+console.log('Monthly roster boundaries, training exclusion, immutable master, cross-route reserve leave and namesake isolation passed');
