@@ -67,7 +67,9 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await page.locator('.schedule-options>summary').click();
   await page.evaluate(()=>{
    document.getElementById('driverRecordFeedback').replaceChildren();
-   routeNavigationState=()=>({trip:5,configured:true,tripProgressPercent:42.5,tripPassedStops:49,tripStopCount:114,previousStop:'가상중앙공원.도서관',nextStop:'가상행정복지센터.대학병원',direction:'회차 방면',path:{stops:[]}});
+   lastSchedule.routeProfile.stops=Array.from({length:114},(_,i)=>({id:'SYN-STOP'+i,order:i+1,name:i===0||i===113?'합성차고지':i===57?'합성회차지':'합성정류장'+i,lat:37+i*.001,lng:127,origin:i===0,turnaround:i===57}));
+   liveFleet.positions=[78,84,68,64].map((index,i)=>({route:'5',date:'2099-01-08',vehicleId:'SYN-PEER'+i,sequence:i+2,running:true,matchedStopOrder:index+1,recordedAt:new Date(Date.now()).toISOString(),accuracyM:5}));
+   routeNavigationState=()=>({trip:5,configured:true,matchedIndex:48,tripProgressPercent:42.5,tripPassedStops:49,tripStopCount:114,previousStop:'가상중앙공원.도서관',nextStop:'가상행정복지센터.대학병원',direction:'회차 방면',path:{stops:[]}});
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37,longitude:127,accuracy:2,speed:24/3.6}};updateDriverLiveDashboard();
   });
   assert.equal(await page.locator('#driverTripProgressRing .route-tick').count(),114);
@@ -76,7 +78,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   const clockBefore=await page.locator('#driverLiveClock').innerText();
   await page.clock.fastForward('00:00:05');
   await page.evaluate(()=>{
-   const previous=routeNavigationState;routeNavigationState=(...args)=>({...previous(...args),tripProgressPercent:63,tripPassedStops:72});
+   const previous=routeNavigationState;routeNavigationState=(...args)=>({...previous(...args),tripProgressPercent:63,tripPassedStops:72,matchedIndex:71});
    cockpitWeather={available:true,temperature:0,condition:'눈',provider:'기상청',observedAt:'2099-01-08T10:00:00+09:00'};
    updateDriverLiveDashboard();
   });
@@ -85,10 +87,19 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   const clockAfter=await page.locator('#driverLiveClock').innerText(),seconds=text=>text.split(':').reduce((total,value)=>total*60+Number(value),0);
   assert(seconds(clockAfter)-seconds(clockBefore)>=5,'live clock advances with elapsed time across browser speeds');
   assert.match(await page.locator('#driverWeather').innerText(),/0.0°C/);
-  assert.match(await page.locator('#driverWeatherTime').innerText(),/10:00 관측/);
+  assert.equal(await page.locator('#driverWeather').innerText(),'🌨️ 0.0°C');
+  assert.equal(await page.locator('#driverWeatherTime').isVisible(),false,'observation explanation is not visible');
+  assert.match(await page.locator('#driverWeather').getAttribute('title'),/10:00 관측/);
+  assert.equal(await page.locator('.cockpit-gaps').count(),0,'live ring uses stop spacing rather than minutes');
   assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
+  assert.equal(await page.locator('#driverTripProgressRing .route-peer.front').count(),2);
+  assert.equal(await page.locator('#driverTripProgressRing .route-peer.rear').count(),2);
+  assert.doesNotMatch(await page.locator('#driverRingPeers').innerText(),/분|초|대기/);
+  assert.equal(await page.locator('#driverRingPeers').evaluate(n=>n.previousElementSibling.id),'driverTripProgressRing','compact legend sits beside the ring');
   assert(await page.locator('.orbit-stops').evaluate(n=>n.scrollWidth<=n.clientWidth+1));
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/quick-record-'+width+'.png'});}
+  await page.evaluate(()=>{liveFleet.positions[0].running=false;updateDriverLiveDashboard();});
+  assert.equal(await page.locator('#driverTripProgressRing .route-peer').count(),3,'completed peer disappears from the full app ring');
   await page.evaluate(()=>selectDriverTrip(5));
   assert.equal(await page.locator('.quick-run-actions').count(),0,'future selection has no record buttons');
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'future trip hides '+selector);

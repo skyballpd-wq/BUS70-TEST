@@ -14,6 +14,7 @@ for(const date of ['2099-01-12','2099-01-14','2099-01-16','2099-01-28'])assert.e
 r=lookup('2099-01-21');assert.equal(r.personalLeave.kind,'APPROVED_REQUEST');assert.equal(r.personalLeave.startDate,'2099-01-20');assert.equal(r.personalLeave.endDate,'2099-01-22');
 r=lookup('2099-01-01');assert.equal(r.personalLeave.startDate,'2098-12-31');assert.equal(r.personalLeave.endDate,'2099-01-01');assert.equal(lookup('2099-01-02').personalLeave,null,'group off/gaps do not merge personal leave');
 assert.equal(lookup('2099-01-25').personalLeave.endDate,'2099-01-26');
+driver.route='23';assert.equal(lookup('2099-01-10').personalLeave.type,'휴무','identified leave follows reserve driver to a support route');driver.route='5';
 assert.equal(JSON.stringify(r).includes('SYN-MANAGER'),false,'no private handler or roster in driver response');
 // A confirmed service-day exception takes precedence over the repeating anchor.
 tables['운행일DB']=[['운행일','노선','근무조','배차상태'],['2099-01-11','5','B','확정']];assert.equal(lookup('2099-01-11').groupStatus,'WORK');

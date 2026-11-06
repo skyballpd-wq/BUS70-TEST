@@ -72,20 +72,22 @@ managerGenerate.onclick=generateManagerImage;managerShare.onclick=shareManagerIm
     };
   });
   const output=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-dispatch-layout';fs.mkdirSync(output,{recursive:true});
-  for(const [count,route] of [[8,'70'],[22,'5'],[32,'5'],[80,'5']]){
+  for(const [count,route] of [[11,'70'],[18,'23'],[27,'5'],[40,'5'],[80,'5']]){
     const board=await page.evaluate(([count,route])=>makeBoard(count,route),[count,route]);
     assert.equal(board.before,board.after,'image generation must not alter assignments');
     assert(board.size<5000000,'PNG fits the signed APK limit');
-    const png=Buffer.from(board.data.split(',')[1],'base64');assert.equal(png.readUInt32BE(16),1440);assert(png.readUInt32BE(20)<=4096);
-    assert.equal(board.drawn.filter(x=>/^\d+순차$/.test(x.text)).length,count,'retain every sequence');
+    const png=Buffer.from(board.data.split(',')[1],'base64');assert.equal(png.readUInt32BE(16),Math.max(720,28*2+76+Math.min(40,count)*94-6));assert(png.readUInt32BE(20)<=4096);
+    assert.equal(board.drawn.filter(x=>/^\d+$/.test(x.text)&&Number(x.text)<=count&&x.clip.h===34).length,count,'retain every plain numeric sequence');
+    assert.equal(new Set(board.drawn.filter(x=>x.clip.h===34&&/^\d+$/.test(x.text)&&Number(x.text)<=count).map(x=>x.clip.y)).size,Math.ceil(count/40),'ordinary roster fits one row');
+    assert(!board.drawn.some(x=>/^\d+순차$/.test(x.text)),'omit repeated sequence suffix');
     // Font metrics may wrap words differently. Preserve every label within its
     // own clipped field rather than relying on the same line break in both engines.
     const labels=new Map();for(const glyph of board.drawn){const key=JSON.stringify(glyph.clip);labels.set(key,(labels.get(key)||'')+glyph.text.replace(/\s/g,''));}
     const hasLabel=text=>[...labels.values()].includes(text.replace(/\s/g,''));
-    assert(hasLabel('기사 미지정'));assert(hasLabel('차량 미지정'));
-    if(count>=22){assert(hasLabel('기사 확인 필요'));assert(hasLabel('차량 확인 필요'));}
+    assert(hasLabel('미지정'));assert(hasLabel('시험기사01'),'vertical name preserves all characters');
+    if(count>=11)assert(hasLabel('확인필요'));
     for(const glyph of board.drawn){const b=glyph.clip;assert(b,'text must be confined to a field');assert(glyph.left>=b.x-1&&glyph.right<=b.x+b.w+1&&glyph.top>=b.y-1&&glyph.bottom<=b.y+b.h+1,'glyph overflow: '+JSON.stringify(glyph));}
-    if(count<=22)fs.writeFileSync(require('path').join(output,'dispatch-layout-'+route+'-'+count+'-synthetic.png'),png);
+    if(count<=27)fs.writeFileSync(require('path').join(output,'dispatch-layout-'+route+'-'+count+'-synthetic.png'),png);
   }
   await page.evaluate(()=>{managerData.departures={};renderManagerRows(managerData);});await page.click('#managerGenerate');
   assert.match(await page.locator('#managerStatus').innerText(),/순차가 없습니다/);

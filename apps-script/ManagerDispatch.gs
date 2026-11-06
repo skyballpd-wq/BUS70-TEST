@@ -726,6 +726,11 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
       driverEvents.forEach(function(v){if(v.date>date)return;const nextRoute=String(v.row[wc['변경노선']]||'').trim(),nextShift=String(v.row[wc['변경근무조']]||'').trim(),nextEmpId=String(v.row[wc['새사원번호']]||'').trim(),nextType=String(v.row[wc['변경기사구분']]||'').trim();if(nextRoute)driver.route=nextRoute;if(nextShift)driver.shift=nextShift;if(nextEmpId)driver.empId=nextEmpId;if(nextType)driver.driverType=nextType;});
     });
   }
+  if(typeof bus70MonthlyRosterForDate_==='function')bus70MonthlyRosterForDate_(ss,date).forEach(function(plan){
+    const driver=allDrivers.find(function(item){return item.id===plan.driverId;});if(!driver)return;
+    driver.route=plan.route;driver.shift=plan.shift;driver.monthlyRosterRole=plan.role;
+    if(plan.role==='예비')driver.driverType='예비';
+  });
   let drivers = allDrivers.filter(function(v){return !unavailable[v.id]&&!unavailableNames[String(v.name||'').replace(/\s/g,'')];});
   let vehicles = bus70ManagerMasterRows_(vehicleSheet, 'vehicle',route);
   const maintenanceSheet=ss.getSheetByName('정비DB'), unavailableVehicles={};
@@ -746,14 +751,15 @@ function bus70ManagerBootstrap_(rawDate, rawRoute) {
   const assignedVehicleIds={};savedAssignments.forEach(function(item){assignedVehicleIds[item.vehicleId]=true;});
   bus70ManagerMasterRows_(vehicleSheet,'vehicle').forEach(function(vehicle){if(assignedVehicleIds[vehicle.id]&&!unavailableVehicles[vehicle.id]&&!vehicles.some(function(v){return v.id===vehicle.id;}))vehicles.push(vehicle);});
   const savedDriverIds={};savedAssignments.forEach(function(item){savedDriverIds[item.driverId]=true;});
-  const plannedLeaves=typeof bus70PlannedLeavesForDate_==='function'?bus70PlannedLeavesForDate_(ss,route,date):[],observedNames={},plannedLeaveOverrides=[],effectivePlannedLeaves=[];
+  const plannedLeaves=typeof bus70PlannedLeavesForDate_==='function'?bus70PlannedLeavesForDate_(ss,route,date,true):[],observedNames={},plannedLeaveOverrides=[],effectivePlannedLeaves=[];
   if(reference&&reference.ok&&!reference.predicted)(reference.assignments||[]).forEach(function(item){const name=String(item.driverName||'').replace(/\s/g,'');if(name)observedNames[name]=true;});
   plannedLeaves.forEach(function(plan){
     const names=[plan.driverName].concat(plan.aliases||[]).map(function(name){return String(name||'').replace(/\s/g,'');}).filter(Boolean),name=names[0];if(!name)return;
     const assignedById=plan.driverId?Boolean(savedDriverIds[String(plan.driverId)]):allDrivers.some(function(driver){return String(driver.route)===route&&savedDriverIds[driver.id]&&names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1;});
-    if(assignedById||names.some(function(candidate){return observedNames[candidate];})){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:assignedById?'당일 확정 배차 우선':'확정 배차상황판 우선'});return;}
-    effectivePlannedLeaves.push(plan);names.forEach(function(candidate){unavailableNames[candidate]=String(plan.type||'휴무');});
-    allDrivers.forEach(function(driver){if(names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1&&String(driver.route||'')===route)unavailable[driver.id]=String(plan.type||'휴무');});
+    if(assignedById||(!plan.driverId&&plan.route===route&&names.some(function(candidate){return observedNames[candidate];}))){plannedLeaveOverrides.push({driverName:plan.driverName,type:plan.type,reason:assignedById?'당일 확정 배차 우선':'확정 배차상황판 우선'});return;}
+    effectivePlannedLeaves.push(plan);
+    if(plan.driverId)unavailable[String(plan.driverId)]=String(plan.type||'휴무');
+    else if(plan.route===route){names.forEach(function(candidate){unavailableNames[candidate]=String(plan.type||'휴무');});allDrivers.forEach(function(driver){if(names.indexOf(String(driver.name||'').replace(/\s/g,''))!==-1&&String(driver.route||'')===route)unavailable[driver.id]=String(plan.type||'휴무');});}
   });
   if(effectivePlannedLeaves.length)drivers=drivers.filter(function(driver){return !unavailable[driver.id]&&!unavailableNames[String(driver.name||'').replace(/\s/g,'')];});
   const routeStorageSync=reference&&reference.ok&&!reference.predicted&&!(reference.phaseInference&&reference.phaseInference.managerReviewRequired)?bus70SyncRouteReferenceToDb_(ss,route,reference):null;
@@ -937,7 +943,7 @@ function bus70ManagerAssignments_(sheet, date, rawRoute) {
   for (let i = 1; i < rows.length; i++) {
     if (normalizeDate_(rows[i][c['날짜']]) !== date || bus70ManagerDispatchRoute_(rows[i],c)!==route || String(rows[i][c['상태']] || '').trim() !== '확정') continue;
     result.push({dispatchId:String(rows[i][c['dispatchId']] || '').trim(), sequence:Number(rows[i][c['순차']]), driverId:String(rows[i][c['기사ID']] || '').trim(),
-      vehicleId:String(rows[i][c['차량ID']] || '').trim(), shift:String(rows[i][c['근무조']] || '').trim(),route:route,crossRouteAuthorized:/\[타노선 승인\]|대체투입/.test(String(rows[i][c['비고']]||''))});
+      vehicleId:String(rows[i][c['차량ID']] || '').trim(), shift:String(rows[i][c['근무조']] || '').trim(),route:route,crossRouteAuthorized:true});
   }
   return result;
 }
@@ -1025,13 +1031,18 @@ function bus70SaveManagerDispatchDay_(body, managerId) {
         if(!confirmedSchedule.ok)return {ok:false,error:'PHASE_SCHEDULE_CONFIRM_FAILED',message:'검토한 탕별 시간표를 확정 DB에 저장하지 못했습니다.'};
       }
     }
+    const changedDispatches={};
     normalized.forEach(function (item) {
-      const dispatchId = 'DSP-' + route + '-' + date.replace(/-/g, '') + '-' + shift + '-' + ('0' + item.sequence).slice(-2);
-      const values = new Array(rows[0].length).fill('');
+      const previous=existing[item.sequence],dispatchId=previous&&String(previous.values[c['dispatchId']]||'')||'DSP-' + route + '-' + date.replace(/-/g, '') + '-' + shift + '-' + ('0' + item.sequence).slice(-2);
+      const values = previous?previous.values.slice():new Array(rows[0].length).fill('');
+      if(previous&&(String(previous.values[c['기사ID']])!==item.driverId||String(previous.values[c['차량ID']])!==item.vehicleId||String(previous.values[c['시간표버전']])!==bootstrap.scheduleVersion))changedDispatches[dispatchId]=true;
       values[c['dispatchId']]=dispatchId;values[c['날짜']]=date;values[c['근무조']]=shift;values[c['순차']]=item.sequence;values[c['기사ID']]=item.driverId;values[c['차량ID']]=item.vehicleId;values[c['시간표버전']]=bootstrap.scheduleVersion;values[c['상태']]='확정';values[c['확정시간']]=new Date();values[c['비고']]='소장 '+route+'번 일괄 배차'+(String(driverMap[item.driverId].route)!==route?' [타노선 승인] '+String(body.reason||'기존 대체 배정 유지'):'');values[c['노선']]=route;
       if (existing[item.sequence]) sheet.getRange(existing[item.sequence].row, 1, 1, values.length).setValues([values]);
       else sheet.appendRow(values);
     });
+    const confirmations=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('배차확인DB');
+    if(confirmations&&confirmations.getLastRow()>1){const cr=confirmations.getDataRange().getDisplayValues(),cc=makeHeaderMap_(cr[0]);if(cc['재확인필요']!==undefined)for(let i=1;i<cr.length;i++)if(changedDispatches[String(cr[i][cc.dispatchId]||'')])confirmations.getRange(i+1,cc['재확인필요']+1).setValue('Y');}
+    if(typeof bus70InvalidatePartition_==='function')bus70InvalidatePartition_(sheet);
     writeAudit_(managerId, '소장', '배차DB', route + '-' + date + '-' + shift, '일괄저장', bootstrap.assignments, normalized, route+'번 소장 배차 편집');
     return {ok:true, message:route+'번 '+expectedSequences.length+'개 순차 배차를 저장했습니다.'+(scheduleReviewPending?' 다만 회차·도착 시각 미등록 자료는 기사 알림 확정 전 소장 검토가 필요합니다.':''), scheduleReviewPending:scheduleReviewPending, data:bus70ManagerBootstrap_(date,route)};
   } finally { lock.releaseLock(); }

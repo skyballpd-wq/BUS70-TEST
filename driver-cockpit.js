@@ -24,7 +24,7 @@
       rows.push({label:'회차 도착',place:trip.turnPlace,planned:trip.turnTime,actual:log.actualTurn,mode:log.turnRecordMode});
       rows.push({label:'회차 출발',place:trip.turnPlace,planned:trip.turnDepartureTime||'',actual:log.turnDepartedAt,mode:log.turnDepartureMode});
     }
-    if(trip.controlPoint)rows.push({label:/출발/.test(trip.controlPurpose||'')?'중간 출발':/종료/.test(trip.controlPurpose||'')?'중간 종료':'중간 기준',place:trip.controlPoint,planned:trip.controlTime,actual:log.actualControl,mode:log.controlRecordMode});
+    if(trip.controlPoint)rows.push({label:/전철|연계/.test(trip.controlPurpose||'')?'연계 출발':/출발/.test(trip.controlPurpose||'')?'중간 출발':/종료/.test(trip.controlPurpose||'')?'중간 종료':'중간 기준',place:trip.controlPoint,planned:trip.controlTime,actual:log.actualControl,mode:log.controlRecordMode});
     const returning=trip.deadheadDestination&&trip.deadheadDestination!==trip.endPlace;
     rows.push({label:returning?'영업 종료':'도착',place:trip.serviceEndPlace||trip.endPlace,planned:trip.endTime,actual:log.actualEnd,mode:log.endRecordMode});
     if(returning)rows.push({label:'차고지 복귀',place:trip.deadheadDestination,planned:trip.returnTime||'',actual:log.deadheadReturnedAt,mode:log.returnRecordMode});
@@ -46,7 +46,30 @@
     host.addEventListener('pointercancel',()=>{start=null;});
     host.addEventListener('pointerup',e=>{const a=start;start=null;if(!a||a.id!==e.pointerId)return;const dx=e.clientX-a.x,dy=e.clientY-a.y;if(Math.abs(dx)>=48&&Math.abs(dx)>Math.abs(dy)*1.5&&e.timeStamp-a.at<1500)change(dx<0?1:-1);});
   }
-  function drawRing(host,total,passed,progress,held=false,motion){
+  // Each marker uses an observed stop occurrence, never timetable interpolation.
+  function ringPeers(path,fleet,own,scope,now){
+    const stops=path?.stops||[],result=[];
+    if(stops.length<2||!Number.isInteger(own?.matchedIndex)||own.matchedIndex<0||own.matchedIndex>=stops.length||!own?.configured||own.retained||scope?.running!==true||fleet?.route!==String(scope.route)||fleet?.date!==scope.date)return result;
+    const index=Math.max(0,Math.min(stops.length-1,Number(own.matchedIndex)||0));
+    const candidates=(fleet.positions||[]).filter(p=>p.running===true&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
+      const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder));
+      const at=Date.parse(p.recordedAt),age=(now-at)/1000;
+      if(i<0||!Number.isFinite(age)||age<0||age>45||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index)};
+    }).filter(Boolean);
+    // A route occurrence includes the return leg. Never wrap completed trips to the start.
+    // Same-stop observations cannot establish front/rear order; other neighbours remain visible.
+    const unique=[...new Map(candidates.sort((a,b)=>b.age-a.age).map(p=>[p.vehicle,p])).values()];
+    for(const side of ['front','rear']){
+      const peers=unique.filter(p=>side==='front'?p.index>index:p.index<index).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
+      peers.forEach((p,i)=>result.push({...p,side,rank:i+1,fraction:(p.index+.5)/stops.length}));
+    }
+    return result;
+  }
+  function ringPeerLabel(peers){
+    return peers.map(p=>(p.side==='front'?'앞':'뒤')+p.rank+' · '+p.stopGap+'정류장').join(', ');
+  }
+  function drawRing(host,total,passed,progress,held=false,motion,peers=[]){
     const fraction=Number.isFinite(progress)?Math.max(0,Math.min(100,progress))/100:(total?passed/total:0),doc=host.ownerDocument;
     let svg=host.querySelector('svg');
     if(!svg||host.dataset.ringTotal!==String(total)){
@@ -55,10 +78,24 @@
       const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0);
       if(!segments.length)svg.append(svgNode(doc,'circle',{cx:60,cy:60,r:49,fill:'none',stroke:'#dce4ed','stroke-width':7}));
       segments.forEach(s=>{const a=point(s.start),b=point(s.end);const arc=svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7});svg.append(arc);const fill=arc.cloneNode();fill.setAttribute('class','route-fill');fill.setAttribute('pathLength','1');fill.style.transition='stroke-dasharray 1s linear';svg.append(fill);});
-      const arrow=svgNode(doc,'g',{class:'route-arrow'});arrow.append(svgNode(doc,'path',{d:'M 104 55 L 114 55 L 109 66 Z'}));arrow.style.transformOrigin='60px 60px';arrow.style.transition='transform 1s linear';svg.append(arrow);host.prepend(svg);
+      const arrow=svgNode(doc,'g',{class:'route-arrow'}),w=Math.max(2,Math.min(6,2*Math.PI*49/Math.max(1,total)*.85));arrow.append(svgNode(doc,'path',{d:`M ${109-w/2} 58 L ${109+w/2} 58 L 109 62 Z`}));arrow.style.transformOrigin='60px 60px';arrow.style.transition='transform 1s linear';svg.append(arrow);host.prepend(svg);
     }
     svg.querySelectorAll('.route-fill').forEach((node,i)=>{node.setAttribute('stroke',held?'#7b8b9e':'#0d9488');node.setAttribute('stroke-dasharray',Math.max(0,Math.min(1,fraction*total-i))+' 1');});
     const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${-90+fraction*360}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',motion?.color||(held?'#7b8b9e':'#075e56'));host.dataset.movement=motion?.key||'unknown';
+    svg.querySelector('.route-peers')?.remove();
+    const markers=svgNode(doc,'g',{class:'route-peers'});
+    const ticks=svg.querySelectorAll('.route-tick');
+    peers.filter(p=>Number.isInteger(p.index)&&ticks[p.index]).forEach(p=>{
+      const coincident=peers.filter(q=>q.index===p.index),slot=coincident.indexOf(p),count=coincident.length;
+      const marker=ticks[p.index].cloneNode();marker.setAttribute('class','route-peer '+p.side);marker.setAttribute('stroke',p.side==='front'?'#2563eb':'#c25916');
+      // Two vehicles at one stop occupy two radial stripes of that same tick.
+      if(count>1){const scale=(49-3.5+7*(slot+.5)/count)/49;marker.setAttribute('transform',`translate(60 60) scale(${scale}) translate(-60 -60)`);marker.setAttribute('stroke-width',String(6/count/scale));}
+      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName;marker.append(title);markers.append(marker);
+    });
+    const ownIndex=Math.min(ticks.length-1,Math.floor(Number(passed)||0)-1);
+    if(ownIndex>=0){const ownTick=ticks[ownIndex].cloneNode();ownTick.setAttribute('class','route-own');ownTick.setAttribute('stroke',held?'#7b8b9e':'#7c3aed');markers.append(ownTick);}
+    svg.append(markers);svg.append(arrow);
+
   }
   function drawRoute(host,path,position,navigation){
     if(!path?.stops?.length){host.replaceChildren();return;}
@@ -75,9 +112,10 @@
     host.replaceChildren(svg);
   }
   function weatherLabel(weather,now){
-    if(!weather?.available)return weather?.message||'날씨 연결 대기';
-    if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '날씨 갱신 대기';
-    return Number(weather.temperature).toFixed(1)+'°C · '+(weather.condition||'관측정보');
+    if(!weather?.available)return '🌡️ —';
+    if(weather.temperature===null||weather.temperature===undefined||weather.temperature===""||!Number.isFinite(Number(weather.temperature))||!Number.isFinite(Date.parse(weather.observedAt))||now-Date.parse(weather.observedAt)>7200000||Date.parse(weather.observedAt)>now+30000)return '🌡️ —';
+    const condition=String(weather.condition||''),icon=/천둥|뇌우|번개/.test(condition)?'⛈️':/눈|진눈깨비/.test(condition)?'🌨️':/비|소나기|이슬비/.test(condition)?'🌧️':/안개/.test(condition)?'🌫️':/맑/.test(condition)?'☀️':/구름|흐림/.test(condition)?'☁️':'🌡️';
+    return icon+' '+Number(weather.temperature).toFixed(1)+'°C';
   }
   function weatherObservation(weather,now){
     if(!weatherLabel(weather,now).includes('°C'))return '현재 날씨 · 수신 대기';
@@ -101,5 +139,5 @@
     }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
+  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });
