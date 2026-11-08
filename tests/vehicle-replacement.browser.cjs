@@ -7,12 +7,12 @@ const out=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-replacement';fs.mkdirSy
   await page.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin!=='https://synthetic.test')return r.abort();const f=decodeURIComponent(u.pathname).slice(1)||'index.html';if(f.includes('..')||!fs.existsSync(f))return r.fulfill({status:404,body:''});return r.fulfill({contentType:f.endsWith('.html')?'text/html':f.endsWith('.js')?'application/javascript':f.endsWith('.css')?'text/css':'image/png',body:fs.readFileSync(f)});});
   await page.goto('https://synthetic.test/');
   await page.evaluate(()=>{
-   window.requests=[];window.saved=false;window.failFirst=true;window.newVehicle=false;
+   window.requests=[];window.saved=false;window.failFirst=true;window.newVehicle=false;window.duplicateVehicle=false;
    authToken='SYNTHETIC';currentRole='MANAGER';currentIsManager=true;
    document.getElementById('loginSection').hidden=true;document.getElementById('managerDate').value='2026-11-09';document.getElementById('managerRoute').value='5';
    apiPost=async b=>{
     requests.push(b);
-    if(b.operation==='vehicleReplacementLoad')return {ok:true,date:b.date,route:b.route,assignments:[{id:'P1',sequence:1,shift:'B',driverId:'D1',driverName:'합성기사',vehicleId:saved?'V2':'V1',revision:'R1'}],vehicles:[{id:'V1',no:'9001',route:'5',type:'일반',status:'운행가능',unavailable:[],assignments:[{id:'P1',route:'5',sequence:1}]},{id:'V2',no:'9002',route:'70',type:'일반',status:'운행가능',unavailable:[],assignments:[]},{id:'V3',no:'9003',route:'23',type:'예비',unavailable:[],assignments:[{id:'P2',route:'23',sequence:3}]},...(newVehicle?[{id:'V4',no:'9010',route:'23',type:'예비',unavailable:[],assignments:[]}]:[])],history:[]};
+    if(b.operation==='vehicleReplacementLoad')return {ok:true,date:b.date,route:b.route,assignments:[{id:'P1',sequence:1,shift:'B',driverId:'D1',driverName:'합성기사',vehicleId:saved?'V2':'V1',revision:'R1'}],vehicles:[{id:'V1',no:'9001',route:'5',type:'일반',status:'운행가능',unavailable:[],assignments:[{id:'P1',route:'5',sequence:1}]},{id:'V2',no:'9002',route:'70',type:'일반',status:'운행가능',unavailable:[],assignments:[]},{id:'V3',no:'9003',route:'23',type:'예비',unavailable:[],assignments:[{id:'P2',route:'23',sequence:3}]},{id:'V5',no:'9005',route:'5',type:'예비',unavailable:[],assignments:[]},{id:'V6',no:'9006',route:'5',type:'예비',unavailable:['미결 정비'],assignments:[]},...(duplicateVehicle?[{id:'V7',no:'9002',route:'23',type:'예비',unavailable:[],assignments:[]}]:[]),...(newVehicle?[{id:'V4',no:'9010',route:'23',type:'예비',unavailable:[],assignments:[]}]:[])],history:[]};
     if(b.operation==='replacementVehicleRegister'){newVehicle=true;return {ok:true,vehicleId:'V4',message:'합성 차량을 등록했습니다.'};}
     if(b.operation==='vehicleReplacementSave'){if(failFirst){failFirst=false;saved=true;throw Error('synthetic response lost');}return {ok:true,message:'대차를 저장했습니다. 기사 화면에서 배차를 다시 확인해 주세요.'};}
     return {ok:false,message:'합성 미제공'};
@@ -20,7 +20,18 @@ const out=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-replacement';fs.mkdirSy
   });
   await page.locator('#managerHomeMenu [data-manager-page=REPLACEMENT]').click();await page.getByText(/확정 배차 1건을 불러왔습니다/).waitFor();
   assert.equal(await page.locator('#managerContext').isVisible(),false);
-  await page.locator('#vrDispatch').selectOption('P1');await page.locator('#vrSearch').fill('9002');assert.match(await page.locator('#vrVehicle').textContent(),/70번 소속/);await page.locator('#vrVehicle').selectOption('V2');
+  await page.locator('#vrDispatch').selectOption('P1');
+  assert.deepEqual(await page.locator('#vrVehicle option').evaluateAll(os=>os.map(o=>o.value)),['','V2','V5'],'empty search lists all available vehicles, including reserves');
+  await page.locator('#vrSearch').fill('900');assert.equal(await page.locator('#vrVehicle').inputValue(),'','partial number must not auto-select');
+  for(const [no,message] of [['9001','원차'],['9003','배차됨'],['9006','미결 정비'],['9999','일치하는 차량이 없습니다']]){
+   await page.locator('#vrSearch').fill(no);assert.equal(await page.locator('#vrVehicle').inputValue(),'');assert.match(await page.locator('#vrAvailability').textContent(),new RegExp(message));
+  }
+  await page.locator('#vrSearch').fill('9002');assert.equal(await page.locator('#vrVehicle').inputValue(),'V2');assert.match(await page.locator('#vrAvailability').textContent(),/자동 선택/);assert.match(await page.locator('#vrPreview').textContent(),/9001호 → 9002호/);
+  await page.locator('#vrConfirm').check();await page.locator('#vrSearch').fill('9005');assert.equal(await page.locator('#vrVehicle').inputValue(),'V5');assert.equal(await page.locator('#vrConfirm').isChecked(),false,'changing search clears prior confirmation');
+  await page.locator('#vrSearch').fill('');assert.deepEqual(await page.locator('#vrVehicle option').evaluateAll(os=>os.map(o=>o.value)),['','V2','V5']);await page.locator('#vrVehicle').selectOption('V2');
+  await page.evaluate(()=>{duplicateVehicle=true;});await page.locator('#vrLoad').click();await page.getByText(/확정 배차 1건을 불러왔습니다/).waitFor();await page.locator('#vrDispatch').selectOption('P1');await page.locator('#vrSearch').fill('9002');assert.equal(await page.locator('#vrVehicle').inputValue(),'');assert.match(await page.locator('#vrAvailability').textContent(),/여러 건/);
+  await page.evaluate(()=>{duplicateVehicle=false;});await page.locator('#vrLoad').click();await page.getByText(/확정 배차 1건을 불러왔습니다/).waitFor();await page.locator('#vrDispatch').selectOption('P1');assert.equal(await page.locator('#vrVehicle').inputValue(),'V2');assert.match(await page.locator('#vrVehicle').textContent(),/70번 소속/);
+  assert.equal(await page.evaluate(()=>requests.filter(r=>r.operation==='vehicleReplacementSave').length),0,'automatic selection does not save a dispatch');
   await page.locator('#vrReported').fill('2026-11-08T17:23');await page.locator('#vrReason').fill('합성 시험 · 에어펌프 고장');await page.locator('#vrConfirm').check();
   await page.locator('#replacementPanel').screenshot({path:path.join(out,`replacement-${width}.png`)});
   const wide=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:e.getBoundingClientRect().right,left:e.getBoundingClientRect().left,width:e.getBoundingClientRect().width})).filter(e=>e.width&&e.right>innerWidth+1).slice(0,20)}));
@@ -35,5 +46,5 @@ const out=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-replacement';fs.mkdirSy
   await page.locator('#vrLoad').click();await page.getByText(/2026-11-10 5번 확정 배차/).waitFor();
   await page.evaluate(()=>{Bus70Replacement.reset();authToken='';currentRole='';currentIsManager=false;});assert.equal(await page.locator('#vrVehicle option').count(),1);assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
- console.log('Replacement UI: 320/360/412/1280px, home shortcut, cross-route search, explicit registration, date separation, response-loss retry and session reset passed');
+ console.log('Replacement UI: 320/360/412/1280px, home shortcut, exact-number auto-selection, empty/partial/missing/unavailable/ambiguous search, cross-route search, explicit registration, date separation, response-loss retry and session reset passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
