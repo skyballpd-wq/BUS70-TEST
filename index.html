@@ -834,6 +834,17 @@
     .orbit-stops strong,.orbit-cockpit .cockpit-phases td:first-child small{overflow-wrap:normal;word-break:keep-all;display:block;-webkit-line-clamp:unset}
     .planned-gaps{margin:12px 0}.planned-gaps>div{word-break:keep-all}.peer-basis{display:block;text-align:center;color:#596b7c;font-size:11px;margin:0 0 8px}
     .road-safety{display:flex;flex-wrap:wrap;gap:8px;align-items:center;word-break:keep-all}.road-safety-status{flex:1 1 160px}.road-safety button{min-height:42px}
+
+    .signup-panel { margin-top:20px; padding:14px; border:1px solid #a5c9cc; border-radius:14px; background:#f4faf9; word-break:keep-all; overflow-wrap:anywhere; }
+    .signup-panel summary { cursor:pointer; font-weight:800; color:#096d65; padding:8px 0; }
+    .signup-confirm { display:flex; align-items:flex-start; gap:8px; line-height:1.55; }
+    .signup-confirm input { width:20px; height:20px; min-width:20px; margin:2px 0; }
+    .signup-request { border:1px solid #cbd5e1; padding:14px; border-radius:12px; margin:12px 0; word-break:keep-all; overflow-wrap:anywhere; }
+    .signup-request h4 { margin:0 0 8px; }
+    .signup-panel select,.signup-request select { width:100%; min-width:0; max-width:100%; height:48px; padding:0 8px; border:1px solid #b8c7d5; border-radius:9px; background:white; font:inherit; }
+    .signup-actions { display:flex; flex-wrap:wrap; gap:8px; }
+    .signup-actions button { flex:1; min-width:110px; }
+    #signupMasterPanel { padding:14px; margin-bottom:20px; background:#f4faf9; border-radius:14px; }
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 </head>
@@ -897,6 +908,26 @@
       </button>
 
       <div id="message" class="message"></div>
+      <details id="signupPanel" class="signup-panel">
+        <summary>처음 오셨나요? 기사 가입 신청</summary>
+        <p>성명·사원번호를 신청하면 마스터가 확인합니다. 승인 후 로그인할 수 있습니다.</p>
+        <div id="signupForm">
+          <label for="signupName">성명</label>
+          <input id="signupName" type="text" lang="ko" autocomplete="name" maxlength="20" placeholder="실제 성명">
+          <label for="signupEmpId">사원번호 6자리</label>
+          <input id="signupEmpId" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="사원번호 6자리">
+          <label for="signupRoute">현재 노선</label>
+          <select id="signupRoute"><option value="70">70번 · 양성</option><option value="5">5번</option><option value="23">23번</option></select>
+          <label class="signup-confirm"><input id="signupRemember" type="checkbox" checked> 개인 휴대폰에 신청 확인을 저장하고 승인 후 바로 열기</label>
+          <button id="signupSubmit" type="button">가입 신청 보내기</button>
+        </div>
+        <div id="signupStatus" class="notice" role="status" aria-live="polite"></div>
+        <div id="signupPending" hidden>
+          <p class="hint">앱을 열어 두면 승인 상태를 확인합니다. 닫았다면 다시 열어 주세요. 자동 확인은 신청 후 7일 동안 가능합니다.</p>
+          <button id="signupCheck" type="button">승인 상태 확인</button>
+          <button id="signupForget" class="secondary" type="button">이 휴대폰 자동 확인 해제</button>
+        </div>
+      </details>
 
     </section>
 
@@ -1165,6 +1196,14 @@
       <button id="masterAdminLoad" type="button">운영정보 불러오기</button>
       <div id="masterAdminStatus" class="manager-status" aria-live="polite"></div>
 
+      <section id="signupMasterPanel" hidden>
+        <h3>기사 가입 승인</h3>
+        <p class="hint">마스터가 성명·사원번호를 확인하고 기존 기사에 연결하세요. 신규 기사만 근무조·노선을 지정합니다.</p>
+        <button id="signupMasterLoad" type="button">가입 신청 새로고침</button>
+        <div id="signupMasterStatus" role="status" aria-live="polite"></div>
+        <div id="signupMasterList"></div>
+      </section>
+
       <div id="masterAccountTools">
         <h3>소장·정비소 계정</h3>
         <label for="masterStaffSelect">관리할 계정</label>
@@ -1236,7 +1275,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v88
+    소신여객 통합 운행관리 TEST · v88.1
   </footer>
 
 </div>
@@ -1244,6 +1283,7 @@
 
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
+<script src="./driver-signup.js?v=881"></script>
 <script src="./driver-automation.js?v=88"></script>
 <script src="./driver-recording.js?v=82"></script>
 <script src="./driver-cockpit.js?v=88"></script>
@@ -1460,7 +1500,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v88";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v88.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1652,6 +1692,7 @@
   }
 
   function clearLocalAuth() {
+    Bus70Signup.clear();Bus70Signup.resetMaster();
     stopDriverLocationTracking(true);
     stopDriverFleetTimer();
     if(nativeLocationBridge()&&typeof nativeLocationBridge().clearDriverSession==="function")try{nativeLocationBridge().clearDriverSession();}catch(error){console.warn(error);}
@@ -1797,6 +1838,33 @@
       if (legacy && !legacy.role) openDriverScreen(legacy, true, false);
   }
 
+  function acceptLogin(data, requestedDate, remember) {
+    Bus70Signup.clear();
+    ++authRequestId;
+    authToken = data.token || "";
+      if (data.alertSettings) fillAlertSettings(data.alertSettings);
+      if (remember) {
+        saveLegacyDriver(data.driver, data.role || "");
+        if (data.token && data.expiresAt) {
+          localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
+        } else {
+          localStorage.removeItem(REMEMBER_KEY);
+        }
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+        localStorage.removeItem(LEGACY_REMEMBER_KEY);
+      }
+      openDriverScreen(data.driver, false, data.manager, data.role);
+      if (!data.role && data.schedule && requestedDate===calendarDateInSeoul()) {
+        lastSchedule = scheduleForRequestedDate(data.schedule,requestedDate);
+        scheduleRefreshedAt=scheduleRefreshAttemptAt=Date.now();
+        renderSchedule();
+      } else if (!data.role) {
+        loadMySchedule();
+      }
+      if (!data.role && !data.alertSettings) loadAlertSettings();
+  }
+
   async function login() {
     if(loginCompositionActive||loginButton.disabled)return;
     const requestId = ++authRequestId;
@@ -1820,28 +1888,7 @@
         showMessage(data.message || "로그인 정보를 확인하세요.", "error");
         return;
       }
-      authToken = data.token || "";
-      if (data.alertSettings) fillAlertSettings(data.alertSettings);
-      if (document.getElementById("rememberDevice").checked) {
-        saveLegacyDriver(data.driver, data.role || "");
-        if (data.token && data.expiresAt) {
-          localStorage.setItem(REMEMBER_KEY, JSON.stringify({v:3, token:data.token, expiresAt:data.expiresAt}));
-        } else {
-          localStorage.removeItem(REMEMBER_KEY);
-        }
-      } else {
-        localStorage.removeItem(REMEMBER_KEY);
-        localStorage.removeItem(LEGACY_REMEMBER_KEY);
-      }
-      openDriverScreen(data.driver, false, data.manager, data.role);
-      if (!data.role && data.schedule && requestedDate===calendarDateInSeoul()) {
-        lastSchedule = scheduleForRequestedDate(data.schedule,requestedDate);
-        scheduleRefreshedAt=scheduleRefreshAttemptAt=Date.now();
-        renderSchedule();
-      } else if (!data.role) {
-        loadMySchedule();
-      }
-      if (!data.role && !data.alertSettings) loadAlertSettings();
+      acceptLogin(data,requestedDate,document.getElementById("rememberDevice").checked);
     } catch (error) {
       if (requestId !== authRequestId) return;
       console.error("로그인 통신 실패", error);
@@ -4229,6 +4276,8 @@
     document.getElementById("managerAttendanceTools").hidden=managerPage!=="ATTENDANCE";
     document.getElementById("managerPeopleFilters").hidden=!["ROSTER","ATTENDANCE"].includes(managerPage);
     document.getElementById("masterAccountTools").hidden=managerPage!=="SETTINGS"||currentRole!=="MASTER";
+    document.getElementById("signupMasterPanel").hidden=managerPage!=="ROSTER"||currentRole!=="MASTER";
+    if(managerPage==="ROSTER"&&currentRole==="MASTER")Bus70Signup.loadMaster();
     document.getElementById("managerHomeMenu").hidden=managerPage!=="HOME";
     document.getElementById("managerHome").hidden=managerPage==="HOME";
     document.getElementById("managerPageTitle").textContent=titles[managerPage];
@@ -4356,7 +4405,10 @@
   // 별도 ping과 자동 로그인을 동시에 보내지 않습니다. 저장 세션 확인 또는 실제
   // 로그인 요청 자체가 서버 연결 확인을 겸해 Apps Script 중복 대기를 줄입니다.
   setApiState("", "로그인 시 서버 연결을 확인합니다.");
-  restoreRememberedDriver();
+  restoreRememberedDriver().finally(()=>Bus70Signup.start({
+    api:body=>apiPost(body),today:calendarDateInSeoul,loggedIn:()=>Boolean(authToken),token:()=>authToken,role:()=>currentRole,
+    accept:acceptLogin,updated:()=>loadMasterAdmin()
+  }));
 
 </script>
 

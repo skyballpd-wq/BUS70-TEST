@@ -47,6 +47,11 @@ function bus70AuthAction_(body) {
   const requestStarted=Date.now();
   body = body || {};
   const action = String(body.action || '').trim();
+  // Existing doPost permits loginSecure. Signup operations are explicitly
+  // dispatched here; public callers never reach the authenticated review path.
+  if (action === 'loginSecure' && body.operation === 'driverSignupSubmit') return bus70SignupSubmit_(body);
+  if (action === 'loginSecure' && body.operation === 'driverSignupStatus') return bus70SignupStatus_(body);
+  if (action === 'loginSecure' && body.operation === 'driverSignupComplete') return bus70SignupComplete_(body);
   if (action === 'loginSecure') {
     if (typeof bus70EnsureInitialAccounts_ === 'function') bus70EnsureInitialAccounts_();
     // A trainee keeps the same internal driverId when becoming a regular
@@ -82,6 +87,8 @@ function bus70AuthAction_(body) {
   }
   const driverId = bus70AuthDriver_(body.token);
   if (!driverId) return {ok:false, error:'AUTH_REQUIRED', message:'로그인이 만료되었습니다. 다시 로그인하세요.'};
+  if (action === 'managerAccountList' && body.operation === 'driverSignupList') return bus70SignupList_(driverId);
+  if (action === 'managerAccountUpsert' && body.operation === 'driverSignupReview') return bus70SignupReview_(body,driverId);
   if (action === 'session') {
     const result = apiGetDriver_(driverId);
     if (!result.ok) {
