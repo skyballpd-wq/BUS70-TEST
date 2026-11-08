@@ -90,7 +90,9 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverWeather').innerText(),'🌨️ 0.0°C');
   assert.equal(await page.locator('#driverWeatherTime').isVisible(),false,'observation explanation is not visible');
   assert.match(await page.locator('#driverWeather').getAttribute('title'),/10:00 관측/);
-  assert.equal(await page.locator('.cockpit-gaps').count(),0,'live ring uses stop spacing rather than minutes');
+  assert.equal(await page.locator('.cockpit-gaps').count(),1,'planned minute gaps appear separately from stop-position ring');
+  assert.match(await page.locator('#driverPlannedGaps').innerText(),/예정 앞차\s*14분/);
+  assert.match(await page.locator('#driverPlannedGaps').innerText(),/예정 뒷차\s*확인 중/);
   assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.front').count(),2);
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.rear').count(),2);
