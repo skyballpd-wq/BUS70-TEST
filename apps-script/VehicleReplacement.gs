@@ -3,6 +3,12 @@
  * Script lock + row revision + request ID protect stale forms and lost responses.
  */
 const BUS70_REPLACEMENT_HEADERS_=['requestId','요청해시','기록시각','처리자','발생통보구분','발생통보일시','배차적용일','노선','dispatchId','순차','기사ID','원차량ID','대체차량ID','유형','사유','incidentId','maintId','상태','복구정보'];
+// Owner-run editor diagnostic; counts only, no writes, names, IDs or credentials.
+function verifyVehicleReplacementReadOnly(){
+  const date=Utilities.formatDate(new Date(Date.now()+86400000),'Asia/Seoul','yyyy-MM-dd');
+  const result=['5','23','70'].map(function(route){const d=bus70ReplacementData_(date,route);return {route:route,date:date,assignments:d.assignments.length,vehicles:d.vehicles.length,freeVehicles:d.vehicles.filter(v=>!v.unavailable.length&&!v.assignments.length).length};});
+  Logger.log(JSON.stringify({ok:true,readOnly:true,routes:result}));return result;
+}
 function bus70ReplacementError_(error,message){return {ok:false,error:error,message:message};}
 function bus70ReplacementDate_(s){s=String(s||'');return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s?s:'';}
 function bus70ReplacementHash_(value){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,JSON.stringify(value)).map(function(b){return ('0'+((b+256)%256).toString(16)).slice(-2);}).join('');}
