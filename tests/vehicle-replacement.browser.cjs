@@ -22,8 +22,9 @@ const out=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-replacement';fs.mkdirSy
   assert.equal(await page.locator('#managerContext').isVisible(),false);
   await page.locator('#vrDispatch').selectOption('P1');await page.locator('#vrSearch').fill('9002');assert.match(await page.locator('#vrVehicle').textContent(),/70번 소속/);await page.locator('#vrVehicle').selectOption('V2');
   await page.locator('#vrReported').fill('2026-11-08T17:23');await page.locator('#vrReason').fill('합성 시험 · 에어펌프 고장');await page.locator('#vrConfirm').check();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.locator('#replacementPanel').screenshot({path:path.join(out,`replacement-${width}.png`)});
+  const wide=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll('body *')].map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:e.getBoundingClientRect().right,left:e.getBoundingClientRect().left,width:e.getBoundingClientRect().width})).filter(e=>e.width&&e.right>innerWidth+1).slice(0,20)}));
+  assert.equal(wide.scroll>wide.width,false,JSON.stringify(wide));
   await page.locator('#vrSave').click();await page.getByText(/저장 응답을 확인하지 못했습니다/).waitFor();assert.equal(await page.locator('#vrFields').isEnabled(),false);assert.equal(await page.locator('#vrSave').isEnabled(),true);
   await page.locator('#vrSave').click();await page.getByText(/대차를 저장했습니다/).waitFor();
   let reqs=await page.evaluate(()=>requests.filter(r=>r.operation==='vehicleReplacementSave'));assert.equal(reqs.length,2);assert.deepEqual(reqs[0],reqs[1]);assert.equal(reqs[0].date,'2026-11-09');assert.equal(reqs[0].reportedAt,'2026-11-08T17:23');assert.equal(reqs[0].originalVehicleId,'V1');
