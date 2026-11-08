@@ -37,15 +37,15 @@ const out=process.env.CONTACT_LAYOUT_OUTPUT||'/tmp/bus70-signup';fs.mkdirSync(ou
    await page.locator('#logoutButton').click();await page.locator('#loginButton').waitFor({state:'visible'});
    assert.equal(await page.evaluate(()=>authToken),'');
    await page.evaluate(()=>{
-    authToken='MASTER-SYNTHETIC';currentRole='MASTER';
-    document.getElementById('masterAdminPanel').hidden=false;
-    document.getElementById('signupMasterPanel').hidden=false;
+    authToken='MASTER-SYNTHETIC';currentRole='MASTER';currentIsManager=true;
+    document.getElementById('loginSection').hidden=true;
     apiPost=async body=>{
      requests.push(body);
      if(body.operation==='driverSignupList')return {ok:true,requests:[{requestId:'JOIN-SYNTHETIC',name:'시험기사',empId:'000001',route:'70',status:'대기',revision:'R',candidates:[{driverId:'EXISTING',name:'시험기사',empId:'',route:'70',shift:'B',status:'재직',revision:'D'}]}]};
      if(body.operation==='driverSignupReview')return {ok:true,message:'승인했습니다.',status:'승인'};
      return {ok:false,message:'합성 미제공'};
     };
+    initManagerWorkspace();showManagerPage('ROSTER',false);
    });
    await page.locator('#signupMasterLoad').click();await page.getByRole('heading',{name:'시험기사 · 000001'}).waitFor();
    await page.getByRole('button',{name:'확인 후 승인',exact:true}).click();
