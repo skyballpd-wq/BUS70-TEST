@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "driver-signup.js"
+      - "apps-script/DriverSignup.gs"
+      - "tests/driver-signup*"
       - "accident-report.js"
       - "mobile-compat.js"
       - "tests/mobile-compat*"
@@ -58,6 +61,8 @@ jobs:
           node tests/schedule-controls.browser.cjs
           node tests/mobile-compat.test.js
           node tests/mobile-compat.browser.cjs
+          node tests/driver-signup.test.js
+          node tests/driver-signup.browser.cjs
           node tests/realtime-health.test.js
           node tests/realtime-health.browser.cjs
           node tests/departure-evidence.test.js
@@ -123,6 +128,7 @@ jobs:
         run: |
           export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
           node tests/mobile-compat.browser.cjs
+          node tests/driver-signup.browser.cjs
           node tests/field-cockpit.browser.cjs
           node tests/quick-record.browser.cjs
           node tests/schedule-controls.browser.cjs
