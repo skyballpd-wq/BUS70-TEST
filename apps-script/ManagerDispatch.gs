@@ -21,6 +21,9 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'route70ReferenceData' && typeof bus70Route70ReferenceData_ === 'function') {
     const route70Driver=apiGetDriver_(driverId);return bus70Route70ReferenceData_(body.date,route70Driver&&route70Driver.driver);
   }
+  if (action === 'vehicleReplacementLoad') return bus70ReplacementLoad_(body, driverId);
+  if (action === 'vehicleReplacementSave') return bus70ReplacementSave_(body, driverId);
+  if (action === 'replacementVehicleRegister') return bus70ReplacementRegister_(body, driverId);
   if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId);
   if (action === 'accidentReportSave') return bus70AccidentSave_(body,driverId);
   if (action === 'accidentPhotoGet') return bus70AccidentPhotoGet_(body,driverId);
