@@ -848,6 +848,9 @@
       #replacementPanel {word-break:keep-all;overflow-wrap:anywhere;}
     #replacementPanel fieldset {min-width:0;border:0;padding:0;margin:0;}
     #replacementPanel legend {font-weight:800;margin-bottom:12px;}
+    #replacementPanel .vr-grid > div {min-width:0;}
+    #replacementPanel select {min-height:48px;padding:8px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;}
+    #replacementPanel input[type=date],#replacementPanel input[type=datetime-local] {font-size:16px;padding:8px;}
     #replacementPanel .vr-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
     #replacementPanel input,#replacementPanel select,#replacementPanel textarea {box-sizing:border-box;max-width:100%;width:100%;min-width:0;}
     #replacementPanel .vr-check {display:flex;gap:8px;align-items:flex-start;margin:16px 0;}
@@ -856,7 +859,7 @@
     #replacementPanel #vrHistory {white-space:pre-line;}
     #replacementPanel button {margin:10px 0;}
     #replacementPanel #vrStatus {white-space:pre-line;font-weight:700;line-height:1.6;}
-    @media(max-width:480px){#replacementPanel .vr-grid{grid-template-columns:1fr;}}
+    @media(max-width:480px){#replacementPanel .vr-grid{grid-template-columns:minmax(0,1fr);}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 </head>

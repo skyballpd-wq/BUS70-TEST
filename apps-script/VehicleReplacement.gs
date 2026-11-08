@@ -85,14 +85,14 @@ function bus70ReplacementSave_(body,requesterId){
     const confirmations=bus70ReplacementTable_('배차확인DB',['dispatchId','재확인필요']);
     const now=new Date(),changes=[];
     function cell(table,row,key,value){const col=table.c[key]+1;changes.push({sheet:table.sheet.getName(),row:row,col:col,before:table.sheet.getRange(row,col).getValue(),after:value});}
-    function append(table,values){const row=table.sheet.getLastRow()+1;Object.keys(values).forEach(key=>cell(table,row,key,bus70ReplacementText_(values[key])));}
+    function append(table,values){const row=table.sheet.getLastRow()+1;Object.keys(values).filter(key=>table.c[key]!==undefined).forEach(key=>cell(table,row,key,bus70ReplacementText_(values[key])));}
     const pi=p.rows.findIndex(r=>r[p.c.dispatchId]===assignment.id)+1,vi=v.rows.findIndex(r=>r[v.c.vehicleId]===assignment.vehicleId)+1;
     const existing=m.rows.slice(1).find(r=>r[m.c['차량ID']]===assignment.vehicleId&&r[m.c.maintId]&&r[m.c['현재상태']]!=='완료');
     let incidentId=existing?existing[m.c.incidentId]:'',maintId=existing?existing[m.c.maintId]:'';
     if(type!=='기타'&&!existing){
       incidentId=newId_('INC');maintId=newId_('MNT');
-      append(incidents,{incidentId:incidentId,'접수시간':now.toISOString(),'날짜':reportedAt.slice(0,10),'기사ID':assignment.driverId,'차량ID':assignment.vehicleId,'순차':assignment.sequence,'유형':type,'내용':reason,'상태':'접수','요청자':requesterId,'처리자':requesterId,'비고':kind+' '+reportedAt+' KST · 배차 적용 '+date+' · '+requestId});
-      append(m,{maintId:maintId,incidentId:incidentId,'요청시간':now.toISOString(),'차량ID':assignment.vehicleId,'기사ID':assignment.driverId,'요청내용':reason,'현재상태':'접수','예비차량ID':vehicle.id});
+      append(incidents,{incidentId:incidentId,'접수시간':now.toISOString(),'날짜':reportedAt.slice(0,10),'기사ID':assignment.driverId,'차량ID':assignment.vehicleId,'순차':assignment.sequence,'유형':type,'내용':reason,'상태':'접수','요청자':requesterId,'처리자':requesterId,'비고':kind+' '+reportedAt+' KST · 배차 적용 '+date+' · '+requestId,'노선':route,'배차ID':assignment.id,'운행일ID':p.rows[pi-1][p.c['운행일ID']]||''});
+      append(m,{maintId:maintId,incidentId:incidentId,'요청시간':now.toISOString(),'차량ID':assignment.vehicleId,'기사ID':assignment.driverId,'요청내용':reason,'현재상태':'접수','예비차량ID':vehicle.id,'요청노선':route,'배차ID':assignment.id,'운행일ID':p.rows[pi-1][p.c['운행일ID']]||'','비고':kind+' '+reportedAt+' KST · 배차 적용 '+date+' · '+requestId});
     }
     // Existing maintenance is linked, never closed or overwritten by a replacement.
     if(type==='고장')cell(v,vi,'상태','정비중');
