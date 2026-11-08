@@ -35,4 +35,13 @@ public class DepartureOnsetTest {
    assertEquals(planned+(parked?247000:272000),DepartureOnset.first(s,fallback(parked?247:272)).getLong("time"));
   }
  }
+ @Test public void slowMovementNeedsIndependentFreshBusDepartureReference()throws Exception{
+  JSONObject origin=start().put("order",1),hint=new JSONObject().put("available",true).put("source","GYEONGGI_BUS_LOCATION_V2").put("status","AGREE").put("stateCd",2).put("stationSeq",1).put("fetchedAt",planned);
+  for(boolean confirmed:new boolean[]{false,true}){
+   JSONObject state=new JSONObject().put("seenStart",true);
+   DepartureOnset.update(state,origin,planned,planned+2000,37+10.0/111195,127,5,1.2,0,confirmed?hint:null);
+   DepartureOnset.update(state,origin,planned,planned+7000,37+40.0/111195,127,5,1.2,0,confirmed?hint:null);
+   assertEquals(planned+(confirmed?2000:37000),DepartureOnset.first(state,fallback(37)).getLong("time"));
+  }
+ }
 }

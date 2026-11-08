@@ -19,6 +19,8 @@ final class ArrivalVoice {
             }
         });
     }
-    boolean speak(){return ready&&!closed&&!engine.isSpeaking()&&engine.speak(EarlyArrivalPolicy.MESSAGE,TextToSpeech.QUEUE_FLUSH,null,"depot-early-arrival")==TextToSpeech.SUCCESS;}
+    boolean speak(){return speak(EarlyArrivalPolicy.MESSAGE);}
+    boolean ready(){return ready&&!closed;}
+    boolean speak(String message){return ready&&!closed&&!engine.isSpeaking()&&engine.speak(message,TextToSpeech.QUEUE_FLUSH,null,"driver-assistance")==TextToSpeech.SUCCESS;}
     void close(){closed=true;ready=false;if(engine!=null){engine.stop();engine.shutdown();}}
 }

@@ -17,5 +17,6 @@ function drive(startTime,{walking=false,noIdentity=false,returning=false,complet
  return {r,first};
 }
 for(const start of ['06:00','10:00','14:00','18:00']){const {r,first}=drive(start);assert.equal(r.event,'DEPART','stop-and-go trip '+start+' still confirms departure');assert.equal(r.position.timestamp,first,'retain measured origin motion despite multiple stops');}
-for(const options of [{walking:true},{noIdentity:true},{returning:true},{completed:true},{gap:true}])assert.equal(drive('12:00',options).r.event,null,JSON.stringify(options));
+for(const options of [{walking:true},{noIdentity:true},{returning:true},{completed:true}])assert.equal(drive('12:00',options).r.event,null,JSON.stringify(options));
+const recovered=drive('12:00',{gap:true});assert.equal(recovered.r.event,'DEPART');assert(recovered.r.position.timestamp>recovered.first+50000,'outage clears onset and requires a new observed motion sequence');
 console.log('Repeated trips with stop-and-go traffic record measured departure; walking, missing identity, return, completed and GPS-gap guards passed');

@@ -32,11 +32,13 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    const root=document.createElement('div');root.id='syntheticDriver';document.body.append(root);
    const trip={startTime:'22:28',turnPlace:'시험복지회관',controlPoint:'시험역',controlTime:'00:05',controlPurpose:'전철 막차 연계',endTime:'00:30'};
    root.append(cockpitPhaseTable({routeProfile:{stops:[]}},trip,{},true));
-   const safety=document.createElement('div');safety.id='driverRoadSafety';safety.className='road-safety';safety.innerHTML='<span class="road-safety-status"></span><button>경고음 켜기</button>';root.append(safety);
+   const safety=document.createElement('div');safety.id='driverRoadSafety';safety.className='road-safety';safety.innerHTML='<span class="road-safety-status"></span><button id="roadSafetyEnable">안전운전 켜기</button>';root.append(safety);
    lastSchedule={route:'5',dispatch:{dispatchId:'TEST'},roadSafety:{zones:[]}};updateRoadSafety({trip:{trip:1},log:{actualStart:'10:00'}},{configured:false},true);
   });
   assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/다음날 00:05/);assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/시험복지회관/);
-  assert.match(await page.locator('#driverRoadSafety').innerText(),/자료 미등록/);assert.equal(await page.locator('#driverRoadSafety button').isVisible(),false);
+  assert.match(await page.locator('#driverRoadSafety').innerText(),/안전운전 안내 꺼짐/);assert.equal(await page.locator('#driverRoadSafety button').isVisible(),true);
+  await page.evaluate(()=>{currentDriverId='SYN-SAFETY';localStorage.setItem('bus70.safety.'+currentDriverId,'Y');updateRoadSafety({trip:{trip:1},log:{actualStart:'10:00'}},{configured:false},true);});
+  assert.match(await page.locator('#driverRoadSafety').innerText(),/검증된 구간 자료 대기/);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/field-operations-'+width+'.png',fullPage:true});}
   assert.deepEqual(errors,[]);await page.close();
  }console.log('Mobile manager prediction/save/failure/support assignment, overnight connection checkpoint and unavailable safety data passed');

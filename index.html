@@ -829,6 +829,11 @@
       .cockpit-now .current-clock{font-size:22px}
     }
     @media(prefers-reduced-motion:reduce){.route-arrow,.route-fill{transition:none!important}}
+    .orbit-cockpit{word-break:keep-all;overflow-wrap:normal}
+    .orbit-cockpit .phrase-token{white-space:nowrap;display:inline-block}
+    .orbit-stops strong,.orbit-cockpit .cockpit-phases td:first-child small{overflow-wrap:normal;word-break:keep-all;display:block;-webkit-line-clamp:unset}
+    .planned-gaps{margin:12px 0}.planned-gaps>div{word-break:keep-all}.peer-basis{display:block;text-align:center;color:#596b7c;font-size:11px;margin:0 0 8px}
+    .road-safety{display:flex;flex-wrap:wrap;gap:8px;align-items:center;word-break:keep-all}.road-safety-status{flex:1 1 160px}.road-safety button{min-height:42px}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 </head>
@@ -1231,7 +1236,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v87
+    소신여객 통합 운행관리 TEST · v88
   </footer>
 
 </div>
@@ -1239,9 +1244,9 @@
 
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
-<script src="./driver-automation.js?v=86"></script>
+<script src="./driver-automation.js?v=88"></script>
 <script src="./driver-recording.js?v=82"></script>
-<script src="./driver-cockpit.js?v=87"></script>
+<script src="./driver-cockpit.js?v=88"></script>
 <script src="./road-safety.js?v=87"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
@@ -1455,7 +1460,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v87";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v88";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2505,7 +2510,7 @@
   function nativeSchedulePayload(data){
     const d=data.dispatch||{},vehicle=data.vehicle||{},trips=normalizeScheduleTrips(data.trips),normalizedData=Object.assign({},data,{trips}),last=trips[trips.length-1],finish=last?endOfShiftMeta(normalizedData,last,trips.length-1):null;
     const routeStops=(data.routeProfile?.stops||[]).filter(stop=>hasNumericValue(stop.lat)&&hasNumericValue(stop.lng)).map(stop=>({id:String(stop.id||""),stationId:String(stop.externalStopId||stop.stationId||""),name:String(stop.name||""),number:String(stop.number||""),order:Number(stop.order||0),direction:String(stop.direction||""),origin:Boolean(stop.origin),turnaround:Boolean(stop.turnaround),lat:Number(stop.lat),lng:Number(stop.lng)}));
-    return {apiUrl:API_URL,token:authToken,driverId:currentDriverId,route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicleId:String(vehicle.vehicleId||vehicle.id||d.vehicleId||""),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||d.vehicleNo||""),vehicleIdentityAt:typeof driverVehicleIdentityAt==="function"?driverVehicleIdentityAt(data):0,electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,firstScheduledTrip:trips.length?Number(trips[0].trip):null,endOfShift:finish,routeStops:routeStops,liveLocation:{enabled:true,minimumIntervalSeconds:15,snapshotRetentionSeconds:600},trips:trips.map(v=>{const log=runLogForTrip(data,v)||{};return {course:Bus70Automation.course(v,routeStops),trip:Number(v.trip),startPlace:v.startPlace||"",startTime:v.startTime,turnPlace:v.turnPlace||"",turnTime:v.turnTime||"",endPlace:v.endPlace||"",endTime:v.endTime||v.startTime,plannedFrontGap:v.plannedFrontGapMinutes,plannedRearGap:v.plannedRearGapMinutes,startLocation:tripLocationPoint(v,"start"),turnLocation:tripLocationPoint(v,"turn"),endLocation:tripLocationPoint(v,"end"),controlPoint:v.controlPoint||"",controlTime:v.controlTime||"",controlLocation:tripLocationPoint(v,"control"),deadheadDestination:v.deadheadDestination||"",returnLocation:tripLocationPoint(v,"return"),turnDepartedAt:log.turnDepartedAt||"",actualControl:log.actualControl||"",deadheadReturnedAt:log.deadheadReturnedAt||"",actualStart:log.actualStart||"",startRecordMode:log.startRecordMode||"",actualTurn:log.actualTurn||"",actualEnd:log.actualEnd||""};})};
+    return {apiUrl:API_URL,token:authToken,driverId:currentDriverId,route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicleId:String(vehicle.vehicleId||vehicle.id||d.vehicleId||""),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||d.vehicleNo||""),vehicleIdentityAt:typeof driverVehicleIdentityAt==="function"?driverVehicleIdentityAt(data):0,electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,firstScheduledTrip:trips.length?Number(trips[0].trip):null,endOfShift:finish,roadSafety:data.roadSafety||{zones:[]},roadSafetyEnabled:roadSafetySelected(),routeStops:routeStops,liveLocation:{enabled:true,minimumIntervalSeconds:15,snapshotRetentionSeconds:600},trips:trips.map(v=>{const log=runLogForTrip(data,v)||{};return {course:Bus70Automation.course(v,routeStops),trip:Number(v.trip),startPlace:v.startPlace||"",startTime:v.startTime,turnPlace:v.turnPlace||"",turnTime:v.turnTime||"",endPlace:v.endPlace||"",endTime:v.endTime||v.startTime,plannedFrontGap:v.plannedFrontGapMinutes,plannedRearGap:v.plannedRearGapMinutes,startLocation:tripLocationPoint(v,"start"),turnLocation:tripLocationPoint(v,"turn"),endLocation:tripLocationPoint(v,"end"),controlPoint:v.controlPoint||"",controlTime:v.controlTime||"",controlLocation:tripLocationPoint(v,"control"),deadheadDestination:v.deadheadDestination||"",returnLocation:tripLocationPoint(v,"return"),turnDepartedAt:log.turnDepartedAt||"",actualControl:log.actualControl||"",deadheadReturnedAt:log.deadheadReturnedAt||"",actualStart:log.actualStart||"",startRecordMode:log.startRecordMode||"",actualTurn:log.actualTurn||"",actualEnd:log.actualEnd||""};})};
   }
 
   function syncNativeSchedule(data){
@@ -2518,7 +2523,7 @@
   window.bus70NativeSoundSelected=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;driverAlertSettings.soundMode="DEVICE_SELECTED";driverAlertSettings.soundName=result.soundName||"기사 선택 내장음";document.getElementById("alarmSoundMode").value="DEVICE_SELECTED";document.getElementById("alertStatus").replaceChildren(el("div","선택 알람음: "+driverAlertSettings.soundName,"notice"));}catch(error){console.warn(error);}};
   window.bus70NativeTestResult=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||(result.ok?"화면 꺼짐 시험 알람을 예약했습니다.":"시험 알람 예약에 실패했습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
   window.bus70NativeAlarmStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;document.getElementById("alertStatus").replaceChildren(el("div",result.message||("현재 미래 알람 "+(result.futureCount||0)+"개가 기기에 예약되어 있습니다."),result.ok?"notice":"notice error"));}catch(error){console.warn(error);}};
-  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;if(!authToken||currentRole||(result.driverId!==undefined&&result.driverId!==currentDriverId))return;locationTrackingActive=Boolean(result.active);if(result.permissionGranted!==undefined)locationPermissionState=result.permissionGranted?"granted":"denied";if(result.locationEnabled!==undefined)nativeLocationEnabled=Boolean(result.locationEnabled);const eventSignature=JSON.stringify(result.events||[]),eventsChanged=eventSignature!==nativeEventSignature;nativeEventSignature=eventSignature;nativeEventItems=Array.isArray(result.events)?result.events:[];nativePendingCount=Number(result.pendingCount||0);nativeSyncError=result.syncError||"";if(lastSchedule){overlayGpsEvents(lastSchedule);if(eventsChanged)renderSchedule(false);}if(eventsChanged)refreshRunLogView();locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";nativeArrivalEstimate=result.navigation?{...result.navigation.arrivalEstimate,date:result.navigation.date,dispatchId:result.navigation.dispatchId,vehicleId:result.navigation.vehicleId}:null;restoreNativeNavigation(result);if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
+  window.bus70NativeLocationStatus=function(raw){try{const result=typeof raw==="string"?JSON.parse(raw):raw;if(!authToken||currentRole||(result.driverId!==undefined&&result.driverId!==currentDriverId))return;nativeAppVersion=Number(result.versionCode)||0;locationTrackingActive=Boolean(result.active);if(result.permissionGranted!==undefined)locationPermissionState=result.permissionGranted?"granted":"denied";if(result.locationEnabled!==undefined)nativeLocationEnabled=Boolean(result.locationEnabled);const eventSignature=JSON.stringify(result.events||[]),eventsChanged=eventSignature!==nativeEventSignature;nativeEventSignature=eventSignature;nativeEventItems=Array.isArray(result.events)?result.events:[];nativePendingCount=Number(result.pendingCount||0);nativeSyncError=result.syncError||"";if(lastSchedule){overlayGpsEvents(lastSchedule);if(eventsChanged)renderSchedule(false);}if(eventsChanged)refreshRunLogView();locationStatusText=result.message||(locationTrackingActive?"화면을 꺼도 위치 자동 기록·최신 위치 공유가 실행 중입니다.":"위치 자동 기록이 중지되었습니다.");locationStatusType=result.ok===false?"error":locationTrackingActive?"ok":"";nativeArrivalEstimate=result.navigation?{...result.navigation.arrivalEstimate,date:result.navigation.date,dispatchId:result.navigation.dispatchId,vehicleId:result.navigation.vehicleId}:null;restoreNativeNavigation(result);if(result.latitude!==undefined){lastDriverPosition=Bus70Cockpit.nativePosition(result,lastDriverPosition);if(lastSchedule)currentNavigation=routeNavigationState(lastSchedule,lastDriverPosition);}updateLocationPanel();}catch(error){console.warn(error);}};
 
   function testScreenOffAlarm(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.scheduleTestAlarm!=="function"){root.replaceChildren(el("div","화면 꺼짐 시험은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.scheduleTestAlarm(120,driverAlertSettings.voice,driverAlertSettings.vibration);root.replaceChildren(el("div","2분 후 시험 알람을 예약했습니다. 지금 앱을 닫고 화면을 잠그세요.","notice"));}
   function checkNativeAlarms(){const root=document.getElementById("alertStatus");if(!hasAndroidBridge()||typeof window.Bus70Android.alarmStatus!=="function"){root.replaceChildren(el("div","예약 확인은 최신 Android 설치형 앱에서 사용할 수 있습니다.","notice error"));return;}window.Bus70Android.alarmStatus();}
@@ -2861,18 +2866,33 @@
     nativeLocationPolledAt=Date.now();nativeLocationBridge().locationStatus();
   }
 
-  let roadSafetyState={},roadSafetyAudio=null,roadSafetyAudioReady=false;
-  async function enableRoadSafetyAudio(){
-    try{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error();roadSafetyAudio=roadSafetyAudio||new C();await roadSafetyAudio.resume();roadSafetyAudioReady=roadSafetyAudio.state==='running';
+  let roadSafetyState={},roadSafetyAudio=null,roadSafetyAudioReady=false,nativeAppVersion=0;
+  function roadSafetySelected(){return Boolean(currentDriverId)&&localStorage.getItem('bus70.safety.'+currentDriverId)==='Y';}
+  function nativeRoadSafety(){return Boolean(window.Bus70Android)&&Number(nativeAppVersion)>=88;}
+  window.bus70SafetyVoiceTest=function(payload){try{const result=typeof payload==='string'?JSON.parse(payload):payload;const status=document.querySelector('#driverRoadSafety .road-safety-status');if(status)status.textContent=result.accepted?'설치형 음성 재생 요청':'휴대폰의 한국어 음성·음량 설정을 확인하세요.';}catch(ignore){}};
+  async function testRoadSafetyAudio(){
+    if(nativeRoadSafety()&&typeof window.Bus70Android.testSafetyVoice==='function'){window.Bus70Android.testSafetyVoice();return;}
+    try{
+      const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error();roadSafetyAudio=roadSafetyAudio||new C();await roadSafetyAudio.resume();roadSafetyAudioReady=roadSafetyAudio.state==='running';
       const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=660;g.gain.value=.08;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.15);
+      if('speechSynthesis' in window){speechSynthesis.cancel();const message=new SpeechSynthesisUtterance('안전운전 음성 시험입니다.');message.lang='ko-KR';speechSynthesis.speak(message);}
     }catch(error){roadSafetyAudioReady=false;}
-    const b=document.getElementById('roadSafetyEnable');if(b)b.textContent=roadSafetyAudioReady?'경고음 준비됨':'경고음 켜기 다시 시도';
+    const status=document.querySelector('#driverRoadSafety .road-safety-status');if(status)status.textContent=roadSafetyAudioReady?'시험음 재생 요청':'소리 재생을 확인할 수 없습니다';
+  }
+  async function enableRoadSafetyAudio(){
+    const selected=!roadSafetySelected();localStorage.setItem('bus70.safety.'+currentDriverId,selected?'Y':'N');
+    roadSafetyState={};
+    if(!selected){if('speechSynthesis' in window)speechSynthesis.cancel();roadSafetyAudioReady=false;}
+    else if(!nativeRoadSafety())await testRoadSafetyAudio();
+    if(lastSchedule&&hasNativeLocationBridge()&&typeof nativeLocationBridge().syncTrackingSchedule==='function')nativeLocationBridge().syncTrackingSchedule(JSON.stringify(nativeSchedulePayload(lastSchedule)));
+    updateDriverLiveDashboard();
   }
   function updateRoadSafety(context,navigation,active){
     const root=document.getElementById('driverRoadSafety');if(!root)return;root.hidden=!active;if(!active)return;
-    const result=Bus70RoadSafety.evaluate({active:active&&Boolean(context?.log.actualStart)&&!context?.log.actualEnd,now:Date.now(),position:lastDriverPosition,navigation,data:lastSchedule?.roadSafety,stopOrder:navigation.path?.stops?.[navigation.matchedIndex]?.order,scope:{route:String(lastSchedule?.route||''),date:document.getElementById('workDate').value,dispatchId:lastSchedule?.dispatch?.dispatchId||lastSchedule?.dispatch?.id,trip:context?.trip.trip}},roadSafetyState);roadSafetyState=result.state;
-    const button=root.querySelector('button');button.hidden=!lastSchedule?.roadSafety?.zones?.length;button.textContent=roadSafetyAudioReady?'경고음 준비됨':'경고음 켜기';root.querySelector('.road-safety-status').textContent=result.status+(result.warning&&!roadSafetyAudioReady?' · 소리 꺼짐':'');root.classList.toggle('warning',Boolean(result.warning?.overspeed));
-    if(result.notify&&roadSafetyAudioReady&&roadSafetyAudio?.state==='running'&&!document.hidden){try{const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=result.warning.overspeed?880:660;g.gain.value=.12;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.3);Bus70RoadSafety.notified(result,Date.now());if('speechSynthesis' in window&&!speechSynthesis.speaking){const message=new SpeechSynthesisUtterance(result.message);message.lang='ko-KR';speechSynthesis.speak(message);}}catch(ignore){roadSafetyAudioReady=false;}}
+    const selected=roadSafetySelected(),result=Bus70RoadSafety.evaluate({active:selected&&Boolean(context?.log.actualStart)&&!context?.log.actualEnd,now:Date.now(),position:lastDriverPosition,navigation,data:lastSchedule?.roadSafety,stopOrder:navigation.path?.stops?.[navigation.matchedIndex]?.order,scope:{route:String(lastSchedule?.route||''),date:document.getElementById('workDate').value,dispatchId:lastSchedule?.dispatch?.dispatchId||lastSchedule?.dispatch?.id,trip:context?.trip.trip}},roadSafetyState);roadSafetyState=result.state;
+    const button=root.querySelector('#roadSafetyEnable');button.hidden=false;button.textContent=selected?'안전운전 끄기':'안전운전 켜기';button.setAttribute('aria-pressed',String(selected));
+    root.querySelector('.road-safety-status').textContent=!selected?'안전운전 안내 꺼짐':!lastSchedule?.roadSafety?.zones?.length?'안전운전 선택됨 · 검증된 구간 자료 대기':result.status+(nativeRoadSafety()?' · 설치형 음성':roadSafetyAudioReady?' · 화면 켜짐 중 음성':' · 음성 시험 필요');root.classList.toggle('warning',Boolean(selected&&result.warning?.overspeed));
+    if(result.notify&&selected&&!nativeRoadSafety()&&roadSafetyAudioReady&&roadSafetyAudio?.state==='running'&&!document.hidden){try{const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=result.warning.overspeed?880:660;g.gain.value=.12;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.3);Bus70RoadSafety.notified(result,Date.now());if('speechSynthesis' in window&&!speechSynthesis.speaking){const message=new SpeechSynthesisUtterance(result.message);message.lang='ko-KR';speechSynthesis.speak(message);}}catch(ignore){roadSafetyAudioReady=false;}}
   }
   function startDriverLiveTimer(){
     stopDriverLiveTimer();
@@ -2908,7 +2928,7 @@
     const dashboard=document.getElementById("driverLiveDashboard");if(dashboard){
       dashboard.classList.toggle("recording-warning",Boolean(displayLive&&recordingHealth.warning));
       dashboard.classList.toggle("record-view",!displayLive);
-      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target",".ring-peer-label"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
+      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target",".ring-peer-label",".planned-gaps",".peer-basis"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
       // Station ticks carry live spacing; recorded time gaps remain in trip history.
     }
     if(speed)speed.classList.toggle("waiting",waiting);
@@ -2923,15 +2943,15 @@
     }
     if(displayLive){const status=document.getElementById("locationStatus");if(status){status.textContent=recordingHealth.label+" · "+telemetry.label;status.className="location-status"+(recordingHealth.warning?" error":telemetry.fresh?" ok":"");}}
 
-    if(previous)previous.textContent=!waiting&&navigation.configured?(navigation.previousStop||"—"):"—";
+    if(previous)Bus70Cockpit.phraseText(previous,!waiting&&navigation.configured?(navigation.previousStop||"—"):"—");
     if(current)current.textContent=navigation.configured?(navigation.currentStop||"정류장 사이 운행 중"):"현재 위치 확인 중";
-    if(nextStop)nextStop.textContent=waiting?"출발 대기":navigation.configured?(navigation.nextStop||"종점"):displayLive?(navigation.reason||"GPS 대기"):"—";
+    if(nextStop)Bus70Cockpit.phraseText(nextStop,waiting?"출발 대기":navigation.configured?(navigation.nextStop||"종점"):displayLive?(navigation.reason||"GPS 대기"):"—");
     if(distance)distance.textContent=navigation.configured?("다음 정류장 직선거리 "+liveDistanceLabel(navigation.distanceToNextM)):"노선별 정류장 위치를 등록하면 자동 표시";
     if(direction)direction.textContent=navigation.configured?navigation.direction+" · "+navigation.stopIndex+"/"+navigation.stopCount:"내비게이션 준비";
     if(progressBar)progressBar.style.width=tripProgress+"%";
     if(progressLabel)progressLabel.textContent=(navigation.configured||navigation.retained)?"정류장 "+navigation.tripPassedStops+" / "+navigation.tripStopCount+" · "+tripProgress+"%":"정류장 통과 정보 대기";
     if(ring){ring.style.setProperty("--progress",String(tripProgress));ring.classList.toggle("moving",Boolean(displayLive&&navigation.configured&&tripProgress>0&&tripProgress<100));ring.setAttribute("aria-valuenow",String(tripProgress));ring.setAttribute("aria-valuetext",tripProgress+"% 진행");if(ringLabel)ringLabel.textContent=provisional?tripProgress+"% · GPS 위치 · 출발 미기록":recordingHealth.blocked?"진행률 미확인 · 차량 대조 대기":waiting?"0% · 출발 대기":(navigation.configured||navigation.retained)?tripProgress+"% · "+(navigation.retained?"마지막 확인 · "+Math.max(0,Math.floor((Date.now()-Number(navigation.timestamp||0))/1000))+"초 전":navigation.direction):tripProgress===100?"100% · "+context.state:displayLive?"위치 대기":"선택한 탕의 계획·기록";}
-    if(displayLive&&ring&&typeof Bus70Cockpit!=="undefined")try{const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;const peers=Bus70Cockpit.ringPeers(path,liveFleet,navigation,{route:String(lastSchedule.route),date:document.getElementById("workDate").value,vehicleId:lastSchedule.vehicle?.vehicleId||lastSchedule.dispatch?.vehicleId,running:Boolean(context?.log.actualStart&&!context?.log.actualEnd)},Date.now());let peerLabel=document.getElementById("driverRingPeers");if(!peerLabel){peerLabel=el("div",null,"ring-peer-label");peerLabel.id="driverRingPeers";ring.insertAdjacentElement("afterend",peerLabel);}if(!peerLabel.childElementCount)[["앞","#2563eb"],["내 차","#7c3aed"],["뒤","#c25916"]].forEach(([label,color])=>{const item=el("span",label);item.style.setProperty("--peer-color",color);peerLabel.append(item);});peerLabel.setAttribute("aria-label",Bus70Cockpit.ringPeerLabel(peers)||"앞차·뒷차 위치 수신 대기");peerLabel.hidden=!displayLive;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained),Bus70Cockpit.movement(lastDriverPosition,Date.now(),!displayLive||navigation.retained||!navigation.configured),peers);}catch(error){console.warn("진행률 그림 갱신 실패",error);}
+    if(displayLive&&ring&&typeof Bus70Cockpit!=="undefined")try{const path=context?Bus70Automation.course(context.trip,lastSchedule.routeProfile?.stops||[]):null;const total=navigation.tripStopCount||path?.stops.length||0;const peers=Bus70Cockpit.ringPeers(path,liveFleet,navigation,{route:String(lastSchedule.route),date:document.getElementById("workDate").value,vehicleId:lastSchedule.vehicle?.vehicleId||lastSchedule.dispatch?.vehicleId,running:Boolean(context?.log.actualStart&&!context?.log.actualEnd)},Date.now());let peerLabel=document.getElementById("driverRingPeers");if(!peerLabel){peerLabel=el("div",null,"ring-peer-label");peerLabel.id="driverRingPeers";ring.insertAdjacentElement("afterend",peerLabel);}if(!peerLabel.childElementCount)[["앞","#2563eb"],["내 차","#7c3aed"],["뒤","#c25916"]].forEach(([label,color])=>{const item=el("span",label);item.style.setProperty("--peer-color",color);peerLabel.append(item);});peerLabel.setAttribute("aria-label",Bus70Cockpit.ringPeerLabel(peers)||"앞차·뒷차 위치 수신 대기");let basis=document.getElementById("driverPeerBasis");if(!basis){basis=el("small",null,"peer-basis");basis.id="driverPeerBasis";peerLabel.insertAdjacentElement("afterend",basis);}basis.hidden=!displayLive;basis.textContent=peers.some(p=>p.reference)?"앱 GPS · 경기버스정보 정류장 기준":peers.length?"앱 GPS 기준":"앞뒤차 위치 수신 대기";peerLabel.hidden=!displayLive;Bus70Cockpit.drawRing(ring,total,tripProgress===100?total:(navigation.configured||navigation.retained)?navigation.tripPassedStops:0,tripProgress,Boolean(navigation.retained),Bus70Cockpit.movement(lastDriverPosition,Date.now(),!displayLive||navigation.retained||!navigation.configured),peers);}catch(error){console.warn("진행률 그림 갱신 실패",error);}
     if(ringLabel&&displayLive&&(navigation.configured||navigation.retained))ringLabel.textContent+=" · "+Bus70Cockpit.movement(lastDriverPosition,Date.now(),navigation.retained).label;
     if(ring&&recordingHealth.blocked&&!provisional){ring.removeAttribute("aria-valuenow");ring.setAttribute("aria-valuetext","진행률 미확인 · 차량정보 확인 불가");}
     const arrivalNode=document.getElementById("driverArrivalEstimate"),estimate=nativeArrivalEstimate,binding=driverAssignmentBinding(lastSchedule);
@@ -3013,7 +3033,7 @@
     const path=Bus70Automation.course(trip,data.routeProfile?.stops||[]),stops=(data.routeProfile?.stops||[]).slice().sort((a,b)=>a.order-b.order),midStart=Boolean(path&&stops.length&&path.stops[0].id!==stops[0].id),body=el("tbody");
     Bus70Cockpit.phases(trip,log,{midStart}).filter(phase=>{const extra=["회차 출발","중간 출발","중간 종료","중간 기준","차고지 복귀"].includes(phase.label);return compact==="additional"?extra:!compact||!extra;}).forEach(phase=>{
       const row=el("tr"),point=el("td"),compare=scheduleComparison(document.getElementById("workDate").value,phase.planned,phase.actual);
-      point.append(el("strong",phase.label),el("small",phase.place||"지점 확인 필요"));
+      const place=el("small");Bus70Cockpit.phraseText(place,phase.place||"지점 확인 필요");point.append(el("strong",phase.label),place);
       if(phase.label==="연계 출발")point.append(el("small","전철 막차 연계 · 시각 준수"));
       const observed=actualMoment(document.getElementById("workDate").value,phase.actual);
       const comparison=Bus70Cockpit.phaseDifference(compare,phase.mode,compact===true);
@@ -3028,7 +3048,7 @@
   }
 
   function renderDriverLiveDashboard(root,data){
-    const context=driverDisplayedContext(data),d=data.dispatch||{},vehicle=data.vehicle||{},box=el("section",undefined,"driver-live-dashboard cockpit orbit-cockpit");box.id="driverLiveDashboard";const safety=el("div",null,"road-safety");safety.id="driverRoadSafety";const safetyText=el("span","안전경고 자료 확인 중","road-safety-status"),safetyButton=el("button","경고음 켜기","secondary");safetyButton.type="button";safetyButton.id="roadSafetyEnable";safety.hidden=!isDisplayedTripLive(data);safetyButton.addEventListener("click",()=>enableRoadSafetyAudio());safety.append(safetyText,safetyButton);box.append(safety);Bus70Cockpit.bindSwipe(box,delta=>selectDriverTrip(activeTripIndex+delta));
+    const context=driverDisplayedContext(data),d=data.dispatch||{},vehicle=data.vehicle||{},box=el("section",undefined,"driver-live-dashboard cockpit orbit-cockpit");box.id="driverLiveDashboard";const safety=el("div",null,"road-safety");safety.id="driverRoadSafety";const safetyText=el("span","안전경고 자료 확인 중","road-safety-status"),safetyButton=el("button","경고음 켜기","secondary");safetyButton.type="button";safetyButton.id="roadSafetyEnable";safety.hidden=!isDisplayedTripLive(data);safetyButton.addEventListener("click",()=>enableRoadSafetyAudio());const safetyTest=el("button","음성 시험","secondary");safetyTest.type="button";safetyTest.addEventListener("click",testRoadSafetyAudio);safety.append(safetyText,safetyButton,safetyTest);box.append(safety);Bus70Cockpit.bindSwipe(box,delta=>selectDriverTrip(activeTripIndex+delta));
     const conditions=el("div",undefined,"cockpit-now"),today=el("div"),dateLabel=el("small","","current-date"),clock=el("strong","","current-clock"),weatherBox=el("div",undefined,"current-weather");
     conditions.hidden=!isDisplayedTripLive(data);
     dateLabel.id="driverLiveDate";clock.id="driverLiveClock";today.append(dateLabel,clock);conditions.append(today,weatherBox);box.append(conditions);
@@ -3037,7 +3057,9 @@
     const inner=el("div",undefined,"orbit-center");
 
     const nav=el("div",undefined,"orbit-stops");[["지난 정류장","driverNavPrevious"],["다음 정류장","driverNavNext"]].forEach(([label,id])=>{const item=el("div"),name=el("strong","—");name.id=id;item.append(el("small",label),name);nav.append(item);});
-    const speed=el("strong","—","orbit-speed"),weather=el("div","🌡️ —","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";weather.id="driverWeather";weatherTime.id="driverWeatherTime";weatherTime.hidden=true;value.id="driverTripProgressValue";inner.append(speed,value);ring.append(inner);box.append(ring,nav);weatherBox.append(weather,weatherTime);
+    const speed=el("strong","—","orbit-speed"),weather=el("div","🌡️ —","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";weather.id="driverWeather";weatherTime.id="driverWeatherTime";weatherTime.hidden=true;value.id="driverTripProgressValue";inner.append(speed,value);ring.append(inner);box.append(ring);
+    const gaps=el("div",undefined,"cockpit-gaps planned-gaps");gaps.id="driverPlannedGaps";gaps.setAttribute("aria-label","시간표상 앞뒤차 예정 간격");
+    [["front","예정 앞차"],["rear","예정 뒷차"]].forEach(([side,label])=>{const item=el("div");item.append(el("span",label),el("strong",Bus70Cockpit.plannedGap(context.trip,side)));gaps.append(item);});box.append(gaps,nav);weatherBox.append(weather,weatherTime);
     const target=el("div",undefined,"cockpit-target"),count=el("small","");count.id="driverLiveCountdown";count.dataset.nextTime=context.time||"";const targetLabel=el("strong",context.action+(context.time?" · "+displayTime(context.time):""));targetLabel.id="driverLiveTarget";target.append(targetLabel,count);box.append(target);
     renderQuickRunActions(box,data,context);
     box.append(cockpitPhaseTable(data,context.trip,context.log,true));

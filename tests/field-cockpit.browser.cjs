@@ -30,6 +30,18 @@ renderSchedule();
  const colors=await page.evaluate(()=>[8,1,0,null].map(speed=>Bus70Cockpit.movement({timestamp:Date.now(),coords:{speed,accuracy:5}},Date.now(),false).key));assert.deepEqual(colors,['moving','slow','stopped','unknown']);
  await page.evaluate(()=>Bus70Cockpit.drawRing(document.getElementById('ring'),114,25,22.4,true,{color:'#7b8b9e',key:'unknown'}));assert.notEqual(await page.locator('.route-arrow').getAttribute('style'),'display: none;');
  if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/field-cockpit-'+width+'.png',fullPage:true});}
+ await page.evaluate(()=>{
+  const box=document.querySelector('.orbit-cockpit'),gaps=document.createElement('div');gaps.className='cockpit-gaps planned-gaps';gaps.innerHTML='<div><span>예정 앞차</span><strong>'+Bus70Cockpit.plannedGap({plannedFrontGapMinutes:11},'front')+'</strong></div><div><span>예정 뒷차</span><strong>'+Bus70Cockpit.plannedGap({plannedRearGapMinutes:13},'rear')+'</strong></div>';box.append(gaps);
+  const stops=document.createElement('div');stops.className='orbit-stops';
+  for(const text of ['고강공영차고지','신월청소년문화센터','화곡터널입구교차로(미정차)','신월사거리.국민은행신월동지점']){const cell=document.createElement('div'),name=document.createElement('strong');Bus70Cockpit.phraseText(name,text);cell.append(name);stops.append(cell);}box.append(stops);
+ });
+ assert.match(await page.locator('.planned-gaps').innerText(),/11분/);assert.match(await page.locator('.planned-gaps').innerText(),/13분/);
+ for(const scale of [1,1.5]){
+  await page.locator('.orbit-stops strong').evaluateAll((nodes,scale)=>nodes.forEach(n=>n.style.fontSize=(14*scale)+'px'),scale);
+  assert(await page.locator('.orbit-stops').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'phrase wrapping fits the phone');
+  assert(await page.locator('.phrase-token').evaluateAll(nodes=>nodes.every(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length<=1;})),'no phrase token splits across lines');
+ }
+ if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/field-phrases-'+width+'.png',fullPage:true});
  await page.close();
  }console.log('Phone-sized circular trip tabs, swipe/tap current following, N-stop partial arcs, motion colors and held arrow passed');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
