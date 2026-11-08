@@ -21,7 +21,7 @@ function setup(){
  const body=()=>({requestId:'REPL-'+crypto.randomUUID(),date:future,route:'5',dispatchId:'P1',revision:load().assignments[0].revision,originalVehicleId:'V1',replacementVehicleId:'V2',reportedAt:notice,reportedKind:'통보',type:'고장',reason:'synthetic pump fault',confirmed:true});
  return {c,sheets,load,body,save:b=>c.bus70ReplacementSave_(b,'MANAGER'),locked:()=>locked};
 }
-assert.match(fs.readFileSync('index.html','utf8'), /<script src="\.\/manager-replacement\.js\?v=882"><\/script>/);
+assert.match(fs.readFileSync('index.html','utf8'), /<script src="\.\/manager-replacement\.js\?v=8821"><\/script>/);
 let t=setup(),b=t.body();assert.equal(t.load().vehicles.length,4,'all-route fleet');
 assert.equal(t.c.bus70ReplacementLoad_({date:future,route:'5'},'DRIVER').error,'MANAGER_REQUIRED');
 assert.equal(t.c.bus70ReplacementSave_(b,'CENTER').error,'MANAGER_REQUIRED');

@@ -23,7 +23,7 @@
         <h3>3. 대체 차량</h3>
         <label for="vrSearch">전체 노선 차량 검색</label><input id="vrSearch" type="search" inputmode="numeric" placeholder="차량번호 4자리 검색">
         <label for="vrVehicle">대체 차량 선택</label><select id="vrVehicle"><option value="">차량 선택</option></select>
-        <p id="vrAvailability" class="hint">다른 노선 차량과 예비차도 표시됩니다. 동일 날짜 중복 배차와 미결 정비 차량은 선택할 수 없습니다.</p>
+        <p id="vrAvailability" class="hint" aria-live="polite">검색칸을 비우면 대차 가능한 전체 노선 차량과 예비차가 표시됩니다. 차량번호 4자리가 정확히 일치하면 자동 선택됩니다.</p>
         <details id="vrAdd"><summary>목록에 없는 차량 추가</summary>
           <p class="hint">등록하면 모든 노선에서 검색할 수 있습니다. 기존 차량의 소속 노선은 대차로 바뀌지 않습니다.</p>
           <div class="vr-grid"><div><label for="vrNewNo">차량번호 4자리</label><input id="vrNewNo" inputmode="numeric" maxlength="4" placeholder="4자리 입력"></div>
@@ -53,15 +53,28 @@
       managerData=null;invalidateManagerRequest();refreshManagerContext();showManagerPage('DISPATCH');
     });
   }
-  function clearLists(){$('Dispatch').replaceChildren(new Option('배차를 먼저 불러오세요',''));$('Vehicle').replaceChildren(new Option('차량 선택',''));$('History').replaceChildren();}
+  function clearLists(){$('Dispatch').replaceChildren(new Option('배차를 먼저 불러오세요',''));$('Vehicle').replaceChildren(new Option('차량 선택',''));$('History').replaceChildren();$('Availability').textContent='확정 배차를 불러오면 대차 가능한 차량을 확인할 수 있습니다.';}
   function vehicle(id){return data?.vehicles.find(v=>v.id===id);}
   function selected(){return data?.assignments.find(a=>a.id===$('Dispatch').value);}
   function vehicleLabel(v){return v?v.no+'호 · '+v.route+'번 소속 · '+v.type:'차량 미등록';}
   function unavailable(v){if(v.id===selected()?.vehicleId)return '원차';if(v.unavailable?.length)return v.unavailable.join(' · ');if(v.assignments?.length)return v.assignments.map(a=>a.route+'번 '+a.sequence+'순차 배차됨').join(' · ');return '';}
   function renderVehicles(){
     const prior=$('Vehicle').value,term=$('Search').value.trim();$('Vehicle').replaceChildren(new Option('대체 차량 선택',''));
-    (data?.vehicles||[]).filter(v=>!term||v.no.includes(term)).sort((a,b)=>a.no.localeCompare(b.no)).forEach(v=>{const reason=unavailable(v),option=new Option(vehicleLabel(v)+(reason?' · '+reason:''),v.id);option.disabled=Boolean(reason);$('Vehicle').add(option);});
+    const matches=(data?.vehicles||[]).filter(v=>term?String(v.no).includes(term):!unavailable(v)).sort((a,b)=>String(a.no).localeCompare(String(b.no)));
+    matches.forEach(v=>{const reason=unavailable(v),option=new Option(vehicleLabel(v)+(reason?' · '+reason:''),v.id);option.disabled=Boolean(reason);$('Vehicle').add(option);});
     if([...$('Vehicle').options].some(o=>o.value===prior&&!o.disabled))$('Vehicle').value=prior;
+    const exact=/^\d{4}$/.test(term)?matches.filter(v=>String(v.no)===term):[];
+    if(exact.length===1&&!unavailable(exact[0])){
+      $('Vehicle').value=exact[0].id;$('Availability').textContent=vehicleLabel(exact[0])+'를 자동 선택했습니다. 변경 내용을 확인한 뒤 저장하세요.';
+    }else if(exact.length===1){
+      $('Availability').textContent=term+'호는 선택할 수 없습니다: '+unavailable(exact[0]);
+    }else if(exact.length>1){
+      $('Vehicle').value='';$('Availability').textContent='같은 번호의 차량이 여러 건입니다. 소속과 차량 정보를 확인하여 직접 선택하세요.';
+    }else if(term&&!matches.length){
+      $('Availability').textContent='일치하는 차량이 없습니다. 번호를 확인하거나 「목록에 없는 차량 추가」에서 등록하세요.';
+    }else{
+      $('Availability').textContent=term?'검색 결과에서 차량을 선택하세요. 차량번호 4자리가 정확히 일치하면 자동 선택됩니다.':`대차 가능한 차량 ${matches.length}대가 표시됩니다. 전체 노선 차량과 예비차 중에서 선택하세요.`;
+    }
   }
   function preview(){
     const a=selected(),v=vehicle($('Vehicle').value);
