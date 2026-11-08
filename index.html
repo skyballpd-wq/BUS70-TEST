@@ -2928,7 +2928,7 @@
     const dashboard=document.getElementById("driverLiveDashboard");if(dashboard){
       dashboard.classList.toggle("recording-warning",Boolean(displayLive&&recordingHealth.warning));
       dashboard.classList.toggle("record-view",!displayLive);
-      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target",".ring-peer-label"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
+      for(const selector of [".cockpit-now",".orbit-ring",".orbit-stops",".cockpit-target",".ring-peer-label",".planned-gaps",".peer-basis"]){const node=dashboard.querySelector(selector);if(node)node.hidden=!displayLive;}
       // Station ticks carry live spacing; recorded time gaps remain in trip history.
     }
     if(speed)speed.classList.toggle("waiting",waiting);

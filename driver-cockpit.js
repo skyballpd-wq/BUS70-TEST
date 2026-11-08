@@ -3,7 +3,7 @@
   'use strict';
   // Preserve the source label; breaks are only between complete phrase tokens.
   function phraseParts(value){
-    return String(value||'').split(/([·.\s]+|\([^)]*\)|공영차고지|차고지|청소년|문화센터|국민은행|교차로|복사골|터널입구|신월동지점)/).filter(Boolean);
+    return String(value||'').split(/([·.\s]+|\([^)]*\)|공영차고지|차고지|청소년|문화센터|국민은행|교차로|복사골|터널입구|신월동지점|행정복지센터|대학병원)/).filter(Boolean);
   }
   function phraseText(node,value){
     if(node.dataset.phraseText===String(value))return;
