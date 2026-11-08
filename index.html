@@ -845,6 +845,21 @@
     .signup-actions { display:flex; flex-wrap:wrap; gap:8px; }
     .signup-actions button { flex:1; min-width:110px; }
     #signupMasterPanel { padding:14px; margin-bottom:20px; background:#f4faf9; border-radius:14px; }
+      #replacementPanel {word-break:keep-all;overflow-wrap:anywhere;}
+    #replacementPanel fieldset {min-width:0;border:0;padding:0;margin:0;}
+    #replacementPanel legend {font-weight:800;margin-bottom:12px;}
+    #replacementPanel .vr-grid > div {min-width:0;}
+    #replacementPanel select {min-height:48px;padding:8px;border:1px solid #cbd5e1;border-radius:9px;font:inherit;}
+    #replacementPanel input[type=date],#replacementPanel input[type=datetime-local] {font-size:16px;padding:8px;}
+    #replacementPanel .vr-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+    #replacementPanel input,#replacementPanel select,#replacementPanel textarea {box-sizing:border-box;max-width:100%;width:100%;min-width:0;}
+    #replacementPanel .vr-check {display:flex;gap:8px;align-items:flex-start;margin:16px 0;}
+    #replacementPanel input[type=checkbox] {width:20px;min-width:20px;height:20px;}
+    #replacementPanel .vr-preview {background:#eef5fa;border-radius:10px;padding:16px;white-space:pre-line;line-height:1.7;font-weight:700;}
+    #replacementPanel #vrHistory {white-space:pre-line;}
+    #replacementPanel button {margin:10px 0;}
+    #replacementPanel #vrStatus {white-space:pre-line;font-weight:700;line-height:1.6;}
+    @media(max-width:480px){#replacementPanel .vr-grid{grid-template-columns:minmax(0,1fr);}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 </head>
@@ -1058,17 +1073,20 @@
         <button type="button" data-manager-page="DISPATCH"><strong>배차·시간표</strong><small>노선별 배정 · 시간 조정</small></button>
         <button type="button" data-manager-page="ATTENDANCE"><strong>근태·대체</strong><small>휴무 · 병가 · 예비기사</small></button>
         <button type="button" data-manager-page="ROSTER"><strong>기사 관리</strong><small>등록 · 조회 · 노선 이동</small></button>
+        <button type="button" data-manager-page="REPLACEMENT"><strong>차량 대차</strong><small>적용일 선택 · 대체 차량 · 차량 추가</small></button>
         <button type="button" data-manager-page="FLEET"><strong>차량·정비</strong><small>차량 상태 · 고장 접수</small></button>
         <button type="button" data-manager-page="CONTACTS"><strong>긴급연락망</strong><small>영업소 · 소장 · 사고 · 정비</small></button>
         <button type="button" data-manager-page="SETTINGS"><strong>계정 설정</strong><small>운영계정 · 비밀번호</small></button>
       </div>
     </section>
+    <section id="replacementPanel" class="manager-panel" hidden></section>
     <section id="managerContactsPanel" class="manager-panel" hidden>
       <h2>소신여객 긴급연락망</h2><p class="hint">등록한 번호는 로그인한 기사에게 전화 버튼으로 표시됩니다.</p>
       <div id="managerContactFields"></div><button id="managerContactsSave" type="button">연락망 저장</button><div id="managerContactStatus" role="status"></div>
     </section>
     <section id="managerPanel" class="manager-panel" hidden>
       <h2>소장 배차 현황 작성</h2>
+      <button type="button" data-manager-page="REPLACEMENT">차량 대차 · 차량 추가</button>
       <p class="hint">운행 날짜를 선택하면 전 노선 공통 A/B 격일 근무조가 자동 적용되고 그날 시간표의 실제 운행 순차만 표시됩니다. 사진 OCR은 저장 데이터와 다른 항목을 찾는 보조 확인입니다.</p>
       <div class="manager-tools">
         <div><label for="managerRoute">관리 노선</label><select id="managerRoute"><option value="ALL">전체 노선 현황</option><option value="70">70번</option><option value="5">5번</option><option value="23">23번</option></select></div>
@@ -1122,6 +1140,7 @@
     </section>
 
     <section id="centerPanel" class="manager-panel" hidden>
+      <button type="button" data-manager-page="REPLACEMENT" id="fleetReplacementLink" hidden>차량 대차 · 차량 추가</button>
       <h2 id="operationPanelTitle">현장 상황·정비 공유</h2>
       <p id="operationPanelHelp" class="hint">차량 돌발상황과 예비차 투입, 정비 진행 상태를 마스터·소장·정비소가 함께 확인합니다.</p>
       <button id="operationLoad" type="button">현장 현황 새로고침</button>
@@ -1275,7 +1294,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v88.1
+    소신여객 통합 운행관리 TEST · v88.2
   </footer>
 
 </div>
@@ -1284,6 +1303,7 @@
   <script src="./manager-ocr.js?v=11"></script>
 <script src="./login-korean.js"></script>
 <script src="./driver-signup.js?v=881"></script>
+<script src="./manager-replacement.js?v=882"></script>
 <script src="./driver-automation.js?v=88"></script>
 <script src="./driver-recording.js?v=82"></script>
 <script src="./driver-cockpit.js?v=88"></script>
@@ -1500,7 +1520,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v88.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v88.2";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1692,6 +1712,7 @@
   }
 
   function clearLocalAuth() {
+    Bus70Replacement.reset();
     Bus70Signup.clear();Bus70Signup.resetMaster();
     stopDriverLocationTracking(true);
     stopDriverFleetTimer();
@@ -1737,7 +1758,7 @@
   }
 
   function showLoginScreen(text) {
-    ["managerWorkspace","managerContactsPanel"].forEach(id=>document.getElementById(id).hidden=true);
+    ["managerWorkspace","managerContactsPanel","replacementPanel"].forEach(id=>document.getElementById(id).hidden=true);
     document.body.classList.remove("manager-layout");
     authRequestId++;
     scheduleRequestId++;
@@ -4261,15 +4282,17 @@
   let depotContactRequestId = 0;
   function initManagerWorkspace(){
     const workspace=document.getElementById("managerWorkspace");
+    document.getElementById("fleetReplacementLink").hidden=!currentIsManager;
     workspace.hidden=!currentIsManager;document.body.classList.toggle("manager-layout",currentIsManager);
     const context=document.getElementById("managerContext");
     if(!context.children.length)context.append(document.getElementById("managerRoute").closest(".manager-tools"));
   }
   function showManagerPage(page,focus=true){
     if(!currentIsManager)return;
-    const titles={HOME:"소장 업무 홈",DISPATCH:"배차·시간표",ATTENDANCE:"근태·대체",ROSTER:"기사 관리",FLEET:"차량·정비",CONTACTS:"긴급연락망",SETTINGS:"계정 설정"};
+    const titles={HOME:"소장 업무 홈",DISPATCH:"배차·시간표",ATTENDANCE:"근태·대체",ROSTER:"기사 관리",FLEET:"차량·정비",CONTACTS:"긴급연락망",SETTINGS:"계정 설정",REPLACEMENT:"차량 대차"};
     managerPage=titles[page]?page:"HOME";
-    const target={managerPanel:"DISPATCH",centerPanel:"FLEET",managerContactsPanel:"CONTACTS",staffAccountPanel:"SETTINGS"};
+    document.getElementById("managerContext").hidden=managerPage==="REPLACEMENT";
+    const target={replacementPanel:"REPLACEMENT",managerPanel:"DISPATCH",centerPanel:"FLEET",managerContactsPanel:"CONTACTS",staffAccountPanel:"SETTINGS"};
     Object.entries(target).forEach(([id,key])=>document.getElementById(id).hidden=managerPage!==key);
     document.getElementById("masterAdminPanel").hidden=!["ROSTER","ATTENDANCE","SETTINGS"].includes(managerPage);
     document.getElementById("managerRosterTools").hidden=managerPage!=="ROSTER";
@@ -4282,6 +4305,7 @@
     document.getElementById("managerHome").hidden=managerPage==="HOME";
     document.getElementById("managerPageTitle").textContent=titles[managerPage];
     if(managerPage==="DISPATCH"&&!managerData)loadManagerData();
+    if(managerPage==="REPLACEMENT")Bus70Replacement.open();
     if(managerPage==="FLEET")renderVehicleStatusList();
     if(managerPage==="CONTACTS")loadDepotContacts();
     if(focus){document.getElementById("managerPageTitle").focus();document.getElementById("managerWorkspace").scrollIntoView({block:"start"});}
