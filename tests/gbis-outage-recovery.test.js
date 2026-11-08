@@ -17,7 +17,7 @@ function run({identity=planned-60000,speed=10,returning=false,completed=false,sh
 let r=run();assert.equal(r.result.event,'DEPART');assert.equal(r.result.position.timestamp,r.first,'save first measured outbound position, not delayed confirmation');
 for(const options of [{identity:0},{identity:planned-21*3600000},{speed:1.2},{returning:true},{completed:true},{shift:-600000}])assert.equal(run(options).result.event,null,JSON.stringify(options));
 r=run({identity:0,lateFeed:true});assert.equal(r.result.event,'DEPART');assert.equal(r.result.position.timestamp,r.first,'late API corroboration keeps continuous GPS observation time');
-r=run({gap:true});assert.equal(r.result.event,null,'a long GPS gap requires new depot evidence');
+r=run({gap:true});assert.equal(r.result.event,'DEPART','a known trip origin survives the outage, while motion proof restarts');assert(r.result.position.timestamp>=planned+80000,'never reuse the pre-gap departure candidate');
 let previous=Infinity;for(let fraction=8.1;fraction<=10;fraction+=.1){const nav={configured:true,turnPassed:true,matchedMeters:gps.distance(stops[0],{lat:37+fraction*.0045,lng:127}),fraction};const remaining=gps.remainingRoute(path,nav,{});assert.equal(remaining.phase,'도착지');assert(remaining.meters<=previous);previous=remaining.meters;}
 assert.equal(gps.remainingRoute(path,{configured:false},{}),null);
 // Shared cache, single-flight lease, durable 429 cooldown and Retry-After.
@@ -35,5 +35,5 @@ assert.equal(c.bus70GyeonggiRetryAfter_({'retry-after':new Date(now+120000).toUT
 console.log('Outage departure timing, walking/early/completed/identity/gap guards, remaining route distance, shared fetch and durable rate-limit recovery passed');
 
 const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
-for(const [name,version] of [['driver-automation',86],['driver-recording',82],['driver-cockpit',87],['road-safety',87]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
-assert(worker.includes('soshin-ops-static-v87-field-operations'));
+for(const [name,version] of [['driver-automation',88],['driver-recording',82],['driver-cockpit',88],['road-safety',87]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
+assert(worker.includes('soshin-ops-static-v88-field-recovery'));

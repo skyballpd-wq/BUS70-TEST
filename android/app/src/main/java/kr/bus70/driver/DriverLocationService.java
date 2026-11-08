@@ -64,8 +64,23 @@ public class DriverLocationService extends Service implements LocationListener {
     private Location lastLiveLocation;
     private long lastAcceptedFix;
     private long lastGpsElapsed;
+    private long lastReacquireAt;
     private final Runnable retryEvents = new Runnable() {
-        @Override public void run() { if(loadSchedule())flushEvents();if(store.locationTracking()&&System.currentTimeMillis()-store.locationTimestamp()>45000L)setStatus("GPS 재수신 대기 · 위치를 수신하지 못한 구간은 기록할 수 없습니다.");main.postDelayed(this,15000L); }
+        @Override public void run() {
+            if(loadSchedule())flushEvents();
+            long now=System.currentTimeMillis();
+            if(store.locationTracking()&&now-store.locationTimestamp()>45000L){
+                setStatus("GPS 재수신 대기 · 위치를 수신하지 못한 구간은 기록할 수 없습니다.");
+                if(now-lastReacquireAt>=60000L&&locationAllowed()){
+                    lastReacquireAt=now;
+                    try{
+                        if(locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000L,0f,DriverLocationService.this);
+                        if(locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,5000L,0f,DriverLocationService.this);
+                    }catch(SecurityException ignored){}
+                }
+            }
+            main.postDelayed(this,15000L);
+        }
     };
 
     static void start(Context context) {
@@ -229,7 +244,7 @@ public class DriverLocationService extends Service implements LocationListener {
         if (state == null) state = new JSONObject();
         JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation"), control = point(trip,"controlLocation"), returned = point(trip,"returnLocation");
         long previousSample=state.optLong("sampleTime");
-        try{if(previousSample>0&&fix-previousSample>45000)state.remove("seenStart");if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
+        try{if(previousSample>0&&fix-previousSample>45000)state.put("seenStart",state.optBoolean("seenStart")&&state.optLong("startVisitAt")>0&&fix-state.optLong("startVisitAt")>=0&&fix-state.optLong("startVisitAt")<=7200000L);if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         JSONObject navigation=state.optJSONObject("navigation");
         JSONObject hint=routeReference;
@@ -256,10 +271,20 @@ public class DriverLocationService extends Service implements LocationListener {
         } catch(Exception ignored) {}
 
         try {
+            JSONObject warning=RoadSafetyPolicy.evaluate(schedule,trip,navigation,now,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():Double.NaN,location.hasBearing()&&(!location.hasBearingAccuracy()||location.getBearingAccuracyDegrees()<=45)?location.getBearing():Double.NaN);
+            if(warning!=null){
+                JSONObject notices=state.optJSONObject("roadSafetyNotices");if(notices==null)notices=new JSONObject();
+                String key=warning.getString("key");long last=notices.optLong(key);
+                if((last==0||now-last>warning.getLong("cooldownMs"))&&arrivalVoice.speak(warning.getString("message"))){notices.put(key,now);state.put("roadSafetyNotices",notices);}
+            }
+        }catch(Exception ignored){}
+
+        try {
             long plannedStart = scheduleMoment(trip.optString("startTime"));
             if (actualStart.isEmpty() && start != null && reliable(location, start) && plannedStart>0 && now<=plannedStart+7200000L) {
-                DepartureOnset.update(state,start,plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1,location.hasBearing()?location.getBearing():Double.NaN);
+                DepartureOnset.update(state,start,plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1,location.hasBearing()?location.getBearing():Double.NaN,hint);
                 double distance = distance(location, start);
+                if(distance<=radius(start)&&matchesDirection(location,start,"approachBearing"))state.put("startVisitAt",fix);
                 JSONObject proofNav=navigation;
                 if((proofNav==null||!proofNav.optBoolean("configured"))&&fix>=plannedStart){proofNav=RouteMatcher.match(trip.optJSONObject("course"),state.optJSONObject("departureNavigation"),location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,false,hint);state.put("departureNavigation",proofNav);}
                 JSONObject proof=DepartureEvidence.update(state,trip,proofNav,hint,states.optLong("vehicleIdentityAt"),plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1);

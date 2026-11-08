@@ -1,6 +1,19 @@
 /* Display helpers: missing telemetry stays missing. No live data is fabricated. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.Bus70Cockpit=api;})(typeof window==='object'?window:this,function(){
   'use strict';
+  // Preserve the source label; breaks are only between complete phrase tokens.
+  function phraseParts(value){
+    return String(value||'').split(/([·.\s]+|\([^)]*\)|공영차고지|차고지|청소년|문화센터|국민은행|교차로|복사골|터널입구|신월동지점)/).filter(Boolean);
+  }
+  function phraseText(node,value){
+    if(node.dataset.phraseText===String(value))return;
+    node.dataset.phraseText=String(value);node.replaceChildren();
+    phraseParts(value).forEach((part,i)=>{if(i)node.append(node.ownerDocument.createElement('wbr'));const token=node.ownerDocument.createElement('span');token.className='phrase-token';token.textContent=part;node.append(token);});
+  }
+  function plannedGap(trip,side){
+    const v=side==='front'?trip?.plannedFrontGapMinutes:trip?.plannedRearGapMinutes;
+    return v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v)+'분':'확인 중';
+  }
   function nativePosition(result,previous){
     if(previous&&Number(result.timestamp)<=Number(previous.timestamp))return previous;
     const has=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
@@ -59,7 +72,15 @@
     }).filter(Boolean);
     // A route occurrence includes the return leg. Never wrap completed trips to the start.
     // Same-stop observations cannot establish front/rear order; other neighbours remain visible.
-    const unique=[...new Map(candidates.sort((a,b)=>b.age-a.age).map(p=>[p.vehicle,p])).values()];
+    const publicPeers=(fleet.crossCheck?.fleet||[]).filter(p=>p.source==='GYEONGGI_BUS_LOCATION_V2'&&p.positionBasis==='PROVIDER_STOP_REFERENCE'&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
+      const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder)),age=(now-Number(p.fetchedAt))/1000;
+      if(i<0||!Number.isFinite(age)||age<0||age>60||![0,1,2].includes(p.stateCd))return null;
+      // Exclude layover/deadhead ambiguity at route boundaries.
+      if(i===0||i===stops.length-1)return null;
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,stopGap:Math.abs(i-index),source:'GBIS',reference:true};
+    }).filter(Boolean);
+    // Fresh authenticated phone fixes take priority over the same bus's public reference.
+    const unique=[...new Map([...publicPeers,...candidates.sort((a,b)=>b.age-a.age)].map(p=>[p.vehicle,p])).values()];
     for(const side of ['front','rear']){
       const peers=unique.filter(p=>side==='front'?p.index>index:p.index<index).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
       peers.forEach((p,i)=>result.push({...p,side,rank:i+1,fraction:(p.index+.5)/stops.length}));
@@ -90,7 +111,7 @@
       const marker=ticks[p.index].cloneNode();marker.setAttribute('class','route-peer '+p.side);marker.setAttribute('stroke',p.side==='front'?'#2563eb':'#c25916');
       // Two vehicles at one stop occupy two radial stripes of that same tick.
       if(count>1){const scale=(49-3.5+7*(slot+.5)/count)/49;marker.setAttribute('transform',`translate(60 60) scale(${scale}) translate(-60 -60)`);marker.setAttribute('stroke-width',String(6/count/scale));}
-      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName;marker.append(title);markers.append(marker);
+      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName+(p.reference?' · 경기버스정보 조회 기준, 관측시각 미제공':' · 앱 GPS');marker.append(title);markers.append(marker);
     });
     const ownIndex=Math.min(ticks.length-1,Math.floor(Number(passed)||0)-1);
     if(ownIndex>=0){const ownTick=ticks[ownIndex].cloneNode();ownTick.setAttribute('class','route-own');ownTick.setAttribute('stroke',held?'#7b8b9e':'#7c3aed');markers.append(ownTick);}
@@ -139,5 +160,5 @@
     }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
+  return {phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });

@@ -90,11 +90,17 @@
     if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||Number(c.accuracy)>60||Number(c.accuracy)<0||!ts||now-ts>20000||ts>now+5000||ts<=Number(state.lastTimestamp||0))return {state,event:null};
     // Cached samples and repeated callbacks cannot satisfy a dwell requirement.
     if(state.lastTimestamp&&ts-state.lastTimestamp<1500)return {state,event:null};
-    if(state.lastTimestamp&&ts-state.lastTimestamp>45000)for(const key of ["seenStart","departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
+    if(state.lastTimestamp&&ts-state.lastTimestamp>45000){
+      for(const key of ["departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
+      // An outage invalidates motion, not an observed visit to this trip's origin.
+      // New continuous vehicle proof is still mandatory; never backdate across the gap.
+      state.seenStart=Boolean(state.seenStart)&&number(state.startVisitAt)&&ts-state.startVisitAt>=0&&ts-state.startVisitAt<=7200000;
+    }
     state.lastTimestamp=ts;
     const here={lat:Number(c.latitude),lng:Number(c.longitude)},points=input.points||{},log=input.log||{};
     const direction=(point,field)=>!number(point?.[field])||!number(c.heading)||!number(c.speed)||Number(c.speed)<1.5||Math.abs((Number(c.heading)-Number(point[field])+540)%360-180)<=100;
     const inside=key=>validPoint(points[key])&&direction(points[key],"approachBearing")&&distance(here,points[key])<=Number(points[key].radiusM||80);
+    if(!log.actualStart&&inside("start"))state.startVisitAt=ts;
     const count=(key,yes)=>state[key]=yes?Number(state[key]||0)+1:0;
     if(log.actualEnd){
       if(input.hasReturn&&!log.deadheadReturnedAt&&validPoint(points.return)&&count("returnInside",inside("return"))>=2)return {state,event:"DEADHEAD_RETURN"};
@@ -185,7 +191,8 @@
     const here={lat:c.latitude,lng:c.longitude};
     if(proof){const dt=(ts-proof.lastAt)/1000;if(dt<=0)return;if(dt>15||ts-proof.first.timestamp>DEPARTURE_ONSET_MAX_MS||distance(here,proof.last)>dt*30+2*c.accuracy)valid=false;}
     if(!valid){delete state.departureOnset;return;}
-    if(!proof&&c.speed>=2.8&&distance(here,start)<=Number(start.radiusM||80))proof={first:p,moved:0};
+    const hint=input.vehicleReference,corroborated=hint?.available&&hint.source==="GYEONGGI_BUS_LOCATION_V2"&&hint.status==="AGREE"&&hint.stateCd===2&&number(hint.fetchedAt)&&ts-hint.fetchedAt>=0&&ts-hint.fetchedAt<=60000&&Number(hint.stationSeq)===Number(start?.order);
+    if(!proof&&(c.speed>=2.8||c.speed>=.8&&corroborated)&&distance(here,start)<=Number(start.radiusM||80))proof={first:p,moved:0};
     if(!proof)return;
     const moved=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
     if(c.speed<1.5&&moved<Math.max(12,c.accuracy)&&ts-proof.first.timestamp>15000){delete state.departureOnset;return;}

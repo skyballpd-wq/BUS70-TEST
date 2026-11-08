@@ -7,6 +7,10 @@ final class DepartureOnset {
     private static final long MAX_AGE_MS=600000L;
     static void update(JSONObject state, JSONObject start, long planned, long at,
                        double lat, double lng, double accuracy, double speed, double heading) throws Exception {
+        update(state,start,planned,at,lat,lng,accuracy,speed,heading,null);
+    }
+    static void update(JSONObject state, JSONObject start, long planned, long at,
+                       double lat, double lng, double accuracy, double speed, double heading, JSONObject hint) throws Exception {
         JSONObject proof=state.optJSONObject("departureOnset");
         boolean valid=state.optBoolean("seenStart")&&start!=null&&planned>0&&at>=planned&&at<=planned+7200000
                 &&Double.isFinite(lat)&&Double.isFinite(lng)&&Double.isFinite(accuracy)&&accuracy>=0&&accuracy<=25
@@ -20,7 +24,8 @@ final class DepartureOnset {
         }
         if(!valid){state.remove("departureOnset");return;}
         double radius=start.optDouble("radiusM",80);
-        if(proof==null&&speed>=2.8&&RouteMatcher.distance(lat,lng,start)<=radius){
+        boolean corroborated=hint!=null&&hint.optBoolean("available")&&"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))&&"AGREE".equals(hint.optString("status"))&&hint.optInt("stateCd",-1)==2&&hint.optLong("fetchedAt")>0&&at-hint.optLong("fetchedAt")>=0&&at-hint.optLong("fetchedAt")<=60000&&start.has("order")&&hint.optInt("stationSeq")==start.optInt("order");
+        if(proof==null&&(speed>=2.8||speed>=.8&&corroborated)&&RouteMatcher.distance(lat,lng,start)<=radius){
             proof=new JSONObject().put("first",new JSONObject().put("latitude",lat).put("longitude",lng).put("accuracy",accuracy).put("time",at));
         }
         if(proof==null)return;
