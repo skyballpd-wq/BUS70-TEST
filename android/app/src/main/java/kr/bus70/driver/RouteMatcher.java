@@ -38,7 +38,12 @@ final class RouteMatcher {
         boolean knownVehicle=DepartureEvidence.identityFresh(trip.optLong("vehicleIdentityAt"),timestamp);
         if(hint!=null&&hint.optBoolean("available")&&"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))&&timestamp-hint.optLong("fetchedAt")<=60000&&hint.optLong("fetchedAt")<=timestamp+5000&&stops!=null){for(int i=1;i<stops.length()-1;i++){JSONObject stop=stops.getJSONObject(i);String id=hint.optString("stationId");if(stop.optInt("order")==hint.optInt("stationSeq")&&distance(lat,lng,stop)<=120&&(id.isEmpty()||id.equals(stop.optString("stationId",stop.optString("id")))||stop.optString("id").endsWith("-"+id)))vehicleMatched=true;}}
         if(!observed&&plannedStart>0&&(timestamp<plannedStart||atStart&&!recovering||!recovering&&!vehicleMatched&&!knownVehicle))return new JSONObject().put("configured",false).put("waiting",true).put("returnConfirmed",false).put("turnPassed",false).put("returnEvidence",new JSONArray());
+        boolean leavingWait=previous!=null&&previous.optBoolean("waiting")&&start!=null&&distance(lat,lng,start)<=300;
         if(previous!=null&&previous.optBoolean("waiting"))previous=null;
+        // The service supplies an event epoch, never an inferred timetable departure.
+        long departedAt=trip.optLong("actualStartEpoch");
+        boolean justDeparted=observed&&trip.optString("actualTurn").isEmpty()&&trip.optString("actualEnd").isEmpty()&&departedAt>0&&timestamp>=departedAt&&timestamp-departedAt<=180000&&start!=null&&distance(lat,lng,start)<=300;
+        if(course!=null&&(justDeparted||leavingWait)){course=new JSONObject(course.toString()).put("departureWindow",true);previous=null;hint=null;}
         return match(course,previous,lat,lng,accuracy,speed,heading,timestamp,!trip.optString("actualTurn").isEmpty(),hint);
     }
     static JSONObject match(JSONObject course,JSONObject previous,double lat,double lng,double accuracy,double speed,double heading,long timestamp,boolean turnRecorded) throws Exception {
@@ -68,6 +73,7 @@ final class RouteMatcher {
         ArrayList<double[]> candidates=new ArrayList<>();
         for(int i=0;i<stops.length()-1;i++){
             JSONObject a=stops.getJSONObject(i),b=stops.getJSONObject(i+1);double length=distance(a.optDouble("lat"),a.optDouble("lng"),b),base=meters;meters+=length;
+            if(course.optBoolean("departureWindow")&&i>=Math.min(5,course.optInt("turnIndex",-1)>0?course.optInt("turnIndex"):5))continue;
             if(turnRecorded&&course.optInt("turnIndex",-1)>=0&&i<course.optInt("turnIndex"))continue;
             double scale=Math.cos(lat*Math.PI/180),ax=(a.optDouble("lng")-lng)*111320*scale,ay=(a.optDouble("lat")-lat)*110540,bx=(b.optDouble("lng")-lng)*111320*scale,by=(b.optDouble("lat")-lat)*110540,dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;
             double t=den>0?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/den)):0,d=Math.hypot(ax+t*dx,ay+t*dy),along=base+length*t,courseHeading=bearing(a,b);

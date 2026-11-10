@@ -74,6 +74,9 @@ jobs:
           node tests/departure-onset.test.js
           node tests/departure-stop-go.test.js
           node tests/nov8-field-recovery.test.js
+          node tests/nov9-cockpit-recording.test.js
+          node tests/waiting-trip-phase.test.js
+          node tests/weather-cockpit.test.js
           node tests/observed-headway.test.js
           node tests/field-cockpit.browser.cjs
           node tests/quick-record.test.js

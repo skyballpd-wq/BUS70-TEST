@@ -251,6 +251,7 @@ public class DriverLocationService extends Service implements LocationListener {
         try{
             if(hint!=null&&(!hint.optString("date").equals(schedule.optString("date"))||!hint.optString("dispatchId").equals(schedule.optString("dispatchId"))||!hint.optString("vehicleId").equals(schedule.optString("vehicleId"))))hint=null;
             trip.put("vehicleIdentityAt",states.optLong("vehicleIdentityAt"));
+            trip.put("actualStartEpoch",TripOrder.observedMoment(schedule.optString("date"),actualStart));
             navigation=RouteMatcher.matchTrip(trip,scheduleMoment(trip.optString("startTime")),navigation,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,hint);state.put("navigation",navigation);}catch(Exception ignored){}
         boolean inbound=navigation!=null&&navigation.optBoolean("returnConfirmed");
         postLiveLocation(trip, location, navigation!=null&&navigation.optBoolean("waiting")?"":inbound?"RETURN":"OUTBOUND",navigation);
@@ -284,14 +285,14 @@ public class DriverLocationService extends Service implements LocationListener {
             if (actualStart.isEmpty() && start != null && reliable(location, start) && plannedStart>0 && now<=plannedStart+7200000L) {
                 DepartureOnset.update(state,start,plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1,location.hasBearing()?location.getBearing():Double.NaN,hint);
                 double distance = distance(location, start);
-                if(distance<=radius(start)&&matchesDirection(location,start,"approachBearing"))state.put("startVisitAt",fix);
+                if(distance<=radius(start)+Math.min(15,location.getAccuracy())&&matchesDirection(location,start,"approachBearing"))state.put("startVisitAt",fix);
                 JSONObject proofNav=navigation;
                 if((proofNav==null||!proofNav.optBoolean("configured"))&&fix>=plannedStart){proofNav=RouteMatcher.match(trip.optJSONObject("course"),state.optJSONObject("departureNavigation"),location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():0,location.hasBearing()?location.getBearing():Double.NaN,fix,false,hint);state.put("departureNavigation",proofNav);}
                 JSONObject proof=DepartureEvidence.update(state,trip,proofNav,hint,states.optLong("vehicleIdentityAt"),plannedStart,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1);
                 if(proof!=null){state.put("departureFix",DepartureOnset.first(state,proof));trip.put("departureEvidenceSource","GPS_CONTINUOUS_PRIOR_VEHICLE");postEvent(trip,"DEPART",rememberedFix(state,"departure",location));actualStart=trip.optString("actualStart");}
                 if(!actualStart.isEmpty())state.remove("gpsDeparture");
                 if (!actualStart.isEmpty()) { state.put("startOutside",0); }
-                else if (distance <= radius(start) && matchesDirection(location,start,"approachBearing")) {
+                else if (distance <= radius(start)+Math.min(15,location.getAccuracy()) && matchesDirection(location,start,"approachBearing")) {
                     state.put("startInside", state.optInt("startInside") + 1).put("startOutside", 0);
                     if (state.optInt("startInside") >= 2) state.put("seenStart", true);
                 } else if (fix>=plannedStart && state.optBoolean("seenStart") && distance > radius(start) + Math.max(30, location.getAccuracy()) && matchesDirection(location,start,"departureBearing") && RouteMatcher.vehicleDeparture(state,trip.optJSONObject("course"),navigation,location.getLatitude(),location.getLongitude(),location.hasSpeed()?location.getSpeed():-1,fix,plannedStart,hint)) {

@@ -14,7 +14,7 @@ assert(!recording.crossCheckLabel({available:false,error:'secret-token'},0).incl
 const html=fs.readFileSync('index.html','utf8');
 const functions=html.slice(html.indexOf('  function driverLiveRequestScope('),html.indexOf('  function stopDriverFleetTimer('));
 let resolve,reject,applied=0,updates=0;
-const c=vm.createContext({JSON,authToken:'session-A',currentDriverId:'SYN-A',currentRole:'',lastSchedule:{vehicle:'SYN-V1'},liveFleet:{front:{sequence:1},positions:[{}],crossCheck:{available:true}},liveFleetRequestInFlight:false,
+const c=vm.createContext({JSON,Bus70Cockpit:require("../driver-cockpit"),authToken:'session-A',currentDriverId:'SYN-A',currentRole:'',lastSchedule:{vehicle:'SYN-V1'},liveFleet:{front:{sequence:1},positions:[{}],crossCheck:{available:true}},liveFleetRequestInFlight:false,
  document:{getElementById:()=>({value:'2099-01-01'})},todayLocal:()=> '2099-01-01',driverAssignmentBinding:data=>({dispatchId:'SYN-D1',vehicleId:data.vehicle}),
  apiPost:()=>new Promise((res,rej)=>{resolve=res;reject=rej;}),applyDriverLiveFleet:()=>applied++,updateDriverLiveDashboard:()=>updates++});
 vm.runInContext(functions,c);
