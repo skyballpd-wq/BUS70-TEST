@@ -891,6 +891,7 @@
     @media(max-width:340px){.orbit-point strong{font-size:10px}.driver-mode .cockpit-head>strong{font-size:11px}.driver-mode .cockpit-head>span{font-size:10px}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
+<link rel="stylesheet" href="./driver-viewport.css?v=892">
 </head>
 
 <body>
@@ -1323,7 +1324,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.1
+    소신여객 통합 운행관리 TEST · v89.2
   </footer>
 
 </div>
@@ -1336,6 +1337,7 @@
 <script src="./driver-automation.js?v=89"></script>
 <script src="./driver-recording.js?v=89"></script>
 <script src="./driver-cockpit.js?v=89"></script>
+<script src="./driver-viewport.js?v=892"></script>
 <script src="./road-safety.js?v=891"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
@@ -1549,7 +1551,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.1";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.2";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1801,7 +1803,7 @@
     document.getElementById("loginSection").hidden = false;
     document.getElementById("driverCard").classList.remove("show");
     document.getElementById("sessionBar").hidden = true;
-    document.body.classList.remove("driver-mode");cockpitWeather={};cockpitWeatherKey="";navigationMemory.clear();
+    document.body.classList.remove("driver-mode","live-first-screen");cockpitWeather={};cockpitWeatherKey="";navigationMemory.clear();
     document.getElementById("schedulePanel").hidden = true;
     document.getElementById("runLogPanel").hidden = true;
     document.getElementById("boardPanel").hidden = true;
@@ -3081,6 +3083,7 @@
     const refreshed=document.getElementById("scheduleFreshness");if(refreshed&&scheduleRefreshedAt)refreshed.textContent=scheduleRefreshError||("일정 갱신 "+new Date(scheduleRefreshedAt).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour12:false,hour:"2-digit",minute:"2-digit"})+" · 자동 확인 중");
     const crossCheck=document.getElementById("driverCrossCheckStatus");if(crossCheck)crossCheck.textContent=displayLive?Bus70Recording.crossCheckLabel(liveFleet.crossCheck,Date.now()):"";
     const liveButton=document.getElementById("driverLiveLocationToggle");if(liveButton){liveButton.hidden=!displayLive||!(locationPermissionState==="denied"||nativeLocationEnabled===false);liveButton.textContent=locationPermissionState==="denied"?"위치 권한 설정":"휴대폰 위치 켜기";}
+    if(typeof Bus70Viewport!=="undefined")Bus70Viewport.refresh(document,displayLive&&!currentRole);
   }
 
   function liveMetric(label,value,id){const box=el("div",undefined,"driver-live-metric");box.append(el("span",label));const strong=el("strong",value);if(id)strong.id=id;box.append(strong);return box;}
@@ -3479,6 +3482,7 @@
 
   function renderSchedule(rearmAlarms=true) {
     const root = document.getElementById("scheduleResult");
+    document.body?.classList.remove("live-first-screen");
     const detailsOpen=Boolean(root.querySelector?.(".schedule-options")?.open),phaseDetailsOpen=Boolean(root.querySelector?.(".cockpit-record-details")?.open);
     root.replaceChildren();
     const data = lastSchedule ? scheduleForRequestedDate(lastSchedule,document.getElementById("workDate").value) : null;
@@ -3574,6 +3578,7 @@
     if (authToken && d.dispatchId && d.scheduleVersion) {
       document.getElementById("confirmScheduleButton").hidden = false;
     }
+    if(typeof Bus70Viewport!=="undefined")Bus70Viewport.mount(root,isDisplayedTripLive(data)&&!currentRole);
     updateDriverLiveDashboard();
     resumeDriverLocationIfAllowed();
     if(rearmAlarms!==false&&temporalState!=="PAST")armDriverAlarms();

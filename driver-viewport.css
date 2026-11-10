@@ -1,0 +1,68 @@
+/* A viewport-sized live panel; ordinary document scrolling reaches all other work. */
+.driver-mode.live-first-screen .app>.header{display:none}
+.driver-mode.live-first-screen main{display:flex;flex-direction:column;padding:0 8px calc(16px + env(safe-area-inset-bottom))}
+.driver-mode.live-first-screen #schedulePanel{order:-1;display:flex;flex-direction:column;margin:0}
+.driver-mode.live-first-screen #scheduleResult{order:-2;margin:0}
+.driver-mode.live-first-screen #scheduleQueryOptions{order:0;margin:12px 0}
+.driver-mode.live-first-screen .trip-list,.driver-mode.live-first-screen .trip-list .trip{margin:0;padding:0;border:0;background:white}
+.driver-mode.live-first-screen .orbit-cockpit{padding:0;border:0;container-type:normal}
+.driver-mode.live-first-screen #scheduleResult>.notice,.driver-mode.live-first-screen #scheduleResult>.leave-month{margin:0}
+.driver-live-primary{height:100vh;height:100svh;min-height:500px;display:flex;flex-direction:column;gap:4px;padding:calc(6px + env(safe-area-inset-top)) 8px calc(4px + env(safe-area-inset-bottom));background:white}
+.driver-live-primary>*{flex-shrink:0;min-width:0}
+.driver-mode .driver-live-primary .cockpit-now{padding:0;gap:0}
+.driver-live-primary .current-datetime{line-height:1.3}
+.driver-live-primary .current-date{font-size:14px}
+.driver-live-primary .current-clock{font-size:25px}
+.driver-mode .driver-live-primary .orbit-weather{min-height:26px;font-size:12px}
+.driver-live-primary .weather-icon{width:28px;height:24px}
+.driver-mode .driver-live-primary .cockpit-head{padding:0;line-height:1.4}
+.driver-mode .driver-live-primary .planned-gaps{margin:0;gap:6px}
+.driver-mode .driver-live-primary .planned-gaps>div{padding:4px 7px}
+.driver-live-primary .driver-live-orbit{flex:1 1 0;min-height:170px;display:flex;align-items:center;justify-content:center;container-type:size}
+.driver-mode .driver-live-primary .orbit-ring{width:min(100cqw,100cqh,290px);max-width:none;height:auto;margin:0;aspect-ratio:1}
+.driver-live-primary .orbit-point strong{font-size:12px}
+.driver-live-primary .orbit-point span{font-size:11px}
+.driver-live-primary .orbit-ring>.orbit-center{inset:24% 13%;gap:2px}
+.driver-live-primary .orbit-progress{font-size:12px;line-height:1.35}
+.driver-mode .driver-live-primary .ring-peer-label{margin:0;font-size:12px;line-height:1.3}
+.driver-mode .driver-live-primary .peer-basis{margin:0;font-size:11px;line-height:1.3}
+.driver-mode .driver-live-primary .orbit-stops{margin:0;gap:10px;align-items:start}
+.driver-mode .driver-live-primary .orbit-stops small{font-size:11px}
+.driver-mode .driver-live-primary .orbit-stops strong{font-size:14px;line-height:1.35}
+.driver-mode .driver-live-primary .cockpit-target{margin:0;padding:2px 0;line-height:1.35}
+.driver-mode .driver-live-primary .cockpit-target strong{font-size:13px}
+.driver-mode .driver-live-primary .cockpit-target small{font-size:11px}
+.driver-live-signals{display:flex;align-items:center;gap:6px;border-top:1px solid #e5edf3;padding-top:4px}
+.driver-mode .driver-live-primary .recording-summary{margin:0;flex:0 1 43%;min-height:36px;padding:4px 6px;font-size:11px;line-height:1.3}
+.driver-live-safety{flex:1;font-size:11px;line-height:1.35;color:#52657a;word-break:keep-all;overflow-wrap:break-word}
+.driver-live-safety.warning{color:#a83924;font-weight:800}
+.driver-scroll-hint{text-align:center;font-size:11px;line-height:1.3;color:#64748b}
+.driver-live-secondary{padding:14px 8px;border-top:1px solid #dce5ef;background:#f8fafc}
+.driver-live-secondary>h2{margin:0 0 10px;font-size:17px}
+.driver-live-secondary .road-safety{margin:10px 0}
+.driver-live-secondary .quick-run-actions{margin-top:14px}
+.driver-live-secondary .cockpit-record-details{margin:12px 0}
+.driver-mode.live-first-screen .session-bar{margin:16px 0}
+/* Short landscape screens use a side-by-side layout without shrinking text. */
+@media(min-width:560px) and (max-height:520px){
+  .driver-mode.live-first-screen .app{max-width:960px}
+  .driver-mode.live-first-screen main{max-width:none}
+  .driver-live-primary{min-height:340px;display:grid;grid-template-columns:minmax(180px,40%) minmax(0,1fr);grid-template-rows:auto auto auto auto auto auto 1fr auto;column-gap:12px;row-gap:2px}
+  .driver-live-primary .cockpit-now{grid-column:2;grid-row:1}
+  .driver-live-primary .cockpit-head{grid-column:2;grid-row:2}
+  .driver-live-primary .planned-gaps{grid-column:2;grid-row:3}
+  .driver-live-primary .driver-live-orbit{grid-column:1;grid-row:1/7;min-height:0}
+  .driver-live-primary .ring-peer-label{grid-column:1;grid-row:7}
+  .driver-live-primary .peer-basis{grid-column:1;grid-row:8}
+  .driver-live-primary .orbit-stops{grid-column:2;grid-row:4}
+  .driver-live-primary .cockpit-target{grid-column:2;grid-row:5}
+  .driver-live-primary .driver-live-signals{grid-column:2;grid-row:6/8;align-self:start}
+  .driver-live-primary .driver-scroll-hint{grid-column:2;grid-row:8}
+}
+@media(max-width:350px){
+  .driver-live-primary{padding-left:4px;padding-right:4px;gap:3px}
+  .driver-mode .driver-live-primary .orbit-stops strong{font-size:13px}
+  .driver-live-primary .orbit-point strong{font-size:11px}
+}
+/* Respect enlarged text: content stays reachable instead of being clipped. */
+@media(prefers-reduced-motion:reduce){.driver-live-primary *{scroll-behavior:auto}}

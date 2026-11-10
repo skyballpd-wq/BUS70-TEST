@@ -1,0 +1,39 @@
+/* Separate the live first screen from records/settings without locking page scrolling. */
+(function(root){
+  function element(doc,tag,cls,text){const node=doc.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;}
+  function refresh(doc,live){
+    doc.body.classList.toggle('live-first-screen',Boolean(live&&doc.body.classList.contains('driver-mode')));
+    const status=doc.getElementById('driverLiveSafety'),source=doc.querySelector('#driverRoadSafety .road-safety-status');
+    if(status&&source){
+      const arrival=doc.getElementById('driverArrivalEstimate');
+      const conflict=doc.querySelector('.driver-live-secondary>.notice.warning');
+      const text=conflict?'배차·휴무 확인 필요 · 아래 상세 확인':arrival?.classList.contains('early-warning')?'10분 이상 조기 도착 예상 · 운행시각 확인':source.textContent;
+      if(status.textContent!==text)status.textContent=text;
+      status.classList.toggle('warning',Boolean(conflict||arrival?.classList.contains('early-warning')||doc.getElementById('driverRoadSafety')?.classList.contains('warning')));
+    }
+  }
+  function mount(root,live){
+    const doc=root.ownerDocument,box=root.querySelector('#driverLiveDashboard');
+    refresh(doc,live);
+    if(!live||!doc.body.classList.contains('driver-mode')||!box||box.querySelector('.driver-live-primary'))return;
+    const primary=element(doc,'section','driver-live-primary');primary.setAttribute('aria-label','실시간 운행');
+    const ring=doc.getElementById('driverTripProgressRing'),stage=element(doc,'div','driver-live-orbit');
+    const legend=doc.getElementById('driverRingPeers')||element(doc,'div','ring-peer-label');legend.id='driverRingPeers';
+    const basis=doc.getElementById('driverPeerBasis')||element(doc,'small','peer-basis');basis.id='driverPeerBasis';
+    const signals=element(doc,'div','driver-live-signals'),safety=element(doc,'span','driver-live-safety');safety.id='driverLiveSafety';
+    for(const selector of ['.cockpit-now','.cockpit-head','#driverPlannedGaps']){const node=box.querySelector(selector);if(node)primary.append(node);}
+    if(ring)stage.append(ring);primary.append(stage,legend,basis);
+    for(const selector of ['.orbit-stops','.cockpit-target']){const node=box.querySelector(selector);if(node)primary.append(node);}
+    const recording=doc.getElementById('driverRecordingSummary');if(recording)signals.append(recording);signals.append(safety);primary.append(signals);
+    primary.append(element(doc,'small','driver-scroll-hint','아래로 스크롤 · 운행기록·관리'));
+    box.prepend(primary);
+    const details=element(doc,'div','driver-live-secondary');
+    details.append(element(doc,'h2','','운행기록·관리'));
+    for(const node of Array.from(root.children))if(node.matches('.notice,.leave-month'))details.append(node);
+    const picker=root.querySelector('.trip-chip-list');if(picker)details.append(picker);
+    for(const node of Array.from(box.children))if(node!==primary)details.append(node);
+    box.append(details);
+    refresh(doc,live);
+  }
+  root.Bus70Viewport={mount,refresh};
+})(typeof window==='object'?window:globalThis);

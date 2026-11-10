@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "driver-viewport.js"
+      - "driver-viewport.css"
+      - "tests/driver-viewport.browser.cjs"
       - "manager-replacement.js"
       - "apps-script/VehicleReplacement.gs"
       - "tests/vehicle-replacement*"
@@ -87,6 +90,7 @@ jobs:
           node tests/quick-record.test.js
           node tests/current-conditions.test.js
           node tests/quick-record.browser.cjs
+          node tests/driver-viewport.browser.cjs
           node tests/gbis-outage-recovery.test.js
           node tests/driver-leave.test.js
           node tests/driver-leave.browser.cjs
@@ -147,6 +151,7 @@ jobs:
           node tests/vehicle-replacement.browser.cjs
           node tests/field-cockpit.browser.cjs
           node tests/quick-record.browser.cjs
+          node tests/driver-viewport.browser.cjs
           node tests/schedule-controls.browser.cjs
           node tests/realtime-health.browser.cjs
           node tests/accident-report.browser.cjs
