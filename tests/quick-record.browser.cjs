@@ -36,7 +36,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert(layout.actions.bottom-layout.box.top<620,'essential dashboard requires no internal scroll on a phone');
   assert.equal(await page.locator('.cockpit-record-details').evaluate(n=>n.open),false);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#driverLiveDashboard').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/compact-cockpit-'+width+'.png'});}
-  await page.locator('.cockpit-record-details>summary').click();
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert.equal(await page.locator('.quick-run-actions button').count(),3);
   assert.equal(await page.locator('.manual-run-tools').count(),0);
   assert.equal(await page.locator('#driverLiveClock').count(),1);
@@ -58,6 +58,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.quick-run-actions button:enabled').count(),0);
   await page.evaluate(()=>resolveRecord({ok:true,recordedAt:'2099-01-08T10:10:00+09:00',recordMode:'수동',status:'운행중',message:'출발 저장 완료'}));
   await page.waitForFunction(()=>!quickRunPending);
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert(await page.locator('[data-run-event="DEPART"]').isDisabled());
   assert(await page.locator('[data-run-event="TURN"]').isEnabled());
   assert.match(await page.locator('#driverRecordFeedback').innerText(),/출발 저장 완료/);
@@ -139,7 +140,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    selectDriverTrip(0);
   });
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverWeatherTime','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'historical date hides '+selector);
-  await page.locator('.cockpit-record-details>summary').click();
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert.equal(await page.locator('#driverLiveDashboard .phase-actual').first().innerText(),'07:00:10');
   assert.match(await page.locator('#driverLiveDashboard .time-deviation').first().innerText(),/\+0:10\s*늦음/);
   assert.equal((await page.locator('#driverLiveDashboard').innerText()).match(/운행 완료/g)?.length,1);
