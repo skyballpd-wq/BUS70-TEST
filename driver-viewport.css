@@ -7,7 +7,7 @@
 .driver-mode.live-first-screen .trip-list,.driver-mode.live-first-screen .trip-list .trip{margin:0;padding:0;border:0;background:white}
 .driver-mode.live-first-screen .orbit-cockpit{padding:0;border:0;container-type:normal}
 .driver-mode.live-first-screen #scheduleResult>.notice,.driver-mode.live-first-screen #scheduleResult>.leave-month{margin:0}
-.driver-live-primary{height:100vh;height:100svh;min-height:500px;display:flex;flex-direction:column;gap:4px;padding:calc(6px + env(safe-area-inset-top)) 8px calc(4px + env(safe-area-inset-bottom));background:white}
+.driver-live-primary{height:100vh;height:100svh;min-height:500px;display:flex;flex-direction:column;align-items:stretch;margin:0;gap:4px;padding:calc(6px + env(safe-area-inset-top)) 8px calc(4px + env(safe-area-inset-bottom));background:white}
 .driver-live-primary>*{flex-shrink:0;min-width:0}
 .driver-mode .driver-live-primary .cockpit-now{padding:0;gap:0}
 .driver-live-primary .current-datetime{line-height:1.3}

@@ -36,9 +36,18 @@
     const picker=root.querySelector('.trip-chip-list');if(picker)details.append(picker);
     for(const node of Array.from(box.children))if(node!==primary)details.append(node);
     box.append(details);
-    const fit=()=>{if(!ring||!stage.isConnected)return;const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,290));if(size)ring.style.width=size+'px';};
+    const fit=()=>{
+      if(!ring||!stage.isConnected)return;
+      const style=root.getComputedStyle(primary);
+      if(style.display==='flex'){
+        const visible=Array.from(primary.children).filter(n=>!n.hidden),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
+        const minimum=Math.ceil(fixed+170+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
+        const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
+      }else if(primary.style.minHeight)primary.style.removeProperty('min-height');
+      const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,290));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+    };
     fit();
-    if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);}
+    if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of primary.children)observer.observe(node);}
     refresh(doc,live);
   }
   root.Bus70Viewport={mount,refresh};
