@@ -14,8 +14,8 @@
       status.classList.toggle('warning',Boolean(conflict||arrival?.classList.contains('early-warning')||doc.getElementById('driverRoadSafety')?.classList.contains('warning')));
     }
   }
-  function mount(root,live){
-    const doc=root.ownerDocument,box=root.querySelector('#driverLiveDashboard');
+  function mount(container,live){
+    const doc=container.ownerDocument,box=container.querySelector('#driverLiveDashboard');
     refresh(doc,live);
     if(!live||!doc.body.classList.contains('driver-mode')||!box||box.querySelector('.driver-live-primary'))return;
     observer?.disconnect();
@@ -32,8 +32,8 @@
     box.prepend(primary);
     const details=element(doc,'div','driver-live-secondary');
     details.append(element(doc,'h2','','운행기록·관리'));
-    for(const node of Array.from(root.children))if(node.matches('.notice,.leave-month'))details.append(node);
-    const picker=root.querySelector('.trip-chip-list');if(picker)details.append(picker);
+    for(const node of Array.from(container.children))if(node.matches('.notice,.leave-month'))details.append(node);
+    const picker=container.querySelector('.trip-chip-list');if(picker)details.append(picker);
     for(const node of Array.from(box.children))if(node!==primary)details.append(node);
     box.append(details);
     const fit=()=>{
