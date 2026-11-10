@@ -17,9 +17,10 @@
 .driver-live-primary .weather-icon{width:28px;height:24px}
 .driver-mode .driver-live-primary .cockpit-head{padding:0;line-height:1.4}
 .driver-mode .driver-live-primary .planned-gaps{margin:0;gap:6px}
-.driver-mode .driver-live-primary .planned-gaps>div{padding:4px 7px}
-.driver-live-primary .driver-live-orbit{flex:1 1 0;min-height:170px;display:flex;align-items:center;justify-content:center;container-type:size}
-.driver-mode .driver-live-primary .orbit-ring{width:min(100cqw,100cqh,290px);max-width:none;height:auto;margin:0;aspect-ratio:1}
+.driver-mode .driver-live-primary .planned-gaps>div{padding:4px 7px;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.driver-mode .driver-live-primary .planned-gaps strong{display:inline;float:none;white-space:nowrap}
+.driver-live-primary .driver-live-orbit{flex:1 1 0;min-height:170px;display:flex;align-items:center;justify-content:center}
+.driver-mode .driver-live-primary .orbit-ring{width:180px;max-width:100%;height:auto;margin:0;aspect-ratio:1}
 .driver-live-primary .orbit-point strong{font-size:12px}
 .driver-live-primary .orbit-point span{font-size:11px}
 .driver-live-primary .orbit-ring>.orbit-center{inset:24% 13%;gap:2px}
@@ -42,6 +43,8 @@
 .driver-live-secondary .road-safety{margin:10px 0}
 .driver-live-secondary .quick-run-actions{margin-top:14px}
 .driver-live-secondary .cockpit-record-details{margin:12px 0}
+.driver-live-primary.inactive{height:auto;min-height:0;display:block}
+.driver-live-primary.inactive .driver-live-orbit,.driver-live-primary.inactive .driver-scroll-hint,.driver-live-primary.inactive .driver-live-safety{display:none}
 .driver-mode.live-first-screen .session-bar{margin:16px 0}
 /* Short landscape screens use a side-by-side layout without shrinking text. */
 @media(min-width:560px) and (max-height:520px){

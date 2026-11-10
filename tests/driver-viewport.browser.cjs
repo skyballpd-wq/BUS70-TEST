@@ -30,10 +30,12 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    const rects=await page.evaluate(()=>{
     const rect=n=>{const r=n.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};};
     const primary=document.querySelector('.driver-live-primary');
-    return {viewport:{width:innerWidth,height:innerHeight},primary:rect(primary),essential:[...primary.children].filter(n=>!n.hidden).map(n=>({id:n.id||n.className,...rect(n)})),secondary:rect(document.querySelector('.driver-live-secondary')),scrollWidth:document.documentElement.scrollWidth};
+    return {viewport:{width:innerWidth,height:innerHeight},ring:rect(document.getElementById('driverTripProgressRing')),primary:rect(primary),essential:[...primary.children].filter(n=>!n.hidden).map(n=>({id:n.id||n.className,...rect(n)})),secondary:rect(document.querySelector('.driver-live-secondary')),scrollWidth:document.documentElement.scrollWidth};
    });
+   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});}
    assert(rects.primary.top>=0&&rects.primary.top<=1,label+' starts at the visible top: '+JSON.stringify(rects));
    assert(rects.primary.bottom<=height+1,label+' fits the actual viewport: '+JSON.stringify(rects));
+   assert(rects.ring.width>=165&&rects.ring.height>=165&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');

@@ -1,8 +1,10 @@
 /* Separate the live first screen from records/settings without locking page scrolling. */
 (function(root){
+  let observer;
   function element(doc,tag,cls,text){const node=doc.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;}
   function refresh(doc,live){
     doc.body.classList.toggle('live-first-screen',Boolean(live&&doc.body.classList.contains('driver-mode')));
+    doc.querySelector('.driver-live-primary')?.classList.toggle('inactive',!live);
     const status=doc.getElementById('driverLiveSafety'),source=doc.querySelector('#driverRoadSafety .road-safety-status');
     if(status&&source){
       const arrival=doc.getElementById('driverArrivalEstimate');
@@ -16,6 +18,7 @@
     const doc=root.ownerDocument,box=root.querySelector('#driverLiveDashboard');
     refresh(doc,live);
     if(!live||!doc.body.classList.contains('driver-mode')||!box||box.querySelector('.driver-live-primary'))return;
+    observer?.disconnect();
     const primary=element(doc,'section','driver-live-primary');primary.setAttribute('aria-label','실시간 운행');
     const ring=doc.getElementById('driverTripProgressRing'),stage=element(doc,'div','driver-live-orbit');
     const legend=doc.getElementById('driverRingPeers')||element(doc,'div','ring-peer-label');legend.id='driverRingPeers';
@@ -33,6 +36,9 @@
     const picker=root.querySelector('.trip-chip-list');if(picker)details.append(picker);
     for(const node of Array.from(box.children))if(node!==primary)details.append(node);
     box.append(details);
+    const fit=()=>{if(!ring||!stage.isConnected)return;const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,290));if(size)ring.style.width=size+'px';};
+    fit();
+    if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);}
     refresh(doc,live);
   }
   root.Bus70Viewport={mount,refresh};
