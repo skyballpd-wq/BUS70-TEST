@@ -1323,7 +1323,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89
+    소신여객 통합 운행관리 TEST · v89.1
   </footer>
 
 </div>
@@ -1336,7 +1336,7 @@
 <script src="./driver-automation.js?v=89"></script>
 <script src="./driver-recording.js?v=89"></script>
 <script src="./driver-cockpit.js?v=89"></script>
-<script src="./road-safety.js?v=87"></script>
+<script src="./road-safety.js?v=891"></script>
 <script src="./driver-outbox.js?v=771"></script>
 <script src="./driver-ledger.js?v=78"></script>
 <script src="./mobile-compat.js?v=823"></script>
@@ -1549,7 +1549,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2988,7 +2988,8 @@
     const root=document.getElementById('driverRoadSafety');if(!root)return;root.hidden=!active;if(!active)return;
     const selected=roadSafetySelected(),result=Bus70RoadSafety.evaluate({active:selected&&Boolean(context?.log.actualStart)&&!context?.log.actualEnd,now:Date.now(),position:lastDriverPosition,navigation,data:lastSchedule?.roadSafety,stopOrder:navigation.path?.stops?.[navigation.matchedIndex]?.order,scope:{route:String(lastSchedule?.route||''),date:document.getElementById('workDate').value,dispatchId:lastSchedule?.dispatch?.dispatchId||lastSchedule?.dispatch?.id,trip:context?.trip.trip}},roadSafetyState);roadSafetyState=result.state;
     const button=root.querySelector('#roadSafetyEnable');button.hidden=false;button.textContent=selected?'안전운전 끄기':'안전운전 켜기';button.setAttribute('aria-pressed',String(selected));
-    root.querySelector('.road-safety-status').textContent=!selected?'안전운전 안내 꺼짐':!lastSchedule?.roadSafety?.zones?.length?'안전운전 선택됨 · 검증된 구간 자료 대기':result.status+(nativeRoadSafety()?' · 설치형 음성':roadSafetyAudioReady?' · 화면 켜짐 중 음성':' · 음성 시험 필요');root.classList.toggle('warning',Boolean(selected&&result.warning?.overspeed));
+    const readiness=Bus70RoadSafety.readiness(lastSchedule?.roadSafety);
+    root.querySelector('.road-safety-status').textContent=!selected?'안전운전 안내 꺼짐':!readiness.ready?readiness.message:result.status+(nativeRoadSafety()?' · 설치형 음성':roadSafetyAudioReady?' · 화면 켜짐 중 음성':' · 음성 시험 필요');root.classList.toggle('warning',Boolean(selected&&result.warning?.overspeed));
     if(result.notify&&selected&&!nativeRoadSafety()&&roadSafetyAudioReady&&roadSafetyAudio?.state==='running'&&!document.hidden){try{const o=roadSafetyAudio.createOscillator(),g=roadSafetyAudio.createGain();o.frequency.value=result.warning.overspeed?880:660;g.gain.value=.12;o.connect(g);g.connect(roadSafetyAudio.destination);o.start();o.stop(roadSafetyAudio.currentTime+.3);Bus70RoadSafety.notified(result,Date.now());if('speechSynthesis' in window&&!speechSynthesis.speaking){const message=new SpeechSynthesisUtterance(result.message);message.lang='ko-KR';speechSynthesis.speak(message);}}catch(ignore){roadSafetyAudioReady=false;}}
   }
   function startDriverLiveTimer(){

@@ -25,6 +25,9 @@ on:
       - "tests/driver-leave.test.js"
       - "tests/driver-leave.browser.cjs"
       - "apps-script/AuthStep9.gs"
+      - "apps-script/RoadSafety.gs"
+      - "road-safety.js"
+      - "tests/auth-safety-diagnostics.test.js"
       - "tests/current-date-schedule.test.js"
       - "tests/schedule-session-recovery.test.js"
       - ".github/workflows/contact-layout.yml"
@@ -93,6 +96,7 @@ jobs:
           node tests/operations-data.test.js
           node tests/operations-data.browser.cjs
           node tests/managerdispatch.test.js
+          node tests/auth-safety-diagnostics.test.js
           node tests/field-operations.test.js
           node tests/live-stop-peers.test.js
           node tests/field-operations.browser.cjs
