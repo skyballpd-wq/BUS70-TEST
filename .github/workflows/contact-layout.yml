@@ -77,6 +77,8 @@ jobs:
           node tests/nov9-cockpit-recording.test.js
           node tests/waiting-trip-phase.test.js
           node tests/weather-cockpit.test.js
+          node tests/weather-sky.test.js
+          node tests/live-hourly-diagnostics.test.js
           node tests/observed-headway.test.js
           node tests/field-cockpit.browser.cjs
           node tests/quick-record.test.js

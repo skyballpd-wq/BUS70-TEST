@@ -149,12 +149,13 @@
     return (weather.provider||'날씨')+' · '+time+' 관측';
   }
   function shortVehicle(vehicle){
-    const text=String(vehicle?.vehicleNo||vehicle?.displayNo||'');
-    const match=text.match(/(\d{4})\s*$/);return match?match[1]+'호':text||'차량 미확인';
+    const texts=[vehicle?.displayNo,vehicle?.vehicleNo].filter(Boolean).map(String);
+    for(const text of texts){const match=text.match(/(\d{4})\s*$/);if(match)return match[1]+'호';}
+    return texts[0]||'차량 미확인';
   }
   function ringPlan(trip,path){
     const samjeong=s=>/삼정.*(복지회관|복지관)/.test(String(s||''));
-    const returningOnly=path?.turnIndex<0&&samjeong(trip.startPlace);
+    const returningOnly=path?.turnIndex<0&&/고강/.test(trip.endPlace)&&!/고강/.test(trip.startPlace);
     return {startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:path?.turnIndex>0?path.turnIndex/(path.stops.length-1):null,
       depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
       turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime:trip.turnTime||'—')},returningOnly};

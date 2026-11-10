@@ -13,7 +13,8 @@ const result=gps.step({}, {date,startTime:'17:00',now,log:{},position:{timestamp
 assert.equal(result.state.startVisitAt,now);assert.equal(result.event,null,'a start visit is not a departure');
 const plan=ui.ringPlan(trip,path);assert.equal(ui.ringAngle(0,plan),-90);assert.equal(ui.ringAngle(plan.turnFraction,plan),90);assert.equal(ui.ringAngle(1,plan),270);assert.match(plan.depot.time,/17:00.*19:40/);assert.equal(plan.turn.name,'삼정종합사회복지회관');
 const back=ui.ringPlan({startPlace:'삼정동복지회관',endPlace:'고강공영차고지',startTime:'05:15',endTime:'06:30'},{turnIndex:-1,stops:stops.slice(55)});assert.equal(ui.ringAngle(0,back),90);assert.equal(ui.ringAngle(1,back),270);assert.match(back.turn.time,/출발 05:15/);assert.match(back.depot.time,/도착 06:30/);
-assert.equal(ui.shortVehicle({displayNo:'시험00가0001'}),'0001호');
+assert.equal(ui.shortVehicle({displayNo:'시험00가0001',vehicleNo:'001'}),'0001호');
+assert.equal(ui.ringPlan({startPlace:'송내역',endPlace:'고강공영차고지',startTime:'05:30',endTime:'06:40'},{turnIndex:-1,stops:[]}).span,180);
 const fleet={requestScope:'SYN',crossCheck:{available:true,fetchedAt:now-1000}};
 assert.equal(ui.retainedReference(fleet,'SYN',now),fleet.crossCheck);assert.equal(ui.retainedReference(fleet,'OTHER',now),null);assert.equal(ui.retainedReference(fleet,'SYN',now+60001),null);assert.equal(ui.retainedReference(fleet,'SYN',now-2000),null);
 assert.match(ui.peerStatus({crossCheck:{error:'GBIS_HTTP_429'}},{configured:true},{running:true},[],now),/요청 제한/);

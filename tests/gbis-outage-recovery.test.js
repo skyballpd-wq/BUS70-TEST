@@ -37,4 +37,3 @@ console.log('Outage departure timing, walking/early/completed/identity/gap guard
 const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
 for(const [name,version] of [['driver-automation',89],['driver-recording',89],['driver-cockpit',89],['road-safety',87]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
 assert(worker.includes('soshin-ops-static-v89-cockpit-recording'));
-

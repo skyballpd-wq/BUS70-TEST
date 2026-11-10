@@ -865,7 +865,7 @@
     .driver-mode .orbit-cockpit{padding:6px 10px}
     .driver-mode .road-safety{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin:0 0 4px}
     .road-safety-status{grid-column:1/-1;font-size:10px;line-height:1.3}
-    .driver-mode .road-safety button{margin:0;width:100%;height:36px;min-height:36px;padding:4px 8px;font-size:12px;white-space:nowrap}
+    .driver-mode .road-safety button{margin:0;width:100%;height:44px;min-height:44px;padding:4px 8px;font-size:12px;white-space:nowrap}
     .driver-mode .cockpit-now{display:flex;flex-direction:column;gap:1px;padding:0 0 4px;margin:0;border:0;align-items:stretch}
     .current-datetime{display:flex;align-items:baseline;justify-content:space-between;gap:8px;white-space:nowrap}
     .cockpit-now .current-date{font-size:13px}.cockpit-now .current-clock{font-size:25px;letter-spacing:0}
@@ -876,8 +876,8 @@
     @media(prefers-reduced-motion:reduce){.weather-sun,.weather-cloud,.weather-drop,.weather-wind path{animation:none}}
     .driver-mode .cockpit-head{flex-wrap:nowrap;gap:4px;padding:3px 0;white-space:nowrap}
     .driver-mode .cockpit-head>strong{font-size:clamp(11px,3.3vw,14px);letter-spacing:-.02em}.driver-mode .cockpit-head>span{font-size:clamp(10px,3vw,12px)}
-    .driver-mode .planned-gaps{display:flex;gap:8px;margin:3px 0 5px}.driver-mode .planned-gaps>div{flex:1;padding:4px 7px;white-space:nowrap;line-height:1.3}.driver-mode .planned-gaps strong{font-size:13px;margin-left:4px}
-    .driver-mode .orbit-cockpit .orbit-ring{max-width:250px;margin:3px auto}
+    .driver-mode .planned-gaps{display:flex;gap:8px;margin:3px 0 5px}.driver-mode .planned-gaps>div{flex:1;padding:4px 7px;white-space:nowrap;line-height:1.3}.driver-mode .planned-gaps strong{font-size:16px;margin-left:4px}
+    .driver-mode .orbit-cockpit .orbit-ring{max-width:min(250px,100%);margin:3px auto}
     .orbit-ring>.orbit-center{inset:27% 17%;gap:3px}.orbit-ring .orbit-speed{font-size:32px!important}.orbit-progress{font-size:11px;line-height:1.4;word-break:keep-all}
     .orbit-points{position:absolute;inset:0;pointer-events:none;z-index:2}.orbit-point{position:absolute;left:8%;right:8%;text-align:center;background:#fff;line-height:1.35;color:#163d6a;border-radius:8px;padding:1px 4px}.orbit-point.depot{top:0}.orbit-point.turn{bottom:0}.orbit-point strong,.orbit-point span{display:block;white-space:nowrap;font-size:11px}.orbit-point span{font-size:10px;font-variant-numeric:tabular-nums}.orbit-point strong:before{content:'● ';font-size:8px;color:#0d9488}
     .driver-mode .ring-peer-label{margin:2px 0;font-size:10px}.driver-mode .peer-basis{margin:1px 0 5px;font-size:10px;line-height:1.3}
@@ -886,7 +886,8 @@
     .driver-mode .quick-run-actions button{white-space:nowrap;font-size:13px;min-height:44px;padding:5px 3px}
     .driver-mode .quick-run-note{font-size:10px;margin:3px 0}.cockpit-record-details{margin-top:5px}.cockpit-record-details>summary{font-size:12px;padding:8px 0;color:#52657a}
     .driver-mode #driverArrivalEstimate{font-size:11px;padding:6px;margin:4px 0;line-height:1.4}.driver-mode .recording-summary{font-size:10px;margin:4px 0;min-height:30px;padding:5px 8px}
-    @media(max-height:740px){.driver-mode .orbit-cockpit .orbit-ring{max-width:218px}.orbit-ring .orbit-speed{font-size:28px!important}}
+    @media(max-height:740px){.driver-mode .orbit-cockpit .orbit-ring{max-width:min(218px,100%)}.orbit-ring .orbit-speed{font-size:28px!important}}
+    @container(max-width:260px){.driver-mode .cockpit-head{flex-wrap:wrap;white-space:normal}.current-datetime{gap:4px}.cockpit-now .current-date{font-size:11px}.cockpit-now .current-clock{font-size:20px}.orbit-point strong,.orbit-point span{white-space:normal;overflow-wrap:anywhere}}
     @media(max-width:340px){.orbit-point strong{font-size:10px}.driver-mode .cockpit-head>strong{font-size:11px}.driver-mode .cockpit-head>span{font-size:10px}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
@@ -3477,7 +3478,7 @@
 
   function renderSchedule(rearmAlarms=true) {
     const root = document.getElementById("scheduleResult");
-    const detailsOpen=Boolean(root.querySelector?.(".schedule-options")?.open);
+    const detailsOpen=Boolean(root.querySelector?.(".schedule-options")?.open),phaseDetailsOpen=Boolean(root.querySelector?.(".cockpit-record-details")?.open);
     root.replaceChildren();
     const data = lastSchedule ? scheduleForRequestedDate(lastSchedule,document.getElementById("workDate").value) : null;
     lastSchedule=data;
@@ -3559,6 +3560,7 @@
       list.append(card);
     });
     root.append(list);
+    const phaseDetails=root.querySelector(".cockpit-record-details");if(phaseDetails)phaseDetails.open=phaseDetailsOpen;
     const options=el("details",undefined,"schedule-options");options.append(el("summary","운행 상세·설정"));
     options.open=detailsOpen;
     const diagnostics=root.querySelector("#driverDiagnostics");if(diagnostics){diagnostics.hidden=false;options.append(diagnostics);}

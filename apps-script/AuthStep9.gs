@@ -378,7 +378,7 @@ function bus70WeatherGrid_(lat,lng){
 function bus70WeatherAt_(lat,lng){
   const key=typeof bus70PublicTransitProperty_==='function'?bus70PublicTransitProperty_('BUS70_DATA_GO_KR_SERVICE_KEY'):'';
   if(!key)return {available:false,message:'날씨 인증 설정 필요'};
-  const grid=bus70WeatherGrid_(lat,lng),cache=CacheService.getScriptCache(),cacheKey='WEATHER-KMA-'+grid.nx+'-'+grid.ny,cached=cache.get(cacheKey);
+  const grid=bus70WeatherGrid_(lat,lng),cache=CacheService.getScriptCache(),cacheKey='WEATHER-KMA-V89-'+grid.nx+'-'+grid.ny,cached=cache.get(cacheKey);
   if(cached){try{return JSON.parse(cached);}catch(error){}}
   let result={available:false,message:'기상청 관측 수신 대기'};
   try{
@@ -396,7 +396,26 @@ function bus70WeatherAt_(lat,lng){
       }
     }
   }catch(error){/* Never return a provider URL or a secret-bearing exception. */}
+  // Observations have precipitation, not SKY. Never infer sunshine from PTY=0.
+  if(result.available&&result.condition==='강수 없음'){
+    const sky=bus70WeatherSky_(grid,key,Date.now());
+    if(sky){result.condition=sky.condition+' 예보';result.skyForecastAt=sky.at;}
+  }
   cache.put(cacheKey,JSON.stringify(result),result.available?600:120);return result;
+}
+
+// KMA ultra-short forecast: use the nearest forecast hour (within 60 minutes).
+// Temperature/rain/wind remain observations; a failed SKY lookup preserves them.
+function bus70WeatherSky_(grid,key,now){
+  try{
+    const base=new Date(now-60*60000),date=Utilities.formatDate(base,'Asia/Seoul','yyyyMMdd'),time=Utilities.formatDate(base,'Asia/Seoul','HH')+'30';
+    const url=bus70PublicTransitQueryUrl_('https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst',key,{pageNo:1,numOfRows:1000,dataType:'JSON',base_date:date,base_time:time,nx:grid.nx,ny:grid.ny});
+    const response=UrlFetchApp.fetch(url,{muteHttpExceptions:true});if(response.getResponseCode()!==200)return null;
+    const data=JSON.parse(response.getContentText()).response||{};if(String(data.header&&data.header.resultCode)!=='00')return null;
+    const items=data.body&&data.body.items&&data.body.items.item;if(!Array.isArray(items))return null;
+    const candidates=items.filter(function(v){return v.category==='SKY'&&/^\d{8}$/.test(v.fcstDate)&&/^\d{4}$/.test(v.fcstTime);}).map(function(v){const d=String(v.fcstDate),t=String(v.fcstTime);return {condition:({'1':'맑음','3':'구름많음','4':'흐림'})[String(v.fcstValue)],at:d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8)+'T'+t.slice(0,2)+':'+t.slice(2)+':00+09:00'};}).filter(function(v){return v.condition&&Math.abs(Date.parse(v.at)-now)<=3600000;}).sort(function(a,b){return Math.abs(Date.parse(a.at)-now)-Math.abs(Date.parse(b.at)-now);});
+    return candidates[0]||null;
+  }catch(ignore){return null;}
 }
 
 function bus70DriverWeather_(body,driverId){
