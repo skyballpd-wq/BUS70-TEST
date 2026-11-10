@@ -35,5 +35,5 @@ assert.equal(c.bus70GyeonggiRetryAfter_({'retry-after':new Date(now+120000).toUT
 console.log('Outage departure timing, walking/early/completed/identity/gap guards, remaining route distance, shared fetch and durable rate-limit recovery passed');
 
 const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
-for(const [name,version] of [['driver-automation',89],['driver-recording',89],['driver-cockpit',89],['road-safety',87]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
-assert(worker.includes('soshin-ops-static-v89-cockpit-recording'));
+for(const [name,version] of [['driver-automation',89],['driver-recording',89],['driver-cockpit',89],['road-safety',891]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
+assert(worker.includes('soshin-ops-static-v891-auth-safety-status'));
