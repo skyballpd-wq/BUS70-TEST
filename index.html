@@ -942,7 +942,10 @@
       <input
         id="empId"
         type="password"
-        inputmode="numeric"
+        inputmode="text"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
         autocomplete="current-password"
         placeholder="기사 사원번호 / 운영계정 비밀번호">
 
@@ -1262,7 +1265,7 @@
           <div><label for="masterStaffName">계정명</label><input id="masterStaffName" type="text" maxlength="20" placeholder="운영계정명"></div>
         </div>
         <label for="masterStaffPassword">새 비밀번호</label>
-        <input id="masterStaffPassword" type="password" minlength="5" maxlength="20" placeholder="변경하지 않으면 비워 두세요">
+        <input id="masterStaffPassword" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="new-password" minlength="5" maxlength="20" placeholder="변경하지 않으면 비워 두세요">
         <label><input id="masterStaffEnabled" type="checkbox" checked> 계정 사용</label>
         <button id="masterStaffSave" type="button">운영계정 저장</button>
         <hr>
@@ -1315,16 +1318,16 @@
 
     <section id="staffAccountPanel" class="manager-panel" hidden>
       <h2>운영계정 비밀번호 변경</h2>
-      <label for="staffCurrentPassword">현재 비밀번호</label><input id="staffCurrentPassword" type="password" inputmode="numeric" autocomplete="current-password">
-      <label for="staffNewPassword">새 비밀번호</label><input id="staffNewPassword" type="password" autocomplete="new-password" minlength="5" maxlength="20">
-      <label for="staffNewPasswordConfirm">새 비밀번호 확인</label><input id="staffNewPasswordConfirm" type="password" autocomplete="new-password" minlength="5" maxlength="20">
+      <label for="staffCurrentPassword">현재 비밀번호</label><input id="staffCurrentPassword" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="current-password">
+      <label for="staffNewPassword">새 비밀번호</label><input id="staffNewPassword" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="new-password" minlength="5" maxlength="20">
+      <label for="staffNewPasswordConfirm">새 비밀번호 확인</label><input id="staffNewPasswordConfirm" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="new-password" minlength="5" maxlength="20">
       <button id="staffPasswordButton" type="button">비밀번호 변경</button>
       <div id="staffPasswordStatus" class="manager-status" aria-live="polite"></div>
     </section>
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.2
+    소신여객 통합 운행관리 TEST · v89.2.1
   </footer>
 
 </div>
@@ -1551,7 +1554,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.2";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.2.1";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
