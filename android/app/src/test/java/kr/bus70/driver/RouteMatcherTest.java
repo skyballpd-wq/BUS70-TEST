@@ -33,6 +33,18 @@ public class RouteMatcherTest {
         trip.remove("actualStart");polluted.put("timestamp",planned+3600000);
         assertFalse(RouteMatcher.matchTrip(trip,planned,polluted,end.getDouble("lat"),end.getDouble("lng"),8,0,Double.NaN,planned+3603000,null).optBoolean("waiting"));
     }
+    @Test public void newDepartureRejectsFreshQueryOfOldArrival()throws Exception {
+        JSONArray stops=new JSONArray(new String(getClass().getResourceAsStream("/route5-public-stops.json").readAllBytes(),StandardCharsets.UTF_8));
+        long now=100000000L;JSONObject start=stops.getJSONObject(0),end=stops.getJSONObject(113);
+        JSONObject trip=new JSONObject().put("course",new JSONObject().put("stops",stops).put("turnIndex",55).put("pivotIndex",57)).put("startLocation",start).put("actualStart","observed").put("actualStartEpoch",now-30000);
+        JSONObject hint=new JSONObject().put("available",true).put("source","GYEONGGI_BUS_LOCATION_V2").put("stationSeq",114).put("stationId",end.optString("id")).put("fetchedAt",now);
+        JSONObject nav=RouteMatcher.matchTrip(trip,now-60000,null,start.getDouble("lat"),start.getDouble("lng"),7,0,Double.NaN,now,hint);
+        assertTrue(nav.optBoolean("configured"));assertTrue(nav.optDouble("fraction")<3);assertFalse(nav.optBoolean("returnConfirmed"));
+        trip.put("actualTurn","observed");JSONObject nearEnd=stops.getJSONObject(111);
+        hint.put("stationSeq",112).put("stationId",nearEnd.optString("id")).put("fetchedAt",now+7200000);
+        nav=RouteMatcher.matchTrip(trip,now-60000,null,nearEnd.getDouble("lat"),nearEnd.getDouble("lng"),7,0,Double.NaN,now+7200000,hint);
+        assertTrue(nav.optBoolean("configured"));assertTrue(nav.optBoolean("returnConfirmed"));assertTrue(nav.optDouble("fraction")>110);
+    }
     @Test public void priorityAndFreshness(){
         assertTrue(LocationFixPolicy.accept(1000,2000,1000,true,1000,5));
         assertFalse(LocationFixPolicy.accept(1000,2000,1000,false,1000,5));

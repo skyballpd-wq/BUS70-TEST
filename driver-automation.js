@@ -99,7 +99,7 @@
     state.lastTimestamp=ts;
     const here={lat:Number(c.latitude),lng:Number(c.longitude)},points=input.points||{},log=input.log||{};
     const direction=(point,field)=>!number(point?.[field])||!number(c.heading)||!number(c.speed)||Number(c.speed)<1.5||Math.abs((Number(c.heading)-Number(point[field])+540)%360-180)<=100;
-    const inside=key=>validPoint(points[key])&&direction(points[key],"approachBearing")&&distance(here,points[key])<=Number(points[key].radiusM||80);
+    const inside=key=>validPoint(points[key])&&direction(points[key],"approachBearing")&&distance(here,points[key])<=Number(points[key].radiusM||80)+(key==="start"?Math.min(15,Number(c.accuracy)):0);
     if(!log.actualStart&&inside("start"))state.startVisitAt=ts;
     const count=(key,yes)=>state[key]=yes?Number(state[key]||0)+1:0;
     if(log.actualEnd){
@@ -192,7 +192,7 @@
     if(proof){const dt=(ts-proof.lastAt)/1000;if(dt<=0)return;if(dt>15||ts-proof.first.timestamp>DEPARTURE_ONSET_MAX_MS||distance(here,proof.last)>dt*30+2*c.accuracy)valid=false;}
     if(!valid){delete state.departureOnset;return;}
     const hint=input.vehicleReference,corroborated=hint?.available&&hint.source==="GYEONGGI_BUS_LOCATION_V2"&&hint.status==="AGREE"&&hint.stateCd===2&&number(hint.fetchedAt)&&ts-hint.fetchedAt>=0&&ts-hint.fetchedAt<=60000&&Number(hint.stationSeq)===Number(start?.order);
-    if(!proof&&(c.speed>=2.8||c.speed>=.8&&corroborated)&&distance(here,start)<=Number(start.radiusM||80))proof={first:p,moved:0};
+    if(!proof&&(c.speed>=2.8||c.speed>=.8&&corroborated)&&distance(here,start)<=Number(start.radiusM||80)+Math.min(15,Number(c.accuracy)))proof={first:p,moved:0};
     if(!proof)return;
     const moved=distance(here,{lat:proof.first.coords.latitude,lng:proof.first.coords.longitude});
     if(c.speed<1.5&&moved<Math.max(12,c.accuracy)&&ts-proof.first.timestamp>15000){delete state.departureOnset;return;}
@@ -254,8 +254,13 @@
   }
   function navigate(path,position,log,previous,now,hint){
     const c=position?.coords||{},ts=Number(position?.timestamp),stops=path?.stops||[];
+    // A just-recorded departure at a shared depot is the outbound occurrence.
+    // Provider query time is not observation time: it may still report the last arrival.
+    const startAt=observedMoment(log.date,log.actualStart),origin=log.startLocation||stops[0];
+    const departureWindow=!log.actualTurn&&!log.actualEnd&&validPoint(origin)&&number(c.latitude)&&number(c.longitude)&&distance({lat:Number(c.latitude),lng:Number(c.longitude)},origin)<=300&&((Number.isFinite(startAt)&&now>=startAt&&now-startAt<=180000)||previous?.waiting===true);
     if(waitingForDeparture(path,position,log,previous,now))return {configured:false,retained:false,waiting:true,reason:"출발 대기",returnConfirmed:false,turnPassed:false,returnEvidence:[],tripProgressPercent:0,routeProgressPercent:0,tripPassedStops:0,tripStopCount:stops.length};
     if(log.requireVehicleConfirmation&&!log.actualStart&&!log.actualTurn&&!log.actualEnd){const ref=referenceIndex(path||{stops:[]},hint,{lat:Number(c.latitude),lng:Number(c.longitude)},now);if(ref<1||ref>=stops.length-1||distance({lat:Number(c.latitude),lng:Number(c.longitude)},stops[ref])>120)return {configured:false,retained:false,waiting:true,reason:"차량 출발 확인 중",returnConfirmed:false,turnPassed:false,returnEvidence:[],tripProgressPercent:0,routeProgressPercent:0,tripPassedStops:0,tripStopCount:stops.length};}
+    if(departureWindow){previous=null;hint=null;}
     if(previous?.waiting)previous=null;
     const retained=previous&&number(previous.routeProgressPercent)?previous:null;
     let motion=previous?.motion;
@@ -273,6 +278,7 @@
     const moving=headingValue!==null,reference=referenceIndex(path,hint,here,now);
     const candidates=[];
     for(let i=0;i<stops.length-1;i++){
+      if(departureWindow&&i>=Math.min(5,path.turnIndex>0?path.turnIndex:5))continue;
       // A verified turnaround log provides a lower bound, never an upper bound.
       if(log.actualTurn&&path.turnIndex>=0&&i<path.turnIndex)continue;
       const a=stops[i],b=stops[i+1],scale=Math.cos(here.lat*Math.PI/180),ax=(a.lng-here.lng)*111320*scale,ay=(a.lat-here.lat)*110540,bx=(b.lng-here.lng)*111320*scale,by=(b.lat-here.lat)*110540,dx=bx-ax,dy=by-ay;

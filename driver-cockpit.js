@@ -43,9 +43,13 @@
     if(returning)rows.push({label:'차고지 복귀',place:trip.deadheadDestination,planned:trip.returnTime||'',actual:log.deadheadReturnedAt,mode:log.returnRecordMode});
     return rows;
   }
-  function ringSegments(total,passed){
+  function ringAngle(fraction,plan={}){
+    const start=Number.isFinite(plan.startAngle)?plan.startAngle:-90,span=Number.isFinite(plan.span)?plan.span:360,t=plan.turnFraction;
+    return start+(t>0&&t<1?(fraction<=t?fraction/t*180:180+(fraction-t)/(1-t)*180):fraction*span);
+  }
+  function ringSegments(total,passed,startAngle=-90,span=360,turnFraction){
     const n=Math.max(0,Math.min(600,Math.floor(Number(total)||0))),p=Math.max(0,Math.min(n,Math.floor(Number(passed)||0)));
-    return Array.from({length:n},(_,i)=>({start:-90+i*360/n,end:-90+(i+1)*360/n-Math.min(1.5,90/n),done:i<p}));
+    return Array.from({length:n},(_,i)=>({start:ringAngle(i/n,{startAngle,span,turnFraction}),end:ringAngle((i+1)/n,{startAngle,span,turnFraction})-Math.min(1.5,span/4/n),done:i<p}));
   }
   function svgNode(doc,name,attrs={}){const node=doc.createElementNS('http://www.w3.org/2000/svg',name);Object.entries(attrs).forEach(([key,value])=>node.setAttribute(key,String(value)));return node;}
   function movement(position,now,held){
@@ -90,19 +94,20 @@
   function ringPeerLabel(peers){
     return peers.map(p=>(p.side==='front'?'앞':'뒤')+p.rank+' · '+p.stopGap+'정류장').join(', ');
   }
-  function drawRing(host,total,passed,progress,held=false,motion,peers=[]){
+  function drawRing(host,total,passed,progress,held=false,motion,peers=[],plan={}){
     const fraction=Number.isFinite(progress)?Math.max(0,Math.min(100,progress))/100:(total?passed/total:0),doc=host.ownerDocument;
+    const startAngle=Number.isFinite(plan.startAngle)?plan.startAngle:-90,span=Number.isFinite(plan.span)?plan.span:360,signature=[total,startAngle,span,plan.turnFraction].join('|');
     let svg=host.querySelector('svg');
-    if(!svg||host.dataset.ringTotal!==String(total)){
-      if(svg)svg.remove();host.dataset.ringTotal=String(total);
+    if(!svg||host.dataset.ringTotal!==signature){
+      if(svg)svg.remove();host.dataset.ringTotal=signature;
       svg=svgNode(doc,'svg',{viewBox:'0 0 120 120','aria-hidden':'true',class:'stop-segment-ring'});
-      const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0);
+      const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0,startAngle,span,plan.turnFraction);
       if(!segments.length)svg.append(svgNode(doc,'circle',{cx:60,cy:60,r:49,fill:'none',stroke:'#dce4ed','stroke-width':7}));
       segments.forEach(s=>{const a=point(s.start),b=point(s.end);const arc=svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7});svg.append(arc);const fill=arc.cloneNode();fill.setAttribute('class','route-fill');fill.setAttribute('pathLength','1');fill.style.transition='stroke-dasharray 1s linear';svg.append(fill);});
-      const arrow=svgNode(doc,'g',{class:'route-arrow'}),w=Math.max(2,Math.min(6,2*Math.PI*49/Math.max(1,total)*.85));arrow.append(svgNode(doc,'path',{d:`M ${109-w/2} 58 L ${109+w/2} 58 L 109 62 Z`}));arrow.style.transformOrigin='60px 60px';arrow.style.transition='transform 1s linear';svg.append(arrow);host.prepend(svg);
+      const arrow=svgNode(doc,'g',{class:'route-arrow'}),w=Math.max(2,Math.min(6,span/360*2*Math.PI*49/Math.max(1,total)*.85));arrow.append(svgNode(doc,'path',{d:`M ${109-w/2} 58 L ${109+w/2} 58 L 109 62 Z`}));arrow.style.transformOrigin='60px 60px';arrow.style.transition='transform 1s linear';svg.append(arrow);host.prepend(svg);
     }
     svg.querySelectorAll('.route-fill').forEach((node,i)=>{node.setAttribute('stroke',held?'#7b8b9e':'#0d9488');node.setAttribute('stroke-dasharray',Math.max(0,Math.min(1,fraction*total-i))+' 1');});
-    const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${-90+fraction*360}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',motion?.color||(held?'#7b8b9e':'#075e56'));host.dataset.movement=motion?.key||'unknown';
+    const arrow=svg.querySelector('.route-arrow');arrow.style.transform=`rotate(${ringAngle(fraction,plan)}deg)`;arrow.style.display=total&&(passed>0||fraction>0)?'':'none';arrow.setAttribute('fill',motion?.color||(held?'#7b8b9e':'#075e56'));host.dataset.movement=motion?.key||'unknown';
     svg.querySelector('.route-peers')?.remove();
     const markers=svgNode(doc,'g',{class:'route-peers'});
     const ticks=svg.querySelectorAll('.route-tick');
@@ -143,6 +148,50 @@
     const time=new Date(weather.observedAt).toLocaleTimeString('en-GB',{timeZone:'Asia/Seoul',hourCycle:'h23',hour:'2-digit',minute:'2-digit'});
     return (weather.provider||'날씨')+' · '+time+' 관측';
   }
+  function shortVehicle(vehicle){
+    const texts=[vehicle?.displayNo,vehicle?.vehicleNo].filter(Boolean).map(String);
+    for(const text of texts){const match=text.match(/(\d{4})\s*$/);if(match)return match[1]+'호';}
+    return texts[0]||'차량 미확인';
+  }
+  function ringPlan(trip,path){
+    const samjeong=s=>/삼정.*(복지회관|복지관)/.test(String(s||''));
+    const returningOnly=path?.turnIndex<0&&/고강/.test(trip.endPlace)&&!/고강/.test(trip.startPlace);
+    return {startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:path?.turnIndex>0?path.turnIndex/(path.stops.length-1):null,
+      depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
+      turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime:trip.turnTime||'—')},returningOnly};
+  }
+  function weatherView(weather,now){
+    const valid=weatherLabel(weather,now).includes('°C'),condition=valid?String(weather.condition||''):'';
+    const kind=!valid?'unknown':/눈/.test(condition)?'snow':/비|빗방울/.test(condition)?'rain':/구름|흐림/.test(condition)?'cloud':/맑/.test(condition)?'sun':'unknown';
+    const wind=valid&&Number.isFinite(Number(weather.windMps))&&weather.windMps!==null&&String(weather.windMps).trim()!==''?Number(weather.windMps):null;
+    return {kind,temperature:valid?Number(weather.temperature).toFixed(1)+'°C':'—°C',condition:condition||'날씨 수신 대기',wind};
+  }
+  function renderWeather(node,weather,now){
+    const v=weatherView(weather,now),key=JSON.stringify(v);
+    if(node.dataset.weather===key)return;node.dataset.weather=key;node.replaceChildren();
+    const doc=node.ownerDocument,icon=svgNode(doc,'svg',{viewBox:'0 0 48 40',class:'weather-icon weather-'+v.kind,'aria-hidden':'true'});
+    if(v.kind==='sun'){const sun=svgNode(doc,'g',{class:'weather-sun'});for(let i=0;i<8;i++)sun.append(svgNode(doc,'path',{d:'M24 3v4',transform:'rotate('+(45*i)+' 24 20)',stroke:'#cf8900','stroke-width':2,'stroke-linecap':'round'}));sun.append(svgNode(doc,'circle',{cx:24,cy:20,r:9,fill:'#f5bc36'}));icon.append(sun);}
+    else if(v.kind!=='unknown'){icon.append(svgNode(doc,'path',{class:'weather-cloud',d:'M10 26a7 7 0 0 1 0-14 10 10 0 0 1 19-3 8 8 0 1 1 7 17Z',fill:'#99b6cb'}));if(v.kind==='rain'||v.kind==='snow')for(let i=0;i<3;i++)icon.append(svgNode(doc,v.kind==='rain'?'path':'circle',v.kind==='rain'?{class:'weather-drop',d:'M'+(15+i*10)+' 30l-3 6',stroke:'#2378ba','stroke-width':2,style:'animation-delay:'+i*.25+'s'}:{class:'weather-drop',cx:14+i*10,cy:32,r:2,fill:'#4c88ad',style:'animation-delay:'+i*.25+'s'}));}
+    else icon.append(svgNode(doc,'path',{d:'M20 9a4 4 0 0 1 8 0v15a7 7 0 1 1-8 0Z M24 13v17',fill:'none',stroke:'#73879a','stroke-width':2}));
+    const temp=doc.createElement('strong');temp.textContent=v.temperature;const label=doc.createElement('span');label.textContent=v.condition;node.append(icon,temp,label);
+    if(v.wind!==null){const wind=svgNode(doc,'svg',{viewBox:'0 0 32 24',class:'weather-wind','aria-hidden':'true'});wind.append(svgNode(doc,'path',{d:'M2 7h19q8 0 5-5 M2 12h25 M7 17h13q7 0 4 5',fill:'none',stroke:'#638d9a','stroke-width':2}));const text=doc.createElement('small');text.textContent=v.wind.toFixed(1)+'m/s';node.append(wind,text);}
+  }
+  function peerStatus(fleet,own,scope,peers,now){
+    if(fleet?.error)return '차량정보 연결 실패 · 재시도 중';
+    const ref=fleet?.crossCheck;
+    if(ref?.error==='GBIS_HTTP_429')return '경기버스정보 요청 제한 · 재시도 대기';
+    if(ref?.error==='GBIS_REFRESH_PENDING')return '경기버스정보 갱신 중';
+    if(peers.length)return peers.some(p=>p.reference)?'경기버스정보 · 정류장 위치 기준':'앱 GPS · 정류장 위치 기준';
+    if(!own?.configured||own.retained)return '내 위치·방향 확인 중';
+    if(!scope.running)return '출발 기록 확인 후 앞뒤차 표시';
+    if(ref?.fetchedAt&&now-Number(ref.fetchedAt)>60000)return '경기버스정보 갱신 지연';
+    if(ref&&!ref.available)return ref.message||'경기버스정보 수신 대기';
+    return '같은 방향 앞뒤차 확인 중';
+  }
+  function retainedReference(fleet,scope,now){
+    const ref=fleet?.crossCheck,age=now-Number(ref?.fetchedAt);
+    return fleet?.requestScope===scope&&ref?.available&&age>=0&&age<=60000?ref:null;
+  }
   function manualActions(input){
     const t=input.trip||{},log=input.log||{},active=input.live&&input.date===input.today&&!log.actualEnd;
     const pending=Boolean(input.pending),early=!Number.isFinite(input.plannedAt)||input.now<input.plannedAt;
@@ -160,5 +209,5 @@
     }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
+  return {shortVehicle,ringPlan,ringAngle,weatherView,renderWeather,peerStatus,retainedReference,phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });

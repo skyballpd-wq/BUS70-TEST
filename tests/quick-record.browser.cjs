@@ -25,11 +25,23 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    routeNavigationState=()=>({waiting:true,configured:false});renderSchedule(false);
   });
   assert.deepEqual(errors,[]);
+  const layout=await page.evaluate(()=>{
+   const b=s=>{const r=document.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};
+   return {safety:[...document.querySelectorAll('#driverRoadSafety button')].map(n=>n.getBoundingClientRect().top),date:b('#driverLiveDate'),clock:b('#driverLiveClock'),head:[...document.querySelector('.cockpit-head').children].map(n=>n.getBoundingClientRect().top),gaps:b('#driverPlannedGaps'),ring:b('#driverTripProgressRing'),actions:b('.quick-run-actions'),box:b('#driverLiveDashboard')};
+  });
+  assert.equal(layout.safety[0],layout.safety[1],'safety and voice buttons share one row');
+  assert(layout.date.bottom>layout.clock.top&&layout.clock.bottom>layout.date.top,'date and time share one row');
+  assert(Math.abs(layout.head[0]-layout.head[1])<8,'route and current trip share one row');
+  assert(layout.gaps.bottom<layout.ring.top+1,'planned gaps precede progress ring');
+  assert(layout.actions.bottom-layout.box.top<620,'essential dashboard requires no internal scroll on a phone');
+  assert.equal(await page.locator('.cockpit-record-details').evaluate(n=>n.open),false);
+  if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#driverLiveDashboard').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/compact-cockpit-'+width+'.png'});}
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert.equal(await page.locator('.quick-run-actions button').count(),3);
   assert.equal(await page.locator('.manual-run-tools').count(),0);
   assert.equal(await page.locator('#driverLiveClock').count(),1);
   assert.match(await page.locator('#driverLiveClock').innerText(),/10:10:00/);
-  assert.match(await page.locator('#driverLiveDate').innerText(),/현재.*1월 8일/);
+  assert.match(await page.locator('#driverLiveDate').innerText(),/1월 8일/);
   assert.equal(await page.locator('#driverLiveDashboard .cockpit-phases').count(),1);
   assert.equal(await page.locator('.schedule-options').evaluate(n=>n.open),false);
   assert.equal(await page.locator('#driverCrossCheckStatus').isVisible(),false);
@@ -46,6 +58,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.quick-run-actions button:enabled').count(),0);
   await page.evaluate(()=>resolveRecord({ok:true,recordedAt:'2099-01-08T10:10:00+09:00',recordMode:'수동',status:'운행중',message:'출발 저장 완료'}));
   await page.waitForFunction(()=>!quickRunPending);
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert(await page.locator('[data-run-event="DEPART"]').isDisabled());
   assert(await page.locator('[data-run-event="TURN"]').isEnabled());
   assert.match(await page.locator('#driverRecordFeedback').innerText(),/출발 저장 완료/);
@@ -87,7 +100,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   const clockAfter=await page.locator('#driverLiveClock').innerText(),seconds=text=>text.split(':').reduce((total,value)=>total*60+Number(value),0);
   assert(seconds(clockAfter)-seconds(clockBefore)>=5,'live clock advances with elapsed time across browser speeds');
   assert.match(await page.locator('#driverWeather').innerText(),/0.0°C/);
-  assert.equal(await page.locator('#driverWeather').innerText(),'🌨️ 0.0°C');
+  assert.equal(await page.locator('#driverWeather .weather-snow').count(),1); assert.match(await page.locator('#driverWeather').innerText(),/눈/);
   assert.equal(await page.locator('#driverWeatherTime').isVisible(),false,'observation explanation is not visible');
   assert.match(await page.locator('#driverWeather').getAttribute('title'),/10:00 관측/);
   assert.equal(await page.locator('.cockpit-gaps').count(),1,'planned minute gaps appear separately from stop-position ring');
@@ -127,6 +140,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    selectDriverTrip(0);
   });
   for(const selector of ['#driverLiveClock','#driverLiveDate','#driverWeather','#driverWeatherTime','#driverTripProgressRing'])assert.equal(await page.locator(selector).isVisible(),false,'historical date hides '+selector);
+  if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
   assert.equal(await page.locator('#driverLiveDashboard .phase-actual').first().innerText(),'07:00:10');
   assert.match(await page.locator('#driverLiveDashboard .time-deviation').first().innerText(),/\+0:10\s*늦음/);
   assert.equal((await page.locator('#driverLiveDashboard').innerText()).match(/운행 완료/g)?.length,1);
@@ -138,7 +152,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await page.evaluate(()=>document.getElementById('scheduleResult').style.zoom='1');
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/trip-result-'+width+'.png'});
   await page.evaluate(()=>{cockpitWeather.observedAt='2099-01-07T10:00:00+09:00';updateDriverLiveDashboard();});
-  assert(!/°C/.test(await page.locator('#driverWeather').textContent()),'old temperature is never presented as current');
+  assert(!/0\.0°C/.test(await page.locator('#driverWeather').textContent()),'old temperature is never presented as current');
   assert.deepEqual(errors,[]);await page.close();
  }console.log('Full app 320/360/412px: direct recording, duplicate tap, provenance, save failure, details and selected-trip isolation passed');
  }finally{await browser.close();}

@@ -25,7 +25,7 @@ final class DepartureOnset {
         if(!valid){state.remove("departureOnset");return;}
         double radius=start.optDouble("radiusM",80);
         boolean corroborated=hint!=null&&hint.optBoolean("available")&&"GYEONGGI_BUS_LOCATION_V2".equals(hint.optString("source"))&&"AGREE".equals(hint.optString("status"))&&hint.optInt("stateCd",-1)==2&&hint.optLong("fetchedAt")>0&&at-hint.optLong("fetchedAt")>=0&&at-hint.optLong("fetchedAt")<=60000&&start.has("order")&&hint.optInt("stationSeq")==start.optInt("order");
-        if(proof==null&&(speed>=2.8||speed>=.8&&corroborated)&&RouteMatcher.distance(lat,lng,start)<=radius){
+        if(proof==null&&(speed>=2.8||speed>=.8&&corroborated)&&RouteMatcher.distance(lat,lng,start)<=radius+Math.min(15,accuracy)){
             proof=new JSONObject().put("first",new JSONObject().put("latitude",lat).put("longitude",lng).put("accuracy",accuracy).put("time",at));
         }
         if(proof==null)return;

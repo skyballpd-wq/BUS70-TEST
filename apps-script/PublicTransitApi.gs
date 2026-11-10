@@ -364,7 +364,7 @@ function bus70PublicTransitManagerAction_(action, body, requesterId) {
 // observation timestamp. Never substitute its query time for an event time.
 function bus70GyeonggiLiveParse_(json,routeId,fetchedAt){
   const envelope=json&&json.response||json||{},header=envelope.msgHeader||{},code=String(header.resultCode==null?'':header.resultCode);
-  if(code!=='0')return {ok:false,available:false,error:'GBIS_RESPONSE',message:code==='4'?'경기도 운행 차량정보 없음':'경기도 차량위치 API 응답 확인 필요',fetchedAt:fetchedAt};
+  if(code!=='0')return {ok:false,available:false,error:'GBIS_RESPONSE',providerCode:String(code).replace(/[^A-Za-z0-9_-]/g,'').slice(0,16),message:code==='4'?'경기도 운행 차량정보 없음':'경기도 차량위치 API 응답 확인 필요',fetchedAt:fetchedAt};
   let items=envelope.msgBody&&envelope.msgBody.busLocationList||[];if(!Array.isArray(items))items=[items];
   items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd)};});
   return {ok:true,available:true,items:items,fetchedAt:fetchedAt,queryTime:String(header.queryTime||''),source:'GYEONGGI_BUS_LOCATION_V2'};
@@ -409,7 +409,12 @@ function bus70GyeonggiLiveFetch_(route){
   // Cooldown survives cache eviction and is shared by routes using the key.
   if(lock.tryLock(2000))try{
     const state=read(stateKey),global=read(globalKey),now=Date.now();
-    if(state.lease===lease){state.inFlightUntil=0;state.lastResponseAt=now;state.lastHttp=http;state.responses=state.responses||{};state.responses[String(http)]=Number(state.responses[String(http)]||0)+1;properties.setProperty(stateKey,JSON.stringify(state));}
+    if(state.lease===lease){state.inFlightUntil=0;state.lastResponseAt=now;state.lastHttp=http;state.responses=state.responses||{};state.responses[String(http)]=Number(state.responses[String(http)]||0)+1;
+      // Retain 48 hourly aggregates, with no identities, plates, coordinates or keys.
+      const hour=Utilities.formatDate(new Date(now),'Asia/Seoul','yyyy-MM-dd HH'),hours=state.hours||[],bucket=hours.find(function(v){return v.hour===hour;})||{hour:hour,ok:0,errors:{}};
+      if(hours.indexOf(bucket)<0)hours.push(bucket);
+      if(result.available)bucket.ok++;else {const reason=String(result.error||'UNKNOWN')+(result.providerCode?':'+result.providerCode:'');bucket.errors[reason]=Number(bucket.errors[reason]||0)+1;}
+      state.hours=hours.slice(-48);state.lastProviderCode=result.providerCode||'';properties.setProperty(stateKey,JSON.stringify(state));}
     if(http===429){const attempts=Number(global.attempts||0)+1;result.retryAt=Math.max(retryAt,now+Math.min(3600000,300000*Math.pow(2,Math.min(attempts-1,4))));properties.setProperty(globalKey,JSON.stringify({attempts:attempts,retryAt:result.retryAt,last429At:now}));}
     else if(result.available&&Number(global.retryAt||0)<=now)properties.deleteProperty(globalKey);
   }finally{lock.releaseLock();}
@@ -527,4 +532,13 @@ function BUS70_connectRegisteredGyeonggiRoutes(){
     target[route]=config;PropertiesService.getScriptProperties().setProperty('BUS70_PUBLIC_ROUTE_API_CONFIG_JSON',JSON.stringify(root));
     console.log(JSON.stringify({route:route,configured:true,stopCount:checked.stops.length}));
   });
+}
+
+function BUS70_readLiveDiagnostics(){
+  const properties=PropertiesService.getScriptProperties();
+  ['5','23','70'].forEach(function(route){const config=bus70PublicTransitRouteConfig_(route);if(!config)return;
+    const stats=JSON.parse(properties.getProperty('BUS70_GBIS_REQUEST_'+config.routeId)||'{}');
+    console.log(JSON.stringify({route:route,day:stats.day||'',requests:stats.requests||0,responses:stats.responses||{},lastResponseAt:stats.lastResponseAt||null,lastHttp:stats.lastHttp||null,lastProviderCode:stats.lastProviderCode||'',hours:stats.hours||[]}));
+  });
+  console.log(JSON.stringify({cooldown:JSON.parse(properties.getProperty('BUS70_GBIS_COOLDOWN')||'{}')}));
 }
