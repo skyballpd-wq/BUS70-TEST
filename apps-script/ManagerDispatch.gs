@@ -444,7 +444,7 @@ function bus70MasterStaffUpsert_(body, requesterId) {
   arow[ac['accountId']]=accountRow?String(ar[accountRow-1][ac['accountId']]||''):newId_('ACC'); arow[ac['권한']]=role; arow[ac['driverId']]=driverId; arow[ac['로그인이름']]=loginName; arow[ac['로그인사번']]=''; arow[ac['사용여부']]=enabled; arow[ac['비고']]='마스터 계정관리';
   if(password){ if(password.length<5||password.length>20) return {ok:false,error:'PASSWORD_FORMAT',message:'비밀번호는 5~20자로 입력하세요.'}; arow[ac['비밀번호해시']]=bus70PasswordHash_(password); arow[ac['비밀번호변경시간']]=new Date(); }
   if(accountRow) as.getRange(accountRow,1,1,arow.length).setValues([arow]); else as.appendRow(arow);
-  writeAudit_(requesterId,'마스터','계정DB',arow[ac['accountId']],accountRow?'수정':'추가',{},arow,'운영계정 관리');
+  writeAudit_(requesterId,'마스터','계정DB',arow[ac['accountId']],accountRow?'수정':'추가',accountRow?bus70AccountAuditSnapshot_(ar[accountRow-1],ac):{},bus70AccountAuditSnapshot_(arow,ac),'운영계정 관리');
   return {ok:true,message:role+' 계정을 저장했습니다.'};
 }
 
@@ -565,11 +565,15 @@ function bus70StaffLogin_(name, password) {
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('계정DB');
   if(!sheet||sheet.getLastRow()<2) return {ok:false,error:'STAFF_NOT_FOUND'};
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
+  const matches=rows.slice(1).filter(function(r){return String(r[c['로그인이름']]||'').trim()===name;});
+  if(matches.length>1)return {ok:false,error:'ACCOUNT_DUPLICATE',message:'계정 등록정보 확인이 필요합니다.'};
   for(let i=1;i<rows.length;i++) {
     if(String(rows[i][c['로그인이름']]||'').trim()!==name) continue;
     const role=String(rows[i][c['권한']]||'').trim();
     if(['마스터','소장','관리자','정비소'].indexOf(role)===-1) return {ok:false,error:'STAFF_NOT_FOUND'};
-    if(String(rows[i][c['사용여부']]||'').trim()==='N') return {ok:false,error:'ACCOUNT_DISABLED',message:'사용 중지된 계정입니다.'};
+    if(String(rows[i][c['사용여부']]||'').trim()!=='Y') return {ok:false,error:'ACCOUNT_DISABLED',message:'사용 중지된 계정입니다.'};
+    // A login must never create a new salt or accept the legacy plaintext column.
+    if(!PropertiesService.getScriptProperties().getProperty('BUS70_PASSWORD_SALT')||!/^[a-f0-9]{64}$/i.test(String(rows[i][c['비밀번호해시']]||'')))return {ok:false,error:'AUTH_CONFIG_REQUIRED',message:'계정 인증정보 복구가 필요합니다.'};
     if(String(rows[i][c['비밀번호해시']]||'')!==bus70PasswordHash_(password)) return {ok:false,error:'LOGIN_FAILED',message:'계정명 또는 비밀번호가 일치하지 않습니다.'};
     const result=apiGetDriver_(String(rows[i][c['driverId']]||'').trim());
     if(!result.ok) return {ok:false,error:'ACCOUNT_PRINCIPAL_MISSING',message:'계정 정보를 확인할 수 없습니다.'};
@@ -586,9 +590,13 @@ function bus70ChangeStaffPassword_(body, driverId) {
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('계정DB');
   const rows=sheet.getDataRange().getDisplayValues(), c=makeHeaderMap_(rows[0]);
   for(let i=1;i<rows.length;i++) if(String(rows[i][c['driverId']]||'').trim()===driverId) {
+    if(!PropertiesService.getScriptProperties().getProperty('BUS70_PASSWORD_SALT'))return {ok:false,error:'AUTH_CONFIG_REQUIRED',message:'계정 인증 설정을 확인하세요.'};
     if(String(rows[i][c['비밀번호해시']]||'')!==bus70PasswordHash_(current)) return {ok:false,error:'PASSWORD_MISMATCH',message:'현재 비밀번호가 일치하지 않습니다.'};
-    sheet.getRange(i+1,c['비밀번호해시']+1).setValue(bus70PasswordHash_(next));
-    sheet.getRange(i+1,c['비밀번호변경시간']+1).setValue(new Date());
+    const hashCell=sheet.getRange(i+1,c['비밀번호해시']+1),dateCell=sheet.getRange(i+1,c['비밀번호변경시간']+1),oldHash=hashCell.getValue(),oldDate=dateCell.getValue();
+    try{
+      hashCell.setValue(bus70PasswordHash_(next));dateCell.setValue(new Date());
+      writeAudit_(driverId,role,'계정DB',String(rows[i][c['accountId']]||''),'비밀번호 변경',{}, {changed:true},'운영계정 본인 변경; 인증정보 미기록');
+    }catch(ignore){hashCell.setValue(oldHash);dateCell.setValue(oldDate);return {ok:false,error:'AUTH_AUDIT_UNAVAILABLE',message:'변경 기록 저장에 실패하여 기존 비밀번호를 유지했습니다.'};}
     return {ok:true,message:'비밀번호를 변경했습니다. 다음 로그인부터 새 비밀번호를 사용하세요.'};
   }
   return {ok:false,error:'ACCOUNT_NOT_FOUND',message:'계정을 찾을 수 없습니다.'};
@@ -600,7 +608,7 @@ function bus70ManagerAccountList_(requesterId) {
   if (!sheet) return {ok:false,error:'DB_MISSING',message:'계정DB를 찾을 수 없습니다.'};
   const rows = sheet.getDataRange().getDisplayValues(), c = makeHeaderMap_(rows[0]);
   const accounts = rows.slice(1).map(function (r) { return {accountId:String(r[c['accountId']]||''),role:String(r[c['권한']]||''),
-    driverId:String(r[c['driverId']]||''),name:String(r[c['로그인이름']]||''),empId:String(r[c['로그인사번']]||''),enabled:String(r[c['사용여부']]||'')}; });
+    driverId:String(r[c['driverId']]||''),name:String(r[c['로그인이름']]||''),empId:String(r[c['권한']]||'')==='기사'?String(r[c['로그인사번']]||''):'',enabled:String(r[c['사용여부']]||'')}; });
   return {ok:true,accounts:accounts};
 }
 
@@ -623,8 +631,30 @@ function bus70ManagerAccountUpsert_(body, requesterId) {
   const accountId=accountRow?String(ar[accountRow-1][ac['accountId']]||''):newId_('ACC');
   const accountValues=[accountId,role,driverId,name,empId,enabled,new Date(),'마스터 계정관리'];
   if(accountRow) as.getRange(accountRow,1,1,accountValues.length).setValues([accountValues]); else as.appendRow(accountValues);
-  writeAudit_(requesterId,'마스터','계정DB',accountId,accountRow?'수정':'추가',{},accountValues,'소장 계정 관리');
+  writeAudit_(requesterId,'마스터','계정DB',accountId,accountRow?'수정':'추가',accountRow?bus70AccountAuditSnapshot_(ar[accountRow-1],ac):{},bus70AccountAuditSnapshot_(accountValues,ac),'소장 계정 관리');
   return {ok:true,message:'소장 계정을 저장했습니다.',account:{accountId:accountId,role:role,driverId:driverId,name:name,empId:empId,enabled:enabled}};
+}
+
+// Explicit allowlist: never copy a complete account row into logs or responses.
+function bus70AccountAuditSnapshot_(row,c) {
+  const out={};['accountId','권한','driverId','로그인이름','사용여부'].forEach(function(k){out[k]=String(row[c[k]]||'');});return out;
+}
+
+function bus70RecordLoginAudit_(name,result) {
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),sheet=ss.getSheetByName('계정DB');
+  const rows=sheet?sheet.getDataRange().getDisplayValues():[],c=rows.length?makeHeaderMap_(rows[0]):{};
+  const matches=rows.slice(1).filter(function(r){return result.ok?String(r[c.driverId]||'')===String(result.driver.driverId):String(r[c['로그인이름']]||'').trim()===String(name||'').trim();});
+  const row=matches.length===1?matches[0]:null,id=row?String(row[c.driverId]||''):(result.ok?String(result.driver.driverId):'UNKNOWN');
+  const code=result.ok?'LOGIN_SUCCESS':String(result.error||'LOGIN_FAILED').replace(/[^A-Z_]/g,'').slice(0,48);
+  // Coalesce rejected attempts per known principal/result, never key logs by a password or submitted name.
+  const cache=CacheService.getScriptCache(),key='BUS70_LOGIN_AUDIT_'+id+'_'+code;
+  if(!result.ok&&cache.get(key))return true;
+  try{
+    writeAudit_(id,row?String(row[c['권한']]||''):'기사','계정DB',row?String(row[c.accountId]||''):'UNKNOWN',result.ok?'로그인 성공':'로그인 실패',{}, {result:code},'인증정보 미기록; 동일 실패는 60초 묶음');
+    if(result.ok&&row&&c['마지막로그인']!==undefined)sheet.getRange(rows.indexOf(row)+1,c['마지막로그인']+1).setValue(new Date());
+    if(!result.ok)cache.put(key,'Y',60);
+    return true;
+  }catch(ignore){return false;}
 }
 
 function bus70ManagerNormalizeRoute_(value) {

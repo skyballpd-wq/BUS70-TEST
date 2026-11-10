@@ -5,11 +5,16 @@
   const rad=v=>v*Math.PI/180;
   function distance(a,b){const v=Math.sin(rad(b.lat-a.lat)/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(rad(b.lng-a.lng)/2)**2;return 6371000*2*Math.atan2(Math.sqrt(v),Math.sqrt(Math.max(0,1-v)));}
   const angle=(a,b)=>Math.abs(((a-b+540)%360)-180);
+  function readiness(data){
+    if(Array.isArray(data?.zones)&&data.zones.length)return {ready:true,message:'안전구간 자료 준비됨'};
+    const count=Math.max(0,Number(data?.diagnostics?.candidateCount)||0);
+    return {ready:false,message:data?.diagnostics?.reason==='LOAD_ERROR'?'실제 경고 중지 · 안전구간 연결 오류':'실제 경고 중지 · 검증 구간 0건'+(count?' / 후보 '+count+'건':'')};
+  }
   function evaluate(input,state={}){
     const p=input.position,c=p?.coords||{},now=input.now,nav=input.navigation,zones=input.data?.zones||[],scope=input.scope;
     const out={status:'대기',warning:null,notify:false,state};
     if(!input.active||!scope){out.status='운행 중에 안내';return out;}
-    if(!zones.length){out.status='안전경고 자료 미등록';return out;}
+    if(!zones.length){out.status=readiness(input.data).message;return out;}
     if(!p||!number(p.timestamp)||now-p.timestamp>6000||p.timestamp>now||!number(c.accuracy)||c.accuracy<0||c.accuracy>30||!number(c.speed)||c.speed<0||c.speed>55||(number(c.speedAccuracy)&&c.speedAccuracy>2.5)||!number(c.latitude)||Math.abs(c.latitude)>90||!number(c.longitude)||Math.abs(c.longitude)>180||!number(c.heading)||c.heading<0||c.heading>=360||!nav?.configured||nav.retained){out.status='안전경고 GPS 확인 중';return out;}
     const scopeKey=[scope.route,scope.date,scope.dispatchId,scope.trip].join('|');
     if(state.scopeKey!==scopeKey)state={scopeKey,notices:{}};
@@ -34,5 +39,5 @@
     return out;
   }
   function notified(result,now){if(result.notify&&result.key)result.state.notices[result.key]=now;}
-  return {evaluate,notified};
+  return {evaluate,notified,readiness};
 });

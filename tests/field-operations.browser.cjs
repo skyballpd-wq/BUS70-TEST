@@ -38,7 +38,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/다음날 00:05/);assert.match(await page.locator('#syntheticDriver .cockpit-phases').innerText(),/시험복지회관/);
   assert.match(await page.locator('#driverRoadSafety').innerText(),/안전운전 안내 꺼짐/);assert.equal(await page.locator('#driverRoadSafety button').isVisible(),true);
   await page.evaluate(()=>{currentDriverId='SYN-SAFETY';localStorage.setItem('bus70.safety.'+currentDriverId,'Y');updateRoadSafety({trip:{trip:1},log:{actualStart:'10:00'}},{configured:false},true);});
-  assert.match(await page.locator('#driverRoadSafety').innerText(),/검증된 구간 자료 대기/);
+  assert.match(await page.locator('#driverRoadSafety').innerText(),/실제 경고 중지 · 검증 구간 0건/);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/field-operations-'+width+'.png',fullPage:true});}
   assert.deepEqual(errors,[]);await page.close();
  }console.log('Mobile manager prediction/save/failure/support assignment, overnight connection checkpoint and unavailable safety data passed');

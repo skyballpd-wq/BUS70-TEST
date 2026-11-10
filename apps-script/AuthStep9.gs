@@ -69,9 +69,10 @@ function bus70AuthAction_(body) {
     }
     let result = typeof bus70StaffLogin_ === 'function' ? bus70StaffLogin_(body.name, body.empId) : {ok:false,error:'STAFF_NOT_FOUND'};
     if (!result.ok && result.error === 'STAFF_NOT_FOUND') result = apiLogin_(body.name, body.empId);
-    if (!result.ok) return result;
+    if (!result.ok) {if(typeof bus70RecordLoginAudit_==='function')bus70RecordLoginAudit_(body.name,result);return result;}
     const role = typeof bus70RoleFor_ === 'function' ? bus70RoleFor_(result.driver.driverId) : '';
     if (!role && !bus70DriverLoginActive_(result.driver)) return {ok:false,error:'DRIVER_RETIRED',message:'퇴직 처리된 기사 계정입니다. 재입사 승인 후 로그인할 수 있습니다.'};
+    if(typeof bus70RecordLoginAudit_==='function'&&!bus70RecordLoginAudit_(body.name,result))return {ok:false,error:'AUTH_AUDIT_UNAVAILABLE',message:'로그인 기록을 저장하지 못했습니다. 잠시 후 다시 시도하세요.'};
     const session = bus70IssueSession_(result.driver.driverId);
     const response = {ok:true, driver:result.driver, token:session.token, expiresAt:session.expiresAt,
       manager:role === 'MASTER' || role === 'MANAGER', role:role};
@@ -353,7 +354,7 @@ function bus70EnrichDriverSchedule_(schedule, driverId, rawDate) {
   const stops=schedule.routeProfile&&Array.isArray(schedule.routeProfile.stops)?schedule.routeProfile.stops:[];
   const coordinateStops=stops.filter(function(stop){return bus70LocationNumber_(stop.lat,-90,90)!==null&&bus70LocationNumber_(stop.lng,-180,180)!==null;});
   schedule.liveNavigation={route:String(schedule.route||''),stopCount:stops.length,coordinateStopCount:coordinateStops.length,directions:coordinateStops.map(function(stop){return String(stop.direction||'');}).filter(function(value,index,all){return value&&all.indexOf(value)===index;}),locationSnapshotTtlSeconds:600,locationFreshSeconds:180,historyStored:false};
-  if(typeof bus70RoadSafetyData_==='function'){try{schedule.roadSafety=bus70RoadSafetyData_(String(schedule.route||''));}catch(ignore){schedule.roadSafety={available:false,zones:[],message:'안전경고 자료 연결 확인 필요'};}}
+  if(typeof bus70RoadSafetyData_==='function'){try{schedule.roadSafety=bus70RoadSafetyData_(String(schedule.route||''));if(typeof bus70RoadSafetyAudit_==='function')bus70RoadSafetyAudit_(driverId,String(schedule.route||''),schedule.roadSafety);}catch(ignore){schedule.roadSafety={available:false,zones:[],message:'실제 경고 중지 · 안전구간 연결 오류',diagnostics:{reason:'LOAD_ERROR'}};}}
   return schedule;
 }
 
