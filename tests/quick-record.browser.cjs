@@ -33,7 +33,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert(layout.date.bottom>layout.clock.top&&layout.clock.bottom>layout.date.top,'date and time share one row');
   assert(Math.abs(layout.head[0]-layout.head[1])<8,'route and current trip share one row');
   assert(layout.gaps.bottom<layout.ring.top+1,'planned gaps precede progress ring');
-  assert(layout.actions.bottom-layout.box.top<620,'essential dashboard requires no internal scroll on a phone');
+  assert(await page.locator('.quick-run-actions').evaluate(n=>n.getBoundingClientRect().top>=document.querySelector('.driver-live-primary').getBoundingClientRect().bottom),'manual record actions follow the live first screen');
   assert.equal(await page.locator('.cockpit-record-details').evaluate(n=>n.open),false);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#driverLiveDashboard').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/compact-cockpit-'+width+'.png'});}
   if(!await page.locator('.cockpit-record-details').evaluate(n=>n.open))await page.locator('.cockpit-record-details>summary').click();
@@ -110,7 +110,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.front').count(),2);
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.rear').count(),2);
   assert.doesNotMatch(await page.locator('#driverRingPeers').innerText(),/분|초|대기/);
-  assert.equal(await page.locator('#driverRingPeers').evaluate(n=>n.previousElementSibling.id),'driverTripProgressRing','compact legend sits beside the ring');
+  assert.equal(await page.locator('#driverRingPeers').evaluate(n=>n.previousElementSibling.className),'driver-live-orbit','compact legend follows the ring stage');
   assert(await page.locator('.orbit-stops').evaluate(n=>n.scrollWidth<=n.clientWidth+1));
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/quick-record-'+width+'.png'});}
   await page.evaluate(()=>{liveFleet.positions[0].running=false;updateDriverLiveDashboard();});
