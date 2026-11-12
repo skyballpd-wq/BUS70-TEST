@@ -116,8 +116,8 @@
 .orbit-route>.orbit-point strong{text-align:center}
 .orbit-route>.orbit-point .before{text-align:left}
 .orbit-route>.orbit-point .after{text-align:right}
-.driver-live-orbit .orbit-route{height:100%;max-width:none;margin:0}
-.driver-live-orbit .orbit-track{flex:1 1 0}
+.driver-live-orbit .orbit-route{max-width:none;margin:0}
+.driver-live-orbit .orbit-track{flex:0 0 auto}
 @media(max-width:350px) and (max-height:600px){
   .driver-live-primary{gap:2px;padding-top:calc(2px + env(safe-area-inset-top));padding-bottom:calc(1px + env(safe-area-inset-bottom))}
   .driver-live-primary:has(.driver-notice-strip:not([hidden])) .driver-scroll-hint{display:none}

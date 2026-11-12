@@ -39,14 +39,13 @@
     const fit=()=>{
       if(!ring||!stage.isConnected)return;
       const style=root.getComputedStyle(primary);
+      const pointHeight=Array.from(stage.querySelectorAll('.orbit-point')).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
       if(style.display==='flex'){
         const visible=Array.from(primary.children).filter(n=>!n.hidden&&root.getComputedStyle(n).display!=='none'),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
-        const points=Array.from(stage.querySelectorAll('.orbit-point')).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
-        const minimum=Math.ceil(fixed+170+points+4+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
+        const minimum=Math.ceil(fixed+170+pointHeight+4+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
         const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }else if(primary.style.minHeight)primary.style.removeProperty('min-height');
-      const track=stage.querySelector('.orbit-track')||stage;
-      const size=Math.max(0,Math.min(track.clientWidth,track.clientHeight,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+      const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight-pointHeight-4,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
     };
     fit();
     if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of [...primary.children,...stage.querySelectorAll('.orbit-point,.orbit-track')])observer.observe(node);}
