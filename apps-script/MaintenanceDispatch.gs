@@ -95,13 +95,15 @@ function bus70MaintLogs_(){
 }
 function bus70MaintenanceBoard_(requester){
   if(!bus70CanOperate_(requester))return bus70NoticeError_('STAFF_REQUIRED','정비소·소장·마스터만 차량 현황을 볼 수 있습니다.');
-  const ctx=bus70MaintContext_(),now=Date.now(),calls=bus70MaintRead_('정비호출DB',BUS70_MAINT_CALL_HEADERS_),receipts=bus70NoticeReceipts_();
+  const ctx=bus70MaintContext_(),calls=bus70MaintRead_('정비호출DB',BUS70_MAINT_CALL_HEADERS_),receipts=bus70NoticeReceipts_();
   const logs=bus70MaintLogs_().filter(l=>normalizeDate_(l['날짜'])===ctx.date),runs={};ctx.dispatch.forEach(p=>runs[p.dispatchId]=bus70MaintRun_(logs,p));
   const routes=['5','23','70'].map(route=>{
     let fetched={available:false,message:'차량위치 연결 대기'},stops=[],snapshots={};
     try{stops=bus70RouteStopsFromDb_(route,ctx.date).stops||[];snapshots=bus70LiveLocationSnapshotMap_(route,ctx.date);fetched=bus70GyeonggiLiveFetch_(route);}catch(ignore){}
     return {route:route,fetched:fetched,stops:stops,snapshots:snapshots};
   });
+  // Fetches may finish after the request starts; measure freshness after all reads.
+  const now=Date.now();
   const vehicles=ctx.vehicles.filter(v=>v.vehicleId&&!['폐차','매각','삭제'].includes(v['상태'])).map(v=>{
     const assignments=ctx.dispatch.filter(p=>p['차량ID']===v.vehicleId).map(p=>{const d=ctx.drivers.find(d=>d.driverId===p['기사ID']);return {id:p.dispatchId,driverId:d?d.driverId:'',driverName:d?d['성명']:'기사 확인 필요',route:String(p['노선']),shift:p['근무조']||'',sequence:Number(p['순차']||0),run:runs[p.dispatchId]||null};});
     const routeIds=[...new Set(assignments.map(p=>p.route))],route=routeIds.length===1?routeIds[0]:!routeIds.length?String(v['현재노선']||''):'';
