@@ -60,3 +60,5 @@ probeCache.clear();throwFetch=true;probe=c.BUS70_inspectCctvApi();assert.equal(p
 assert.equal(c.bus70CctvInspectionResponse_(200,'<returnReasonCode>22</returnReasonCode>').providerCode,'22');
 assert.equal(c.bus70CctvInspectionResponse_(429,'SECRET').status,'RATE_LIMITED');assert.equal(c.bus70CctvInspectionResponse_(200,'{}').status,'SCHEMA_UNCONFIRMED');
 console.log('CCTV inspection bounds, schema separation, cache and credential redaction passed');
+
+const gatewayJson=c.bus70CctvInspectionResponse_(200,JSON.stringify({OpenAPI_ServiceResponse:{cmmMsgHeader:{errMsg:'PRIVATE_ERROR',returnAuthMsg:'PRIVATE_AUTH',returnReasonCode:'30'}}}));assert.equal(gatewayJson.status,'PROVIDER_ERROR');assert.equal(gatewayJson.providerCode,'30');assert.doesNotMatch(JSON.stringify(gatewayJson),/PRIVATE/);

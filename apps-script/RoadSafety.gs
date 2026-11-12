@@ -89,6 +89,11 @@ function bus70CctvInspectionResponse_(http,text) {
     const match=String(text).match(/<(?:returnReasonCode|resultCode)>\s*(\d{1,3})\s*<\//);
     return {ok:false,status:match?'PROVIDER_ERROR':'FORMAT_UNCONFIRMED',providerCode:match?match[1]:''};
   }
+  const gateway=data&&data.OpenAPI_ServiceResponse&&data.OpenAPI_ServiceResponse.cmmMsgHeader;
+  if(gateway&&typeof gateway==='object'){
+    const code=String(gateway.returnReasonCode===undefined?'':gateway.returnReasonCode);
+    return {ok:false,status:'PROVIDER_ERROR',providerCode:/^\d{1,3}$/.test(code)?code:'UNKNOWN'};
+  }
   const response=data&&data.response,header=response&&response.header;
   if(!response||!header||typeof header!=='object')return {ok:false,status:'SCHEMA_UNCONFIRMED'};
   const code=String(header.resultCode===undefined?'':header.resultCode);
