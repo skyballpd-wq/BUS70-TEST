@@ -159,8 +159,8 @@
     const samjeong=s=>/삼정.*(복지회관|복지관)/.test(String(s||''));
     const returningOnly=path?.turnIndex<0&&/고강/.test(trip.endPlace)&&!/고강/.test(trip.startPlace);
     return {startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:path?.turnIndex>0?path.turnIndex/(path.stops.length-1):null,
-      depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
-      turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime:trip.turnTime||'—')},returningOnly};
+      depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',shortName:/고강/.test(trip.endPlace||trip.startPlace)?'고강차고지':trip.endPlace||trip.startPlace||'도착지',before:returningOnly?'':'출발 '+(trip.startTime||'—'),after:'도착 '+(trip.endTime||'—'),time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
+      turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',shortName:samjeong(trip.turnPlace||trip.startPlace)?'삼정복지회관':trip.turnPlace||trip.startPlace||'출발지',before:'',after:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—'),time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—')},returningOnly};
   }
   function weatherView(weather,now){
     const valid=weatherLabel(weather,now).includes('°C'),condition=valid?String(weather.condition||''):'';
