@@ -44,7 +44,7 @@
     if(host.dataset.headway===key)return;host.dataset.headway=key;host.replaceChildren();
     for(const m of models){
       const doc=host.ownerDocument,item=doc.createElement('div');item.className='headway-card '+m.side+' '+m.comparison.status;
-      const top=doc.createElement('div');top.className='headway-title';const label=doc.createElement('span');label.textContent=m.side==='front'?'예정 앞차':'예정 뒷차';const time=doc.createElement('strong');time.textContent=numeric(m.planned)?m.planned+'분':'확인 중';top.append(label,time);
+      const top=doc.createElement('div');top.className='headway-title';const label=doc.createElement('span');label.textContent=m.side==='front'?'예정 앞차':'예정 뒷차';const time=doc.createElement('strong');time.className=numeric(m.planned)?'':'unknown';time.textContent=numeric(m.planned)?m.planned+'분':'확인 중';top.append(label,time);
       const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=m.identity;
       const actual=doc.createElement('b');actual.className='headway-actual';actual.textContent=m.actual;
       const detail=doc.createElement('small');detail.textContent=m.target+(m.second?' · '+(m.side==='front'?'앞2 ':'뒤2 ')+(m.second.fresh===false?'이전 위치':m.second.stopGap+'정류장'):'');

@@ -71,8 +71,8 @@
 @media(prefers-reduced-motion:reduce){.driver-live-primary *{scroll-behavior:auto}}
 
 /* Headway identity and measured stop gaps share the existing two boxes. */
-.driver-mode .driver-live-primary .planned-gaps{grid-template-columns:1.1fr 1fr}
-.driver-mode .driver-live-primary .planned-gaps>.headway-card{display:flex;flex-direction:column;align-items:stretch;justify-content:start;gap:2px;padding:5px 7px;border:1px solid #d8e3ed;border-left:3px solid #b85b22;min-width:0}
+.driver-mode .driver-live-primary .planned-gaps{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+.driver-mode .driver-live-primary .planned-gaps>.headway-card{display:flex;flex-direction:column;align-items:stretch;justify-content:start;gap:2px;padding:5px 7px;border:1px solid #d8e3ed;border-left:3px solid #b85b22;min-width:0;white-space:normal}
 .driver-mode .driver-live-primary .planned-gaps>.front{background:#edf4ff;border-left-color:#2563eb}
 .headway-title{display:flex;justify-content:space-between;align-items:center;gap:3px;font-size:11px}
 .driver-mode .headway-title strong{font-size:19px;line-height:1.15}
@@ -104,3 +104,6 @@
   .driver-mode .driver-live-primary .cockpit-target strong{font-size:16px}
   .driver-mode .driver-live-primary .recording-summary,.driver-live-primary .driver-live-safety{font-size:13px}
 }
+
+.driver-mode .driver-live-primary .headway-title strong.unknown{font-size:14px}
+.driver-mode .driver-live-primary .orbit-stops strong{display:block;-webkit-line-clamp:unset;overflow:visible}

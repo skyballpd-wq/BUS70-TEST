@@ -41,6 +41,12 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
   };
   await check('running '+width+'x'+height);
+  assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
+  await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
+  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정 환산 약 7정류장/);
+  await check('comparison '+width+'x'+height);
+  const cardsFit=await page.locator('.headway-card').evaluateAll(cards=>cards.every(card=>{const box=card.getBoundingClientRect();let bottom=box.top;return [...card.children].every(child=>{const r=child.getBoundingClientRect();const okay=child.scrollWidth<=child.clientWidth+1&&r.left>=box.left&&r.right<=box.right+1&&r.top>=bottom-1&&r.bottom<=box.bottom+1;bottom=r.bottom;return okay;});}));
+  assert(cardsFit,'headway text stays within each card without overlapping at '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),4);
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
   assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
