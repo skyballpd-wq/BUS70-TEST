@@ -32,7 +32,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    const rects=await page.evaluate(()=>{
     const rect=n=>{const r=n.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};};
     const primary=document.querySelector('.driver-live-primary');
-    return {viewport:{width:innerWidth,height:innerHeight},ring:rect(document.getElementById('driverTripProgressRing')),primary:rect(primary),essential:[...primary.children].filter(n=>!n.hidden).map(n=>({id:n.id||n.className,...rect(n)})),secondary:rect(document.querySelector('.driver-live-secondary')),scrollWidth:document.documentElement.scrollWidth};
+    return {viewport:{width:innerWidth,height:innerHeight},ring:rect(document.getElementById('driverTripProgressRing')),primary:rect(primary),essential:[...primary.children].filter(n=>!n.hidden&&getComputedStyle(n).display!=='none').map(n=>({id:n.id||n.className,...rect(n)})),secondary:rect(document.querySelector('.driver-live-secondary')),scrollWidth:document.documentElement.scrollWidth};
    });
    if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});}
    assert(rects.primary.top>=0&&rects.primary.top<=1,label+' starts at the visible top: '+JSON.stringify(rects));

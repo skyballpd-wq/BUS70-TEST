@@ -40,7 +40,7 @@
       if(!ring||!stage.isConnected)return;
       const style=root.getComputedStyle(primary);
       if(style.display==='flex'){
-        const visible=Array.from(primary.children).filter(n=>!n.hidden),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
+        const visible=Array.from(primary.children).filter(n=>!n.hidden&&root.getComputedStyle(n).display!=='none'),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
         const points=Array.from(stage.querySelectorAll('.orbit-point')).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
         const minimum=Math.ceil(fixed+170+points+4+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
         const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
