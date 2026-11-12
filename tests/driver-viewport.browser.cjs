@@ -42,11 +42,18 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
    const points=await page.evaluate(()=>{
-    const svg=document.querySelector('#driverTripProgressRing svg').getBoundingClientRect();
+    const svg=document.querySelector('#driverTripProgressRing svg');
+    // Check painted ticks/markers, including stroke width. The SVG canvas has
+    // empty margins and WebKit's bounding box may include overflow descendants.
+    const marks=[...svg.querySelectorAll('.route-tick,.route-peer,.route-own,.route-arrow path')].map(n=>{
+     const r=n.getBoundingClientRect(),m=n.getScreenCTM(),style=getComputedStyle(n),pad=style.stroke==='none'?0:parseFloat(style.strokeWidth)*Math.hypot(m.c,m.d)/2;
+     return {top:r.top-pad,bottom:r.bottom+pad,visible:r.width>0||r.height>0};
+    }).filter(r=>r.visible);
+    const paint={top:Math.min(...marks.map(r=>r.top)),bottom:Math.max(...marks.map(r=>r.bottom))};
     return [...document.querySelectorAll('#driverRingPoints>.orbit-point')].map(n=>{
      const r=n.getBoundingClientRect();let right=r.left;
      const childrenFit=[...n.children].every(c=>{const b=c.getBoundingClientRect();const fits=b.left>=right-1&&b.right<=r.right+1&&c.scrollWidth<=c.clientWidth+1;right=b.right;return fits;});
-     return {outside:n.classList.contains('depot')?r.bottom<=svg.top:r.top>=svg.bottom,childrenFit};
+     return {outside:n.classList.contains('depot')?r.bottom<=paint.top:r.top>=paint.bottom,childrenFit,point:{top:r.top,bottom:r.bottom},paint};
     });
    });
    assert.equal(points.length,2);
