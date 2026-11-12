@@ -29,10 +29,10 @@ const adjustments = sheet([
 const alertSettings = sheet([['기사ID','출근알림분','탕알림분','정시알림','음성안내','진동','사용여부','수정시간']]);
 const runLogs = sheet([['logId','날짜','기사ID','차량ID','순차','탕','발차예정','발차실제','회차예정','회차실제','도착예정','도착실제','앞차예정간격','앞차실제간격','앞차편차','뒷차예정간격','뒷차실제간격','뒷차편차','시간표버전','노선버전','상태','비고']]);
 const schedules = sheet([
-  ['버전','순차','탕','발차시간','상태','발차지','회차지','회차시간','도착지','도착시간'],
-  ['WD-V1','1','2','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','08:50'],
-  ['WD-V1','2','2','07:50','사용','가상차고지','가상회차지','08:35','가상차고지','09:20'],
-  ['WD-V1','4','1','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','09:00']
+  ['버전','순차','탕','발차시간','상태','발차지','회차지','회차시간','도착지','도착시간','노선'],
+  ['WD-V1','1','2','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','08:50','70'],
+  ['WD-V1','2','2','07:50','사용','가상차고지','가상회차지','08:35','가상차고지','09:20','70'],
+  ['WD-V1','4','1','07:20','사용','가상차고지','가상회차지','08:05','가상차고지','09:00','70']
 ]);
 const locationReferences = sheet([
   ['기준점ID','노선','순차','탕','구분','지점명','위도','경도','반경m','사용여부','수정시간'],
@@ -78,7 +78,7 @@ const context = {
   formatDateTime_: () => '2026-09-21 10:00:00',
   apiLogin_: () => ({ok:true,driver:{driverId:'DRV-1'}}),
   apiGetDriver_: driverId => ({ok:true,driver:{driverId,name:'가상기사',empId:'699001',route:'70',shift:'B'}}),
-  apiMySchedule_: e => ({ok:true,type:'WORK',route:'70',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1},trips:[{trip:2,startPlace:'가상차고지',startTime:'07:20',turnPlace:'가상회차지',turnTime:'08:45',endPlace:'가상차고지',endTime:'10:10'}]})
+  apiMySchedule_: e => ({ok:true,type:'WORK',route:'70',driverId:e.parameter.driverId,date:e.parameter.date,dispatch:{seq:1,scheduleVersion:'WD-V1'},trips:[{trip:2,startPlace:'가상차고지',startTime:'07:20',turnPlace:'가상회차지',turnTime:'08:45',endPlace:'가상차고지',endTime:'10:10'}]})
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/PrivateRouteStore.gs','utf8'), context);
@@ -237,14 +237,14 @@ dispatch.rows.push(['DSP-REAR','2026-09-18','B','5','DRV-REAR','VEH-5','WD-V1','
 const frontLive=context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:3,trip:1,latitude:37.501,longitude:126.701,accuracy:8,speedKmh:24,direction:'OUTBOUND',routeProgressPercent:60,tripProgressPercent:30,segmentDurationMinutes:60,nextStop:'가상앞정류장'},'DRV-FRONT');
 assert.equal(frontLive.ok,true);
 const ownLive=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',sequence:4,trip:1,latitude:37.5,longitude:126.7,accuracy:7,speedKmh:20,direction:'OUTBOUND',routeProgressPercent:50,tripProgressPercent:25,segmentDurationMinutes:60,nextStop:'가상다음정류장'});
-assert.equal(ownLive.ok,true);assert.equal(ownLive.front.sequence,3);assert.equal(ownLive.front.gapEstimateBasis,'ROUTE_PROGRESS');assert.equal(ownLive.front.estimatedGapMinutes,6);assert.equal(ownLive.historyStored,false);
+assert.equal(ownLive.ok,true);assert.equal(ownLive.front.sequence,3);assert.equal(ownLive.front.gapEstimateBasis,undefined);assert.equal(ownLive.front.estimatedGapMinutes,undefined,'route progress is not a measured temporal gap');assert.equal(ownLive.historyStored,false);
 const wrongLiveVehicle=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-1',vehicleId:'VEH-WRONG',sequence:4,trip:1,latitude:37.5,longitude:126.7});
 assert.equal(wrongLiveVehicle.ok,false);assert.equal(wrongLiveVehicle.error,'VEHICLE_MISMATCH');
 const wrongLiveDispatch=context.bus70AuthAction_({action:'driverLiveLocationSave',token:session.token,date:'2026-09-18',dispatchId:'DSP-WRONG',vehicleId:'VEH-4',sequence:4,trip:1,latitude:37.5,longitude:126.7});
 assert.equal(wrongLiveDispatch.ok,false);assert.equal(wrongLiveDispatch.error,'DISPATCH_MISMATCH');
 context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:5,trip:1,latitude:37.499,longitude:126.699,accuracy:9,speedKmh:18,direction:'OUTBOUND',routeProgressPercent:40,tripProgressPercent:20,segmentDurationMinutes:60,nextStop:'가상뒤정류장'},'DRV-REAR');
 const liveView=context.bus70AuthAction_({action:'driverLiveLocations',token:session.token,date:'2026-09-18'});
-assert.equal(liveView.positions.length,3);assert.equal(liveView.rear.sequence,5);assert.equal(liveView.rear.estimatedGapMinutes,6);assert.equal(liveView.own.own,true);
+assert.equal(liveView.positions.length,3);assert.equal(liveView.rear.sequence,5);assert.equal(liveView.rear.estimatedGapMinutes,undefined);assert.equal(liveView.own.own,true);
 assert.equal(JSON.stringify(liveView).includes('DRV-FRONT'),false);
 dispatch.rows.push(['DSP-NOCAR','2026-09-18','B','6','DRV-NOCAR','','WD-V1','확정','','','70']);
 const noVehicleLive=context.bus70DriverLiveLocationSave_({date:'2026-09-18',sequence:6,trip:1,latitude:37.5,longitude:126.7},'DRV-NOCAR');

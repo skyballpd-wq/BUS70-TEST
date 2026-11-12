@@ -1,7 +1,7 @@
 const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
 (async()=>{
  const browser=await(process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
- try{for(const [width,height] of [[320,568],[360,640],[390,664],[412,780],[844,390]]){
+ try{for(const [width,height] of [[320,568],[360,640],[390,664],[412,780],[432,900],[844,390],[1008,392]]){
   const page=await browser.newPage({viewport:{width,height},serviceWorkers:'block'}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install({time:new Date('2099-01-08T10:10:00+09:00')});
@@ -17,12 +17,12 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    openDriverScreen({driverId:'TEST',name:'시험 기사',route:'5',status:'재직'},false,false,'',false);stopDriverLiveTimer();stopDriverFleetTimer();
    document.getElementById('workDate').value='2099-01-08';
    const stops=Array.from({length:61},(_,i)=>({id:'S'+i,order:i+1,name:i===0||i===60?'고강공영차고지':i===30?'삼정종합사회복지회관':'시험정류장'+i,lat:37+i*.001,lng:127,origin:i===0,turnaround:i===30,direction:i<30?'OUTBOUND':'RETURN'}));
-   const trip={trip:1,startTime:'10:00',turnTime:'11:00',endTime:'12:00',startPlace:'고강공영차고지',turnPlace:'삼정종합사회복지회관',endPlace:'고강공영차고지',plannedFrontGapMinutes:7,plannedRearGapMinutes:9};
+   const trip={frontSequence:2,rearSequence:3,trip:1,startTime:'10:00',turnTime:'11:00',endTime:'12:00',startPlace:'고강공영차고지',turnPlace:'삼정종합사회복지회관',endPlace:'고강공영차고지',plannedFrontGapMinutes:7,plannedRearGapMinutes:9};
    lastSchedule={ok:true,type:'WORK',temporalState:'CURRENT',date:'2099-01-08',route:'5',trips:[trip,{...trip,trip:2,startTime:'13:00',turnTime:'14:00',endTime:'15:00'}],dispatch:{dispatchId:'TEST-D',seq:1,vehicleId:'TEST-V',scheduleVersion:'TEST-VERSION'},vehicle:{vehicleId:'TEST-V',displayNo:'시험00가0001'},routeProfile:{stops},runLogs:[{date:'2099-01-08',sequence:1,trip:1,actualStart:'10:00:00'}]};
    followCurrentTrip=true;activeTripIndex=0;locationTrackingActive=true;locationPermissionState='granted';nativeLocationEnabled=true;operationDataLoaded=true;
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37.010,longitude:127,accuracy:2,speed:7}};
    cockpitWeather={available:true,temperature:12.3,condition:'맑음',windMps:2.1,observedAt:new Date(Date.now()).toISOString()};
-   liveFleet={route:'5',date:'2099-01-08',positions:[7,9,12,15].map((i,n)=>({route:'5',date:'2099-01-08',vehicleId:'TEST-PEER-'+n,running:true,matchedStopOrder:i+1,recordedAt:new Date(Date.now()).toISOString(),accuracyM:3})),crossCheck:{available:true}};
+   liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[7,9,12,15].map((i,n)=>({route:'5',date:'2099-01-08',vehicleId:'TEST-PEER-'+n,running:true,matchedStopOrder:i+1,recordedAt:new Date(Date.now()).toISOString(),accuracyM:3})),crossCheck:{available:true}};
    routeNavigationState=()=>({configured:true,matchedIndex:10,tripPassedStops:11,tripStopCount:61,tripProgressPercent:18,previousStop:'성곡중학교.장애인종합복지관',nextStop:'수주도서관.고강선사유적공원',direction:'회차 방면',path:Bus70Automation.course(trip,stops)});
    renderSchedule(false);window.scrollTo(0,0);
   });
@@ -42,13 +42,18 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   };
   await check('running '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),4);
+  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
+  assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
+  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/실제 2정류장/);
   assert.equal(await page.locator('.driver-live-primary #driverRingPoints .orbit-point').count(),2);
   assert.equal(await page.locator('.driver-live-primary .quick-run-actions').count(),0);
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
   assert.equal(await page.locator('.driver-live-primary #driverLiveSafety').isVisible(),true);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+width+'x'+height+'.png'});}
+  await page.evaluate(()=>{liveFleet.positions.forEach(p=>p.recordedAt=new Date(Date.now()-90000).toISOString());updateDriverLiveDashboard();});
+  assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/마지막/);await check('stale '+width+'x'+height);
   // A feed outage must stay visible and must not turn old values into live data.
-  await page.evaluate(()=>{liveFleet={route:'5',date:'2099-01-08',positions:[],error:'합성 수신 중단'};lastDriverPosition.timestamp=Date.now()-120000;routeNavigationState=()=>({configured:false,reason:'위치·방향 확인 중'});updateDriverLiveDashboard();});
+  await page.evaluate(()=>{liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[],error:'합성 수신 중단'};lastDriverPosition.timestamp=Date.now()-120000;routeNavigationState=()=>({configured:false,reason:'위치·방향 확인 중'});updateDriverLiveDashboard();});
   await check('outage '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),0);
   assert.match(await page.locator('#driverPeerBasis').innerText(),/연결 실패/);

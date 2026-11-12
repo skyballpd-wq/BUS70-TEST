@@ -102,6 +102,7 @@ jobs:
           node tests/managerdispatch.test.js
           node tests/auth-safety-diagnostics.test.js
           node tests/field-operations.test.js
+          node tests/field-headway.test.js
           node tests/live-stop-peers.test.js
           node tests/field-operations.browser.cjs
           node tests/dispatch-share.browser.cjs

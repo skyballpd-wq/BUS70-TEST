@@ -35,5 +35,15 @@ assert.equal(c.bus70GyeonggiRetryAfter_({'retry-after':new Date(now+120000).toUT
 console.log('Outage departure timing, walking/early/completed/identity/gap guards, remaining route distance, shared fetch and durable rate-limit recovery passed');
 
 const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
-for(const [name,version] of [['driver-automation',89],['driver-recording',89],['driver-cockpit',89],['road-safety',891]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
-assert(worker.includes('soshin-ops-static-v8921-password-keyboard'));
+for(const [name,version] of [['driver-automation',89],['driver-recording',89],['driver-cockpit',893],['driver-headway',893],['road-safety',893]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
+assert(worker.includes('soshin-ops-static-v893-field-headways'));
+
+const xml='<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>22</returnReasonCode><returnAuthMsg>LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR</returnAuthMsg></cmmMsgHeader></OpenAPI_ServiceResponse>';
+assert.equal(c.bus70GyeonggiResponse_(xml,'5',now).error,'GBIS_DAILY_LIMIT');
+assert.equal(c.bus70GyeonggiResponse_(JSON.stringify({OpenAPI_ServiceResponse:{cmmMsgHeader:{returnReasonCode:'23'}}}),'5',now).error,'GBIS_RATE_LIMIT');
+assert.equal(c.bus70GyeonggiResponse_('<html>synthetic-key</html>','5',now).error,'GBIS_RESPONSE_FORMAT');
+cache.clear();c.UrlFetchApp.fetch=()=>{calls++;return {getResponseCode:()=>200,getContentText:()=>xml}};
+const daily=c.bus70GyeonggiLiveFetch_('5');assert.equal(daily.error,'GBIS_DAILY_LIMIT');assert(daily.retryAt>=now+3600000);cache.clear();const countBefore=calls;assert.equal(c.bus70GyeonggiLiveFetch_('23').error,'GBIS_DAILY_LIMIT');assert.equal(calls,countBefore,'quota state is shared across routes');
+assert(!JSON.stringify([...props.values()]).includes('synthetic-key'));
+// Restore the fixture for the hourly diagnostics test which reuses this file.
+props.delete('BUS70_GBIS_COOLDOWN');cache.clear();c.UrlFetchApp.fetch=()=>{calls++;return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({response:{msgHeader:{resultCode:0},msgBody:{busLocationList:[]}}})}};

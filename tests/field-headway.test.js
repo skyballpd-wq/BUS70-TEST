@@ -1,0 +1,46 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const h=require('../driver-headway'),cockpit=require('../driver-cockpit'),safety=require('../road-safety');
+let now=Date.parse('2099-01-10T10:00:00+09:00');
+const scope={route:'5',date:'2099-01-10',dispatchId:'TEST-D',vehicleId:'TEST-V',trip:5,running:true};
+let state={};for(let i=0;i<5;i++)state=h.sample(state,scope,{configured:true,matchedIndex:i,timestamp:now+i*60000},now+i*60000);
+const front={side:'front',rank:1,vehicle:'TEST-F',driverName:'시험앞기사',vehicleNo:'시험00가9001',fresh:true,age:3,stopGap:2};
+let models=['front','rear'].map(side=>h.model(side,{plannedFrontGapMinutes:8,plannedRearGapMinutes:9},{},[front],state));
+assert.equal(models[0].comparison.targetStops,8);assert.equal(models[0].comparison.estimatedMinutes,2);assert.equal(models[0].comparison.status,'close');assert.match(models[0].identity,/9001호 · 시험앞기사/);
+assert.equal(h.warning(models,state,now,true),null);let warning=h.warning(models,state,now+9000,true);assert(warning);h.notified(state,warning,now+9000);
+assert.equal(h.warning(models,state,now+20000,true),null);
+const stale=models.map(m=>({...m,peer:m.peer?{...m.peer,fresh:false}:null}));assert.equal(h.warning(stale,state,now+22000,true),null);
+assert.equal(h.warning(models,state,now+35000,true),null);assert.equal(h.warning(models,state,now+45000,true),null,'brief outage must not reset voice cooldown');
+assert.equal(h.sample(state,{...scope,trip:6},{configured:true,matchedIndex:1,timestamp:now},now).samples.length,0);
+assert.equal(h.comparison({...front,fresh:false},8,state).estimatedMinutes,null);
+assert.equal(h.comparison(front,8,{samples:[]}).targetStops,null,'no assumed stop travel time');
+const path={turnIndex:10,stops:Array.from({length:20},(_,i)=>({order:i+1,direction:i<10?'OUT':'BACK'}))},nav={configured:true,matchedIndex:5};
+const ref={available:false,fetchedAt:now,fleet:[{source:'GYEONGGI_BUS_LOCATION_V2',positionBasis:'PROVIDER_STOP_REFERENCE',route:'5',date:scope.date,vehicleId:'TEST-F',matchedStopOrder:8,stateCd:1,fetchedAt:now}]};
+let fleet={route:'5',date:scope.date,crossCheck:ref,roster:[{vehicleId:'TEST-F',vehicleNo:'시험00가9001',driverName:'시험앞기사'}]};
+assert.equal(cockpit.ringPeers(path,fleet,nav,scope,now)[0].fresh,true,'own bus missing in provider feed does not hide valid peer feed');
+fleet={...fleet,lastCrossCheck:ref,crossCheck:{error:'GBIS_HTTP_429'}};
+assert.equal(cockpit.ringPeers(path,fleet,nav,scope,now+90000)[0].fresh,false);
+assert.equal(cockpit.ringPeers(path,fleet,nav,scope,now+181000).length,0);
+assert.equal(cockpit.ringPeers(path,fleet,nav,{...scope,date:'2099-01-11'},now).length,0);
+// A route-derived heading may support a facility proximity notice, never a
+// numeric limit or an assertion that any CCTV is an enforcement camera.
+const facility={id:'SYN-S',route:'5',type:'SCHOOL_FACILITY',positionBasis:'FACILITY_POINT',lat:37.0009,lng:127,source:'https://www.data.go.kr/data/15012891/standard.do',dataDate:'2099-01-01'};
+const input={active:true,now,scope,position:{timestamp:now,coords:{latitude:37,longitude:127,accuracy:5,speed:8,heading:null}},navigation:{configured:true,timestamp:now,heading:0,nearestDistanceM:3,matchedIndex:0,path:{stops:[{lat:37,lng:127},{lat:37.002,lng:127}]}},data:{zones:[],advisories:[facility]}};
+let result=safety.evaluate(input);assert(result.notify);assert(result.warning.advisory);assert.doesNotMatch(result.message,/30|단속|범칙금/);safety.notified(result,now);assert(!safety.evaluate({...input,now:now+1000},result.state).notify);
+for(const altered of [{position:{...input.position,timestamp:now-7000}},{navigation:{...input.navigation,retained:true}},{navigation:{...input.navigation,heading:180}},{scope:{...scope,route:'23'}},{data:{advisories:[{...facility,lng:127.01}]}},{data:{advisories:[{...facility,dataDate:'2090-01-01'}]}}])assert(!safety.evaluate({...input,...altered}).notify);
+// Server scope: preserve authoritative gaps and reject cross-route legacy rows.
+const tables={},cache=new Map(),table=rows=>({getLastRow:()=>rows.length,getDataRange:()=>({getDisplayValues:()=>rows})});
+const c=vm.createContext({Date,console,SpreadsheetApp:{getActiveSpreadsheet:()=>({getSheetByName:n=>tables[n]})},makeHeaderMap_:r=>Object.fromEntries(r.map((x,i)=>[x,i])),normalizeDate_:v=>String(v||'').slice(0,10)});
+vm.runInContext(fs.readFileSync('apps-script/AuthStep9.gs','utf8'),c);
+tables['스케줄']=table([['버전','노선','상태','순차','탕','발차시간'],['SYN','70','사용',9,1,'06:25'],['SYN','5','활성',9,1,'05:06']]);
+let schedule={ok:true,type:'WORK',route:'5',date:scope.date,dispatch:{sequence:8,scheduleVersion:'SYN'},trips:[{trip:1,startTime:'04:58'}]};
+c.bus70AttachPlannedHeadways_(schedule);assert.equal(schedule.trips[0].plannedRearGapMinutes,8);
+schedule.trips[0].plannedRearGapMinutes=7;c.bus70AttachPlannedHeadways_(schedule);assert.equal(schedule.trips[0].plannedRearGapMinutes,7);
+schedule.trips[0].plannedRearGapMinutes=null;c.bus70AttachPlannedHeadways_(schedule);assert.equal(schedule.trips[0].plannedRearGapMinutes,null,'known final/first edge remains without a neighbour');
+tables['배차간격조정DB']=table([['날짜','노선','순차','탕','시간구분','기존시간','조정시간','공지상태'],[scope.date,'5',9,1,'발차','05:06','05:09','확정'],[scope.date,'70',9,1,'발차','05:09','06:25','확정']]);
+schedule.trips=[{trip:1,startTime:'05:00',publishedStartTime:'04:58',plannedRearGapMinutes:8,rearSequence:9}];c.bus70AdjustedHeadways_(schedule,scope.date);assert.equal(schedule.trips[0].plannedRearGapMinutes,9);c.bus70AdjustedHeadways_(schedule,scope.date);assert.equal(schedule.trips[0].plannedRearGapMinutes,9,'repeated reads do not compound adjustment');
+c.bus70LiveLocationCache_=()=>({get:k=>cache.get(k),put:(k,v)=>cache.set(k,v)});c.bus70AuthDispatchRoute_=(r,m)=>r[m['노선']];
+tables['기사DB']=table([['driverId','성명','사원번호','전화번호'],['SYN-A','시험오전','PRIVATE','PRIVATE'],['SYN-B','시험오후','PRIVATE','PRIVATE']]);tables['차량DB']=table([['vehicleId','차량번호'],['SYN-V','시험00가9001']]);
+tables['배차DB']=table([['dispatchId','날짜','근무조','순차','기사ID','차량ID','노선','상태'],['SYN-DA',scope.date,'A',1,'SYN-A','SYN-V','5','확정'],['SYN-DB',scope.date,'B',1,'SYN-B','SYN-V','5','확정']]);
+const roster=c.bus70LiveRoster_('5',scope.date,{dispatchId:'SYN-DB'},{});assert.equal(roster[0].driverName,'시험오후');assert(!JSON.stringify(roster).includes('PRIVATE'));cache.clear();
+const runs={[JSON.stringify(['SYN-A','SYN-DA','SYN-V',1])]:{running:true}};assert.equal(c.bus70LiveRoster_('5',scope.date,{dispatchId:'SYN-DB'},runs)[0].driverName,'시험오전','actual run log outranks scheduled shift');
+console.log('Field headways, stale colours, route/shift identity, cooldown, schedule isolation and public facility guidance passed');
