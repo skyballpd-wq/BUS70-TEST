@@ -1,9 +1,10 @@
-# v89.5.1 포인트 표시 간소화 — 검증 완료, 웹 미배포
+# v89.5.1 포인트 표시 간소화 — 웹 배포 완료
 
 - 포인트 행을 원형 진행률 위·아래의 별도 공간으로 옮겨 12시·6시 방향 차량 눈금을 가리지 않도록 수정했다. 고강차고지/삼정복지회관으로 간소화하고 출발은 명칭 왼쪽, 도착·회차는 오른쪽에 표시한다. 전체 명칭은 접근성 설명과 상세 기록에 유지한다.
 - 원 크기는 포인트 두 행을 제외한 가용 공간에 맞춘다. 짧은 화면에서는 여백을 줄이고 원·포인트 묶음을 가운데 정렬한다. 앞뒤차 카드·하단 운행관리 스크롤과 왕복/회차지 출발편의 시각 의미 및 실제 위치·기록 판정을 유지한다.
 - [PR72](https://github.com/skyballpd-wq/BUS70-TEST/pull/72)의 코드 head `92079cd6b4bdfe6222b9730a00df2b8d5a34bb61`을 [Chromium/WebKit CI 43299657591](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/43299657591)에서 검증했다. 합성 자료로 320×568부터 1008×392까지 세로·가로 7개 크기의 대기/운행/경계 차량 위치, 포인트·글자 겹침, 공지, 수신 장애 및 하단 스크롤 회귀를 검사하고 화면을 확인했다. 관련 Node 회귀 5종과 구문/차이 검사도 통과했다.
-- 수정본은 PR 검토 상태이며 이번 화면 변경의 웹 배포 확인이 남아 있다. 실물 휴대폰·실차 운행 검증은 하지 않았다. 서버79·Android91·운영 원장은 변경하지 않았다.
+- 사용자가 정비·기사 화면 수정 배포를 승인하여 PR72 head `b36d2786d5192c35c2901c480479e9ea19c6432d`를 지정 병합했다. 병합 SHA `cc88bb2a90b93fa4e149d503089a38b13b1309b5`. 문서 포함 최종 head의 [CI 43300617366](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/43300617366)와 [Pages 43301909257](https://github.com/skyballpd-wq/BUS70-TEST/actions/runs/43301909257) 성공을 확인했다.
+- 실제 서비스의 index.html, sw.js, driver-cockpit.js, driver-viewport.js/css, maintenance-board.js/css, operations-notices.js 8개가 HTTP200이며 검증본과 바이트 일치한다. 캐시는 `soshin-ops-static-v8951-point-labels`. 이미 배포된 정비소 복귀·점검 공유를 포함하며 서버79·Android91 네이티브 코드 변경 및 운영 원장 변경은 없다. 기존 설치자는 웹 갱신으로 적용한다. 실물 휴대폰·실차 운행 검증은 남아 있다.
 
 # v89.5 정비소 복귀·점검 공유 — 웹·서버 배포 완료
 
