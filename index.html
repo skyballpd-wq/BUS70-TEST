@@ -893,6 +893,7 @@
 <link rel="stylesheet" href="./accident-report.css?v=77">
 <link rel="stylesheet" href="./driver-viewport.css?v=893">
 <link rel="stylesheet" href="./operations-notices.css?v=894">
+<link rel="stylesheet" href="./maintenance-board.css?v=895">
 </head>
 
 <body>
@@ -1177,6 +1178,7 @@
     </section>
 
     <section id="centerPanel" class="manager-panel" hidden>
+      <section id="maintenanceBoard" hidden></section>
       <button type="button" data-manager-page="REPLACEMENT" id="fleetReplacementLink" hidden>차량 대차 · 차량 추가</button>
       <h2 id="operationPanelTitle">현장 상황·정비 공유</h2>
       <p id="operationPanelHelp" class="hint">차량 돌발상황과 예비차 투입, 정비 진행 상태를 마스터·소장·정비소가 함께 확인합니다.</p>
@@ -1331,7 +1333,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.4
+    소신여객 통합 운행관리 TEST · v89.5
   </footer>
 
 </div>
@@ -1341,7 +1343,8 @@
 <script src="./login-korean.js"></script>
 <script src="./driver-signup.js?v=881"></script>
 <script src="./manager-replacement.js?v=8821"></script>
-<script src="./operations-notices.js?v=894"></script>
+<script src="./operations-notices.js?v=895"></script>
+<script src="./maintenance-board.js?v=895"></script>
 <script src="./driver-automation.js?v=89"></script>
 <script src="./driver-recording.js?v=89"></script>
 <script src="./driver-cockpit.js?v=893"></script>
@@ -1560,7 +1563,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.4";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.5";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1681,6 +1684,7 @@
     Bus70Notices.start();
     initManagerWorkspace();
     if(currentIsManager){loadMasterAdmin();loadAdjustmentScheduleOptions(true);showManagerPage("HOME",false);}
+    Bus70Maintenance.start();
     clearTimeout(operationStartupTimer);
     // 로그인 직후 스케줄·알람 표시를 먼저 끝낸 뒤 현장 현황을 불러옵니다.
     // 운영계정은 현황이 첫 화면이므로 즉시, 기사는 약간 뒤에 한 번만 조회합니다.
@@ -1753,7 +1757,7 @@
   }
 
   function clearLocalAuth() {
-    Bus70Notices.reset();
+    Bus70Notices.reset();Bus70Maintenance.reset();
     Bus70Replacement.reset();
     Bus70Signup.clear();Bus70Signup.resetMaster();
     stopDriverLocationTracking(true);
@@ -1800,7 +1804,7 @@
   }
 
   function showLoginScreen(text) {
-    Bus70Notices.reset();
+    Bus70Notices.reset();Bus70Maintenance.reset();
     ["managerWorkspace","managerContactsPanel","replacementPanel","noticeManagerPanel","noticeInbox"].forEach(id=>document.getElementById(id).hidden=true);
     document.body.classList.remove("manager-layout");
     authRequestId++;
@@ -2261,6 +2265,7 @@
     const visibleVehicleIds=new Set(scopedOperationVehicles().map(v=>v.id));
     visibleIncidents.filter(v=>!currentIsManager||document.getElementById("managerRoute").value==="ALL"||visibleVehicleIds.has(v.vehicleId)||visibleVehicleIds.has(v.reserveVehicleId)).forEach(v=>{
       const closed=v.status==="종결"||v.maintenanceStatus==="완료", card=el("div",undefined,"operation-card "+(closed?"closed":"open"));
+      card.dataset.maintId=v.maintId||"";
       const vehicle=vehicles[v.vehicleId], reserve=vehicles[v.reserveVehicleId];
       card.append(el("strong",v.date+" · "+v.type+" · "+(vehicle?.displayNo||vehicle?.no||v.vehicleId||"차량 미상")));
       card.append(el("div",(v.sequence?v.sequence+"순차 · ":"")+(v.driverName?v.driverName+" · ":"")+v.content,"operation-meta"));
@@ -4371,6 +4376,22 @@
     return age>=0&&age<10000&&Number.isFinite(speed)&&speed>=0&&speed<=.3;
   }
   Bus70Notices.init({api:body=>apiPost(body),session:()=>({token:authToken,driverId:currentDriverId,role:currentRole}),canInteract:noticeCanInteract,audioBusy:()=>Boolean(driverNoticePending||Date.now()-driverNoticeAttemptAt<10000||window.speechSynthesis?.speaking||window.speechSynthesis?.pending)});
+  Bus70Maintenance.init({api:body=>apiPost(body),session:()=>({token:authToken,driverId:currentDriverId,role:currentRole}),viewCase:async(vehicleId,maintId)=>{
+    const token=authToken;if(operationRequestInFlight)return operationNotice("정비 현황 조회 중입니다. 잠시 뒤 다시 선택하세요.");await loadOperationData(true);if(!token||token!==authToken||!currentRole)return;
+    if(currentIsManager)document.getElementById("managerRoute").value="ALL";
+    if(maintId&&!operationData.incidents.some(v=>v.maintId===maintId)){
+      const extra=await apiPost({action:"managerAccountUpsert",operation:"operationBootstrap",token,maintId});
+      if(token!==authToken)return;if(extra.ok)operationData.incidents.push(...(extra.incidents||[]).filter(v=>!operationData.incidents.some(old=>old.incidentId===v.incidentId)));
+    }
+    renderOperationList();
+    if(maintId){const card=Array.from(document.querySelectorAll(".operation-card")).find(n=>n.dataset.maintId===maintId);if(card){card.scrollIntoView({block:"start"});return;}return operationNotice("정비 요청을 다시 조회하세요.",true);}
+    const center=currentRole==="CENTER",select=document.getElementById(center?"driverIncidentVehicle":"incidentVehicle");
+    if(!center)document.getElementById("reserveVehicleTools").open=true;
+    select.value=vehicleId;document.getElementById(center?"driverIncidentType":"incidentType").value=center?"정기점검":"점검";
+    if(!center){document.getElementById("incidentSequence").value="";document.getElementById("incidentReserveVehicle").value="";}
+    document.getElementById(center?"driverIncidentContent":"incidentContent").value="";syncAccidentForms();
+    select.scrollIntoView({block:"center"});document.getElementById(center?"driverIncidentContent":"incidentContent").focus();
+  }});
   let managerPage = "HOME";
   let depotContacts = [], depotContactsVersion = 0;
   let depotContactRequestId = 0;
@@ -4401,7 +4422,7 @@
     if(managerPage==="DISPATCH"&&!managerData)loadManagerData();
     if(managerPage==="REPLACEMENT")Bus70Replacement.open();
     if(managerPage==="NOTICES")Bus70Notices.open();
-    if(managerPage==="FLEET")renderVehicleStatusList();
+    if(managerPage==="FLEET"){renderVehicleStatusList();Bus70Maintenance.load();}
     if(managerPage==="CONTACTS")loadDepotContacts();
     if(focus){document.getElementById("managerPageTitle").focus();document.getElementById("managerWorkspace").scrollIntoView({block:"start"});}
   }

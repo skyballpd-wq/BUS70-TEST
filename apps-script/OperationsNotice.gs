@@ -85,7 +85,7 @@ function bus70NoticeAllowed_(requester){return !bus70RoleFor_(requester)&&bus70I
 function bus70NoticeItems_(requester){
   const date=bus70ServiceDateKey_(new Date());
   const notices=bus70NoticeObjects_(bus70NoticeTable_('운영공지DB',BUS70_NOTICE_HEADERS_,false)).filter(n=>n.status==='ACTIVE'&&n.serviceDate===date&&Date.parse(n.expiresAt)>Date.now()&&bus70NoticeRecipientIds_(n).includes(requester)).map(n=>({id:n.noticeId,kind:'NOTICE',title:n.title,message:n.message,priority:n.priority,createdAt:n.createdAt,expiresAt:n.expiresAt}));
-  return notices.concat(bus70MaintenanceMessages_(requester)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,50);
+  return notices.concat(bus70MaintenanceMessages_(requester),typeof bus70MaintCallMessages_==='function'?bus70MaintCallMessages_(requester):[]).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,50);
 }
 function bus70NoticeFeed_(requester){
   if(!bus70NoticeAllowed_(requester))return bus70NoticeError_('DRIVER_REQUIRED','기사 로그인이 필요합니다.');

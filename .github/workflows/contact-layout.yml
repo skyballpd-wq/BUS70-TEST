@@ -5,6 +5,9 @@ on:
     paths:
       - "index.html"
       - "operations-notices.*"
+      - "maintenance-board.*"
+      - "apps-script/MaintenanceDispatch.gs"
+      - "tests/maintenance-board*"
       - "apps-script/OperationsNotice.gs"
       - "tests/operations-notices*"
       - "driver-viewport.js"
@@ -74,6 +77,9 @@ jobs:
           node tests/mobile-compat.test.js
           node tests/mobile-compat.browser.cjs
           node tests/driver-viewport.browser.cjs
+          node tests/maintenance-board.test.js
+          node tests/maintenance-board-client.test.js
+          node tests/maintenance-board.browser.cjs
           node tests/operations-notices.test.js
           node tests/operations-notices-client.test.js
           node tests/operations-notices.browser.cjs
@@ -154,6 +160,9 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
           node tests/mobile-compat.browser.cjs
           node tests/driver-viewport.browser.cjs
+          node tests/maintenance-board.test.js
+          node tests/maintenance-board-client.test.js
+          node tests/maintenance-board.browser.cjs
           node tests/operations-notices.test.js
           node tests/operations-notices-client.test.js
           node tests/operations-notices.browser.cjs
