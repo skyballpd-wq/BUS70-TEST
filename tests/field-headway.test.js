@@ -44,3 +44,19 @@ tables['배차DB']=table([['dispatchId','날짜','근무조','순차','기사ID'
 const roster=c.bus70LiveRoster_('5',scope.date,{dispatchId:'SYN-DB'},{});assert.equal(roster[0].driverName,'시험오후');assert(!JSON.stringify(roster).includes('PRIVATE'));cache.clear();
 const runs={[JSON.stringify(['SYN-A','SYN-DA','SYN-V',1])]:{running:true}};assert.equal(c.bus70LiveRoster_('5',scope.date,{dispatchId:'SYN-DB'},runs)[0].driverName,'시험오전','actual run log outranks scheduled shift');
 console.log('Field headways, stale colours, route/shift identity, cooldown, schedule isolation and public facility guidance passed');
+// The approved general CCTV feed is a connection inspection, never automatic
+// speed enforcement. Credentials/raw values cannot enter logs, cache or audit.
+vm.runInContext(fs.readFileSync('apps-script/RoadSafety.gs','utf8'),c);
+const audit=[],logs=[],probeCache=new Map();let fetches=0,throwFetch=false;
+c.LockService={getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})};
+c.CacheService={getScriptCache:()=>({get:k=>probeCache.get(k),put:(k,v)=>probeCache.set(k,v)})};
+c.PropertiesService={getScriptProperties:()=>({getProperty:()=> 'SYNTHETIC%2BKEY%3D'})};
+c.Utilities={formatDate:()=> '2099-01-10 10:00:00'};
+c.console={log:v=>logs.push(v)};c.writeAudit_=(...args)=>audit.push(args);
+c.UrlFetchApp={fetch:(url,options)=>{fetches++;assert.equal(new URL(url).searchParams.get('serviceKey'),'SYNTHETIC+KEY=');assert.equal(new URL(url).searchParams.get('numOfRows'),'1');assert.equal(options.followRedirects,false);if(throwFetch)throw Error(url);return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({response:{header:{resultCode:'00'},body:{items:{item:[{INSTL_PURPS:'SYNTHETIC_PRIVATE_VALUE',LAT:37}]}}}})};}};
+let probe=c.BUS70_inspectCctvApi();assert(probe.ok);assert.equal(probe.enforcementEnabled,false);assert.equal(probe.auditRecorded,true);assert(probe.fields.includes('LAT'));c.BUS70_inspectCctvApi();assert.equal(fetches,1);
+assert.doesNotMatch(JSON.stringify([audit,logs,[...probeCache.values()]]),/SYNTHETIC_PRIVATE_VALUE|SYNTHETIC\+KEY|serviceKey=/);
+probeCache.clear();throwFetch=true;probe=c.BUS70_inspectCctvApi();assert.equal(probe.status,'CONNECTION_FAILED');assert.doesNotMatch(JSON.stringify([audit,logs,[...probeCache.values()]]),/SYNTHETIC\+KEY|serviceKey=/);
+assert.equal(c.bus70CctvInspectionResponse_(200,'<returnReasonCode>22</returnReasonCode>').providerCode,'22');
+assert.equal(c.bus70CctvInspectionResponse_(429,'SECRET').status,'RATE_LIMITED');assert.equal(c.bus70CctvInspectionResponse_(200,'{}').status,'SCHEMA_UNCONFIRMED');
+console.log('CCTV inspection bounds, schema separation, cache and credential redaction passed');

@@ -84,3 +84,23 @@
 .driver-mode .driver-live-primary .planned-gaps>.close{border-color:#d9952a;background:#fff6e6}
 .driver-live-primary .weather-icon{overflow:hidden;display:block}
 .weather-sun{transform-box:view-box;transform-origin:50% 50%}
+
+/* Use the available portrait space for readable labels and a larger route ring. */
+@media (min-height:740px) and (max-width:559px){
+  .driver-live-primary .current-date{font-size:16px}
+  .driver-live-primary .current-clock{font-size:34px}
+  .driver-mode .driver-live-primary .orbit-weather{min-height:32px;font-size:16px}
+  .driver-mode .driver-live-primary .orbit-weather strong{font-size:22px}
+  .driver-mode .driver-live-primary .cockpit-head{font-size:15px}
+  .driver-mode .driver-live-primary .cockpit-head>span{font-size:13px}
+  .driver-live-primary .headway-title{font-size:13px}
+  .driver-mode .driver-live-primary .headway-title strong{font-size:24px}
+  .driver-live-primary .headway-identity,.driver-live-primary .headway-actual{font-size:15px}
+  .driver-live-primary .headway-card small{font-size:12px}
+  .driver-live-primary .orbit-point strong{font-size:16px}
+  .driver-live-primary .orbit-point span,.driver-live-primary .orbit-progress{font-size:15px}
+  .driver-live-primary .orbit-ring .orbit-speed{font-size:44px!important}
+  .driver-mode .driver-live-primary .orbit-stops strong{font-size:18px}
+  .driver-mode .driver-live-primary .cockpit-target strong{font-size:16px}
+  .driver-mode .driver-live-primary .recording-summary,.driver-live-primary .driver-live-safety{font-size:13px}
+}

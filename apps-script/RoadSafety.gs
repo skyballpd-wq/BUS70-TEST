@@ -53,3 +53,48 @@ function bus70RoadSafetyAudit_(driverId,route,data) {
   try{writeAudit_(driverId,'기사','안전운전구역DB',String(route),'안전운전 자료 점검',{}, {reason:reason,candidateCount:Number(d.candidateCount)||0,usableCount:Number(d.usableCount)||0,advisoryCount:Number(d.advisoryCount)||0,rejectedCount:Number(d.rejectedCount)||0,expiredCount:Number(d.expiredCount)||0},'자료 수신 상태; 실제 음성 재생·도로 통과를 의미하지 않음');cache.put(key,'Y',21600);}
   catch(ignore){data.diagnostics.logUnavailable=true;}
 }
+
+// Editor-only, bounded connection/schema inspection. This does not register
+// cameras, alter verified zones, or expose an endpoint through doPost.
+// Official spec: https://www.data.go.kr/data/15155042/openapi.do
+function BUS70_inspectCctvApi() {
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(1000))return {ok:false,status:'BUSY'};
+  try {
+    const cache=CacheService.getScriptCache(),cacheKey='BUS70_CCTV_API_INSPECTION';
+    const saved=cache.get(cacheKey);if(saved)return JSON.parse(saved);
+    let key=String(PropertiesService.getScriptProperties().getProperty('BUS70_DATA_GO_KR_SERVICE_KEY')||'').trim();
+    if(!key)return {ok:false,status:'KEY_NOT_CONFIGURED'};
+    try{if(key.includes('%'))key=decodeURIComponent(key);}catch(ignore){return {ok:false,status:'KEY_FORMAT_INVALID'};}
+    let result;
+    try {
+      const query={serviceKey:key,pageNo:1,numOfRows:1,returnType:'json','cond[LCTN_ROAD_NM_ADDR::LIKE]':'부천시'};
+      const url='https://apis.data.go.kr/1741000/cctv_info/info?'+Object.keys(query).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(query[k]);}).join('&');
+      const response=UrlFetchApp.fetch(url,{muteHttpExceptions:true,followRedirects:false});
+      result=bus70CctvInspectionResponse_(response.getResponseCode(),response.getContentText());
+    }catch(ignore){result={ok:false,status:'CONNECTION_FAILED'};}
+    result.checkedAt=Utilities.formatDate(new Date(),'Asia/Seoul','yyyy-MM-dd HH:mm:ss');
+    result.source='https://www.data.go.kr/data/15155042/openapi.do';
+    result.enforcementEnabled=false;
+    try{writeAudit_('SYSTEM-SAFETY-SOURCE-CHECK','시스템','안전운전구역DB','MOIS-CCTV','공공 안전자료 연결 점검',{},result,'응답 구조만 확인; 카메라·제한속도·단속구간 등록 없음');result.auditRecorded=true;}
+    catch(ignore){result.auditRecorded=false;}
+    // Cache only this sanitized summary, never the URL, key or raw response.
+    cache.put(cacheKey,JSON.stringify(result),900);
+    console.log(JSON.stringify(result));return result;
+  }finally{lock.releaseLock();}
+}
+function bus70CctvInspectionResponse_(http,text) {
+  if(http!==200)return {ok:false,status:http===429?'RATE_LIMITED':'HTTP_ERROR',httpStatus:Number(http)};
+  let data;try{data=JSON.parse(text);}catch(ignore){
+    const match=String(text).match(/<(?:returnReasonCode|resultCode)>\s*(\d{1,3})\s*<\//);
+    return {ok:false,status:match?'PROVIDER_ERROR':'FORMAT_UNCONFIRMED',providerCode:match?match[1]:''};
+  }
+  const response=data&&data.response,header=response&&response.header;
+  if(!response||!header||typeof header!=='object')return {ok:false,status:'SCHEMA_UNCONFIRMED'};
+  const code=String(header.resultCode===undefined?'':header.resultCode);
+  if(!['00','0'].includes(code))return {ok:false,status:'PROVIDER_ERROR',providerCode:/^\d{1,3}$/.test(code)?code:'UNKNOWN'};
+  const body=response.body||{},raw=body.items,items=Array.isArray(raw)?raw:Array.isArray(raw&&raw.item)?raw.item:raw&&raw.item?[raw.item]:null;
+  if(!items)return {ok:false,status:'SCHEMA_UNCONFIRMED'};
+  const fields=items[0]&&typeof items[0]==='object'?Object.keys(items[0]).filter(function(k){return /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(k);}).sort():[];
+  return {ok:true,status:items.length?'CONNECTED_SCHEMA_REVIEW_REQUIRED':'CONNECTED_EMPTY',sampleCount:items.length,fields:fields};
+}

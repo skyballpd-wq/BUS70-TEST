@@ -35,7 +35,7 @@
     const digits=String(plate).match(/(\d{4})\s*$/),vehicle=digits?digits[1]+'호':plate?'차량 확인 중':'차량 대기';
     const c=comparison(peer,planned,state);
     return {side,peer,second,planned,comparison:c,identity:vehicle+' · '+name,
-      actual:peer?(peer.fresh===false?'마지막 '+peer.stopGap+'정류장 · '+peer.age+'초 전':'실제 '+peer.stopGap+'정류장'):'실제 간격 수신 대기',
+      actual:peer?(peer.fresh===false?'이전 위치 · '+peer.age+'초 전':'실제 '+peer.stopGap+'정류장'):'실제 간격 수신 대기',
       target:c.targetStops===null?'관측 중': '예정 환산 약 '+c.targetStops+'정류장',
       estimate:c.estimatedMinutes===null?'':'약 '+c.estimatedMinutes+'분 추정'};
   }
@@ -47,7 +47,7 @@
       const top=doc.createElement('div');top.className='headway-title';const label=doc.createElement('span');label.textContent=m.side==='front'?'예정 앞차':'예정 뒷차';const time=doc.createElement('strong');time.textContent=numeric(m.planned)?m.planned+'분':'확인 중';top.append(label,time);
       const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=m.identity;
       const actual=doc.createElement('b');actual.className='headway-actual';actual.textContent=m.actual;
-      const detail=doc.createElement('small');detail.textContent=m.target+(m.second?' · '+(m.side==='front'?'앞2 ':'뒤2 ')+m.second.stopGap+'정류장'+(m.second.fresh===false?'(이전)':''):'');
+      const detail=doc.createElement('small');detail.textContent=m.target+(m.second?' · '+(m.side==='front'?'앞2 ':'뒤2 ')+(m.second.fresh===false?'이전 위치':m.second.stopGap+'정류장'):'');
       item.append(top,identity,actual,detail);item.title=[m.estimate,'권장 간격은 최근 정류장 통과시간과 예정 배차간격으로 환산',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 기준'].filter(Boolean).join(' · ');host.append(item);
     }
   }
