@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 89
-        versionName "0.89-cockpit-recording"
+        versionCode 90
+        versionName "0.90-field-headways"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

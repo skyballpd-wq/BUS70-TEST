@@ -44,7 +44,7 @@
         const minimum=Math.ceil(fixed+170+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
         const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }else if(primary.style.minHeight)primary.style.removeProperty('min-height');
-      const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,290));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+      const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
     };
     fit();
     if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of primary.children)observer.observe(node);}

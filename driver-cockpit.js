@@ -66,28 +66,30 @@
   // Each marker uses an observed stop occurrence, never timetable interpolation.
   function ringPeers(path,fleet,own,scope,now){
     const stops=path?.stops||[],result=[];
-    if(stops.length<2||!Number.isInteger(own?.matchedIndex)||own.matchedIndex<0||own.matchedIndex>=stops.length||!own?.configured||own.retained||scope?.running!==true||fleet?.route!==String(scope.route)||fleet?.date!==scope.date)return result;
+    if(stops.length<2||!Number.isInteger(own?.matchedIndex)||own.matchedIndex<0||own.matchedIndex>=stops.length||(!own?.configured&&!own?.retained)||scope?.running!==true||fleet?.route!==String(scope.route)||fleet?.date!==scope.date)return result;
     const index=Math.max(0,Math.min(stops.length-1,Number(own.matchedIndex)||0));
     const candidates=(fleet.positions||[]).filter(p=>p.running===true&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
       const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder));
       const at=Date.parse(p.recordedAt),age=(now-at)/1000;
-      if(i<0||!Number.isFinite(age)||age<0||age>45||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index)};
+      if(i<0||!Number.isFinite(age)||age<0||age>180||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index),fresh:age<=45&&!own.retained&&!fleet.error};
     }).filter(Boolean);
     // A route occurrence includes the return leg. Never wrap completed trips to the start.
     // Same-stop observations cannot establish front/rear order; other neighbours remain visible.
-    const publicPeers=(fleet.crossCheck?.fleet||[]).filter(p=>p.source==='GYEONGGI_BUS_LOCATION_V2'&&p.positionBasis==='PROVIDER_STOP_REFERENCE'&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
+    const reference=fleet.crossCheck?.fleet?.length?fleet.crossCheck:fleet.lastCrossCheck;
+    const publicPeers=(reference?.fleet||[]).filter(p=>p.source==='GYEONGGI_BUS_LOCATION_V2'&&p.positionBasis==='PROVIDER_STOP_REFERENCE'&&!p.own&&p.vehicleId&&p.vehicleId!==scope.vehicleId&&String(p.route)===String(scope.route)&&p.date===scope.date).map(p=>{
       const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder)),age=(now-Number(p.fetchedAt))/1000;
-      if(i<0||!Number.isFinite(age)||age<0||age>60||![0,1,2].includes(p.stateCd))return null;
+      if(i<0||!Number.isFinite(age)||age<0||age>180||![0,1,2].includes(p.stateCd))return null;
       // Exclude layover/deadhead ambiguity at route boundaries.
       if(i===0||i===stops.length-1)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,stopGap:Math.abs(i-index),source:'GBIS',reference:true};
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,vehicleNo:p.vehicleNo||'',stopGap:Math.abs(i-index),source:'GBIS',reference:true,fresh:age<=60&&fleet.crossCheck===reference&&!reference.error&&!own.retained&&!fleet.error};
     }).filter(Boolean);
     // Fresh authenticated phone fixes take priority over the same bus's public reference.
-    const unique=[...new Map([...publicPeers,...candidates.sort((a,b)=>b.age-a.age)].map(p=>[p.vehicle,p])).values()];
+    const unique=[...new Map([...publicPeers,...candidates].sort((a,b)=>Number(a.fresh)-Number(b.fresh)||b.age-a.age).map(p=>[p.vehicle,p])).values()];
     for(const side of ['front','rear']){
-      const peers=unique.filter(p=>side==='front'?p.index>index:p.index<index).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
-      peers.forEach((p,i)=>result.push({...p,side,rank:i+1,fraction:(p.index+.5)/stops.length}));
+      const leg=i=>path.turnIndex>0?(i<path.turnIndex?'out':'return'):(stops[i].direction||'leg');
+      const peers=unique.filter(p=>leg(p.index)===leg(index)&&(side==='front'?p.index>index:p.index<index)).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
+      peers.forEach((p,i)=>{const matches=(fleet.roster||[]).filter(r=>r.vehicleId===p.vehicle),identity=matches.length===1?matches[0]:{};result.push({...p,driverName:identity.driverName||'',vehicleNo:identity.vehicleNo||p.vehicleNo||'',sequence:identity.sequence||p.sequence,side,rank:i+1,fraction:(p.index+.5)/stops.length});});
     }
     return result;
   }
@@ -113,10 +115,10 @@
     const ticks=svg.querySelectorAll('.route-tick');
     peers.filter(p=>Number.isInteger(p.index)&&ticks[p.index]).forEach(p=>{
       const coincident=peers.filter(q=>q.index===p.index),slot=coincident.indexOf(p),count=coincident.length;
-      const marker=ticks[p.index].cloneNode();marker.setAttribute('class','route-peer '+p.side);marker.setAttribute('stroke',p.side==='front'?'#2563eb':'#c25916');
+      const marker=ticks[p.index].cloneNode();marker.setAttribute('class','route-peer '+p.side+(p.fresh===false?' stale':''));marker.setAttribute('stroke',p.fresh===false?'#8494a6':p.side==='front'?'#2563eb':'#c25916');if(p.fresh===false)marker.setAttribute('stroke-dasharray','1 1');
       // Two vehicles at one stop occupy two radial stripes of that same tick.
       if(count>1){const scale=(49-3.5+7*(slot+.5)/count)/49;marker.setAttribute('transform',`translate(60 60) scale(${scale}) translate(-60 -60)`);marker.setAttribute('stroke-width',String(6/count/scale));}
-      const title=svgNode(doc,'title');title.textContent=(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName+(p.reference?' · 경기버스정보 조회 기준, 관측시각 미제공':' · 앱 GPS');marker.append(title);markers.append(marker);
+      const title=svgNode(doc,'title');title.textContent=(p.fresh===false?'마지막 확인 '+p.age+'초 전 · ':'')+(p.vehicleNo||'')+' '+(p.driverName||'')+' · '+(p.side==='front'?'앞차':'뒷차')+' '+p.rank+' · '+p.stopGap+'정류장 · '+p.stopName+(p.reference?' · 경기버스정보 조회 기준, 관측시각 미제공':' · 앱 GPS');marker.append(title);markers.append(marker);
     });
     const ownIndex=Math.min(ticks.length-1,Math.floor(Number(passed)||0)-1);
     if(ownIndex>=0){const ownTick=ticks[ownIndex].cloneNode();ownTick.setAttribute('class','route-own');ownTick.setAttribute('stroke',held?'#7b8b9e':'#7c3aed');markers.append(ownTick);}
@@ -162,15 +164,17 @@
   }
   function weatherView(weather,now){
     const valid=weatherLabel(weather,now).includes('°C'),condition=valid?String(weather.condition||''):'';
-    const kind=!valid?'unknown':/눈/.test(condition)?'snow':/비|빗방울/.test(condition)?'rain':/구름|흐림/.test(condition)?'cloud':/맑/.test(condition)?'sun':'unknown';
+    let kind=!valid?'unknown':/눈/.test(condition)?'snow':/비|빗방울/.test(condition)?'rain':/구름|흐림/.test(condition)?'cloud':/맑/.test(condition)?'sun':'unknown';
+    if(kind==='sun'){const hour=new Date(now+9*3600000).getUTCHours();if(hour<6||hour>=18)kind='moon';}
     const wind=valid&&Number.isFinite(Number(weather.windMps))&&weather.windMps!==null&&String(weather.windMps).trim()!==''?Number(weather.windMps):null;
-    return {kind,temperature:valid?Number(weather.temperature).toFixed(1)+'°C':'—°C',condition:condition||'날씨 수신 대기',wind};
+    return {kind,temperature:valid?Number(weather.temperature).toFixed(1)+'°C':'—°C',condition:(condition||'날씨 수신 대기')+(valid&&weather.stale?' · 갱신 중':''),wind};
   }
   function renderWeather(node,weather,now){
     const v=weatherView(weather,now),key=JSON.stringify(v);
     if(node.dataset.weather===key)return;node.dataset.weather=key;node.replaceChildren();
     const doc=node.ownerDocument,icon=svgNode(doc,'svg',{viewBox:'0 0 48 40',class:'weather-icon weather-'+v.kind,'aria-hidden':'true'});
     if(v.kind==='sun'){const sun=svgNode(doc,'g',{class:'weather-sun'});for(let i=0;i<8;i++)sun.append(svgNode(doc,'path',{d:'M24 3v4',transform:'rotate('+(45*i)+' 24 20)',stroke:'#cf8900','stroke-width':2,'stroke-linecap':'round'}));sun.append(svgNode(doc,'circle',{cx:24,cy:20,r:9,fill:'#f5bc36'}));icon.append(sun);}
+    else if(v.kind==='moon')icon.append(svgNode(doc,'path',{d:'M30 5a15 15 0 1 0 8 26A15 15 0 0 1 30 5',fill:'#8ca9d5'}));
     else if(v.kind!=='unknown'){icon.append(svgNode(doc,'path',{class:'weather-cloud',d:'M10 26a7 7 0 0 1 0-14 10 10 0 0 1 19-3 8 8 0 1 1 7 17Z',fill:'#99b6cb'}));if(v.kind==='rain'||v.kind==='snow')for(let i=0;i<3;i++)icon.append(svgNode(doc,v.kind==='rain'?'path':'circle',v.kind==='rain'?{class:'weather-drop',d:'M'+(15+i*10)+' 30l-3 6',stroke:'#2378ba','stroke-width':2,style:'animation-delay:'+i*.25+'s'}:{class:'weather-drop',cx:14+i*10,cy:32,r:2,fill:'#4c88ad',style:'animation-delay:'+i*.25+'s'}));}
     else icon.append(svgNode(doc,'path',{d:'M20 9a4 4 0 0 1 8 0v15a7 7 0 1 1-8 0Z M24 13v17',fill:'none',stroke:'#73879a','stroke-width':2}));
     const temp=doc.createElement('strong');temp.textContent=v.temperature;const label=doc.createElement('span');label.textContent=v.condition;node.append(icon,temp,label);
@@ -179,7 +183,7 @@
   function peerStatus(fleet,own,scope,peers,now){
     if(fleet?.error)return '차량정보 연결 실패 · 재시도 중';
     const ref=fleet?.crossCheck;
-    if(ref?.error==='GBIS_HTTP_429')return '경기버스정보 요청 제한 · 재시도 대기';
+    if(['GBIS_HTTP_429','GBIS_DAILY_LIMIT','GBIS_RATE_LIMIT'].includes(ref?.error))return (ref.error==='GBIS_DAILY_LIMIT'?'경기버스정보 일일 호출한도':'경기버스정보 요청 제한')+(ref.retryAt>now?' · '+Math.ceil((ref.retryAt-now)/60000)+'분 후 재시도':' · 재시도 대기');
     if(ref?.error==='GBIS_REFRESH_PENDING')return '경기버스정보 갱신 중';
     if(peers.length)return peers.some(p=>p.reference)?'경기버스정보 · 정류장 위치 기준':'앱 GPS · 정류장 위치 기준';
     if(!own?.configured||own.retained)return '내 위치·방향 확인 중';

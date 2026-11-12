@@ -369,6 +369,17 @@ function bus70GyeonggiLiveParse_(json,routeId,fetchedAt){
   items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd)};});
   return {ok:true,available:true,items:items,fetchedAt:fetchedAt,queryTime:String(header.queryTime||''),source:'GYEONGGI_BUS_LOCATION_V2'};
 }
+// Gateway errors can arrive as XML even when format=json was requested.
+// Only a small error code is retained; never store the body or keyed URL.
+function bus70GyeonggiResponse_(text,routeId,now){
+  let json=null;try{json=JSON.parse(text);}catch(ignore){}
+  const header=json&&json.OpenAPI_ServiceResponse&&json.OpenAPI_ServiceResponse.cmmMsgHeader;
+  const xml=String(text).trim().startsWith('<');
+  const code=header?String(header.returnReasonCode||''):xml?(String(text).match(/<returnReasonCode>\s*([0-9]+)\s*<\/returnReasonCode>/)||[])[1]:'';
+  if(code==='22'||code==='23')return {available:false,error:code==='22'?'GBIS_DAILY_LIMIT':'GBIS_RATE_LIMIT',providerCode:code,message:code==='22'?'경기버스정보 일일 호출한도 · GPS 기록 계속':'경기버스정보 요청 제한 · GPS 기록 계속',fetchedAt:now};
+  if(json)return bus70GyeonggiLiveParse_(json,routeId,now);
+  return {available:false,error:'GBIS_RESPONSE_FORMAT',providerCode:/^\d{1,3}$/.test(code||'')?code:'',message:'경기도 차량위치 응답 형식 확인 필요 · GPS 기록 계속',fetchedAt:now};
+}
 // One in-flight request per route across all phones. Locks cover metadata only,
 // never UrlFetch: location uploads must remain available while GBIS is slow.
 function bus70GyeonggiRetryAfter_(headers,now){
@@ -391,19 +402,19 @@ function bus70GyeonggiLiveFetch_(route){
   try{
     cached=readCache();if(cached)return cached;
     const now=Date.now(),global=read(globalKey),state=read(stateKey);
-    if(Number(global.retryAt)>now)return {available:false,error:'GBIS_HTTP_429',message:'경기도 API 요청 제한 · GPS 기록 계속',retryAt:global.retryAt};
+    if(Number(global.retryAt)>now)return {available:false,error:global.error||'GBIS_HTTP_429',message:global.error==='GBIS_DAILY_LIMIT'?'경기버스정보 일일 호출한도 · GPS 기록 계속':'경기도 API 요청 제한 · GPS 기록 계속',retryAt:global.retryAt};
     if(Number(state.inFlightUntil)>now)return busy();
     day=Utilities.formatDate(new Date(now),'Asia/Seoul','yyyy-MM-dd');
     if(state.day!==day){state.day=day;state.requests=0;state.responses={};}
     lease=now;state.lease=lease;state.inFlightUntil=now+90000;state.requests=Number(state.requests||0)+1;
     properties.setProperty(stateKey,JSON.stringify(state));
   }finally{lock.releaseLock();}
-  let result,http=0,retryAt=0;
+  let result,http=0,retryAt=0,transition=null;
   try{
     const url=bus70PublicTransitQueryUrl_('https://apis.data.go.kr/6410000/buslocationservice/v2/getBusLocationListv2',key,{format:'json',routeId:config.routeId});
     const response=UrlFetchApp.fetch(url,{method:'get',muteHttpExceptions:true,followRedirects:false,headers:{Accept:'application/json'}});
     http=response.getResponseCode();
-    if(http===200)result=bus70GyeonggiLiveParse_(JSON.parse(response.getContentText('UTF-8')),config.routeId,Date.now());
+    if(http===200)result=bus70GyeonggiResponse_(response.getContentText('UTF-8'),config.routeId,Date.now());
     else {result={available:false,error:'GBIS_HTTP_'+http,message:http===429?'경기도 API 요청 제한 · GPS 기록 계속':http===401||http===403?'경기도 차량위치 API 인증·권한 확인 필요':'경기도 차량위치 응답 장애 · GPS 기록 계속'};if(http===429)retryAt=bus70GyeonggiRetryAfter_(response.getAllHeaders(),Date.now());}
   }catch(ignore){result={available:false,message:'경기도 차량위치 응답 대기 · GPS 기록 계속',error:'GBIS_UNAVAILABLE'};}
   // Cooldown survives cache eviction and is shared by routes using the key.
@@ -414,12 +425,14 @@ function bus70GyeonggiLiveFetch_(route){
       const hour=Utilities.formatDate(new Date(now),'Asia/Seoul','yyyy-MM-dd HH'),hours=state.hours||[],bucket=hours.find(function(v){return v.hour===hour;})||{hour:hour,ok:0,errors:{}};
       if(hours.indexOf(bucket)<0)hours.push(bucket);
       if(result.available)bucket.ok++;else {const reason=String(result.error||'UNKNOWN')+(result.providerCode?':'+result.providerCode:'');bucket.errors[reason]=Number(bucket.errors[reason]||0)+1;}
+      const reason=result.available?'READY':result.error||'UNKNOWN';if(state.lastReason!==reason){transition={before:state.lastReason||'UNKNOWN',after:reason,http:http,providerCode:result.providerCode||'',day:state.day,requests:state.requests};state.lastReason=reason;}
       state.hours=hours.slice(-48);state.lastProviderCode=result.providerCode||'';properties.setProperty(stateKey,JSON.stringify(state));}
-    if(http===429){const attempts=Number(global.attempts||0)+1;result.retryAt=Math.max(retryAt,now+Math.min(3600000,300000*Math.pow(2,Math.min(attempts-1,4))));properties.setProperty(globalKey,JSON.stringify({attempts:attempts,retryAt:result.retryAt,last429At:now}));}
+    if(http===429||['GBIS_DAILY_LIMIT','GBIS_RATE_LIMIT'].includes(result.error)){const attempts=Number(global.attempts||0)+1;result.retryAt=Math.max(retryAt,result.error==='GBIS_DAILY_LIMIT'?now+3600000:0,now+Math.min(3600000,300000*Math.pow(2,Math.min(attempts-1,4))));properties.setProperty(globalKey,JSON.stringify({attempts:attempts,retryAt:result.retryAt,last429At:now,error:result.error}));}
     else if(result.available&&Number(global.retryAt||0)<=now)properties.deleteProperty(globalKey);
   }finally{lock.releaseLock();}
+  if(transition&&typeof writeAudit_==='function')try{writeAudit_('SYSTEM','시스템','실시간API',String(route),'차량정보 수신 상태 변경',{reason:transition.before},{reason:transition.after,http:transition.http,providerCode:transition.providerCode,day:transition.day,requests:transition.requests},'요청 집계; 위치·계정·인증키 없음');}catch(ignore){result.diagnosticsLogUnavailable=true;}
   // An old lease cannot replace a newer request's result.
-  if(read(stateKey).lease===lease){if(result.available)try{result=bus70GyeonggiObserveHeadways_(config.routeId,result);}catch(ignore){}cache.put(cacheKey,JSON.stringify(result),result.available?45:http===429?300:120);}
+  if(read(stateKey).lease===lease){if(result.available)try{result=bus70GyeonggiObserveHeadways_(config.routeId,result);}catch(ignore){}cache.put(cacheKey,JSON.stringify(result),result.available?45:result.retryAt?300:120);}
   return result;
 }
 // Reuse the shared route fetch; never poll per driver for headways. Intervals
@@ -507,7 +520,7 @@ function bus70GyeonggiFleet_(fetched,stops,assignment,registry,own){
     const id=String(stop.externalStopId||stop.stationId||stop.id);
     if(!v.stationId||id!==String(v.stationId)&&!id.endsWith('-'+v.stationId)||!v.vehicleId&&!v.plateNo)return null;
     const matches=registry.filter(function(r){return r.id&&bus70GyeonggiSelectVehicle_(fetched.items,r.plate)===v;});
-    return {source:'GYEONGGI_BUS_LOCATION_V2',route:String(assignment.route),date:assignment.date,vehicleId:matches.length===1?matches[0].id:'GBIS:'+String(v.vehicleId||v.plateNo),own:Boolean(own&&own===v),matchedStopOrder:Number(stop.order),stateCd:v.stateCd,direction:stop.direction||'',fetchedAt:at,observedAt:null,positionBasis:'PROVIDER_STOP_REFERENCE'};
+    return {source:'GYEONGGI_BUS_LOCATION_V2',route:String(assignment.route),date:assignment.date,vehicleId:matches.length===1?matches[0].id:'GBIS:'+String(v.vehicleId||v.plateNo),vehicleNo:String(v.plateNo||''),own:Boolean(own&&own===v),matchedStopOrder:Number(stop.order),stateCd:v.stateCd,direction:stop.direction||'',fetchedAt:at,observedAt:null,positionBasis:'PROVIDER_STOP_REFERENCE'};
   }).filter(Boolean);
 }
 function BUS70_checkGyeonggiLiveConnection(){

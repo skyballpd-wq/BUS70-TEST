@@ -564,12 +564,26 @@ function bus70LiveLocationNeighbour_(snapshot, own, direction) {
   return publicSnapshot;
 }
 
+// Only today's confirmed roster for the authenticated driver's route. No
+// employee numbers, account data or contacts are returned to driver clients.
+function bus70LiveRoster_(route,date,assignment,runningTrips) {
+  const cache=bus70LiveLocationCache_(),key='BUS70_LIVE_ROSTER_'+route+'_'+date+'_'+String(assignment.dispatchId||''),cached=cache.get(key);
+  if(cached)try{return JSON.parse(cached);}catch(ignore){}
+  const ss=SpreadsheetApp.getActiveSpreadsheet(),read=function(name){const s=ss.getSheetByName(name);return s?s.getDataRange().getDisplayValues():[[]];};
+  const dr=read('기사DB'),dc=makeHeaderMap_(dr[0]),vr=read('차량DB'),vc=makeHeaderMap_(vr[0]),pr=read('배차DB'),pc=makeHeaderMap_(pr[0]),names={},vehicles={};
+  dr.slice(1).forEach(function(r){names[String(r[dc.driverId]||'')]=String(r[dc['성명']]||'');});
+  vr.slice(1).forEach(function(r){vehicles[String(r[vc.vehicleId]||'')]=String(r[vc['차량번호']]||'');});
+  const own=pr.slice(1).find(function(r){return String(r[pc.dispatchId]||'')===String(assignment.dispatchId||'');}),shift=own?String(own[pc['근무조']]||''):'';
+  const roster=pr.slice(1).filter(function(r){return normalizeDate_(r[pc['날짜']])===date&&bus70AuthDispatchRoute_(r,pc)===String(route)&&String(r[pc['상태']]||'')==='확정';}).map(function(r){const id=String(r[pc['차량ID']]||'');const binding=JSON.stringify([r[pc['기사ID']],r[pc.dispatchId],id,Number(r[pc['순차']])]);return {sequence:Number(r[pc['순차']]),vehicleId:id,vehicleNo:vehicles[id]||'',driverName:names[String(r[pc['기사ID']]||'')]||'',running:Boolean(runningTrips[binding]&&runningTrips[binding].running),sameShift:shift&&String(r[pc['근무조']]||'')===shift};});
+  const unique=[];Array.from(new Set(roster.map(function(r){return r.vehicleId;}))).forEach(function(id){if(!id)return;const all=roster.filter(function(r){return r.vehicleId===id;}),running=all.filter(function(r){return r.running;}),eligible=running.length?running:all.filter(function(r){return r.sameShift;});if(eligible.length===1){const r=eligible[0];unique.push({sequence:r.sequence,vehicleId:r.vehicleId,vehicleNo:r.vehicleNo,driverName:r.driverName,identityBasis:r.running?'RUN_LOG':'CONFIRMED_DISPATCH'});}});cache.put(key,JSON.stringify(unique),20);return unique;
+}
 function bus70DriverLiveView_(assignment, driverId) {
   const snapshots=bus70LiveLocationSnapshotMap_(assignment.route,assignment.date),now=Date.now(),active={},runningTrips=bus70LiveRunningTrips_(assignment.route,assignment.date);
   Object.keys(snapshots).forEach(function(key){const item=snapshots[key];if(item&&now-Number(item.recordedAtMs||0)>=0&&now-Number(item.recordedAtMs||0)<=BUS70_LIVE_LOCATION_FRESH_MS){const run=runningTrips[JSON.stringify([item.driverId,item.dispatchId,item.vehicleId,Number(item.sequence)])];active[key]=Object.assign({},item,{running:Boolean(run&&run.running&&run.trip===Number(item.trip))});}});
   const own=active[String(assignment.sequence)]&&String(active[String(assignment.sequence)].driverId||'')===String(driverId)?active[String(assignment.sequence)]:null,front=active[String(assignment.sequence-1)]||null,rear=active[String(assignment.sequence+1)]||null;
   let crossCheck=null;if(typeof bus70GyeonggiCrossCheck_==='function'){try{crossCheck=bus70GyeonggiCrossCheck_(assignment,own);}catch(ignore){crossCheck={available:false,message:'경기도 차량정보 대조 대기'};}}
-  return {ok:true,crossCheck:crossCheck,route:assignment.route,date:assignment.date,sequence:assignment.sequence,positions:Object.keys(active).map(function(key){return bus70LiveLocationPublic_(active[key],Boolean(own&&key===String(assignment.sequence)));}).sort(function(a,b){return a.sequence-b.sequence;}),own:bus70LiveLocationPublic_(own,true),front:bus70LiveLocationNeighbour_(front,own,'front'),rear:bus70LiveLocationNeighbour_(rear,own,'rear'),freshSeconds:Math.round(BUS70_LIVE_LOCATION_FRESH_MS/1000),retentionSeconds:BUS70_LIVE_LOCATION_TTL_SECONDS,historyStored:false};
+  let roster=[];try{roster=bus70LiveRoster_(assignment.route,assignment.date,assignment,runningTrips);}catch(ignore){}
+  return {ok:true,roster:roster,crossCheck:crossCheck,route:assignment.route,date:assignment.date,sequence:assignment.sequence,positions:Object.keys(active).map(function(key){return bus70LiveLocationPublic_(active[key],Boolean(own&&key===String(assignment.sequence)));}).sort(function(a,b){return a.sequence-b.sequence;}),own:bus70LiveLocationPublic_(own,true),front:bus70LiveLocationNeighbour_(front,own,'front'),rear:bus70LiveLocationNeighbour_(rear,own,'rear'),freshSeconds:Math.round(BUS70_LIVE_LOCATION_FRESH_MS/1000),retentionSeconds:BUS70_LIVE_LOCATION_TTL_SECONDS,historyStored:false};
 }
 
 function bus70DriverLiveLocationSave_(body, driverId) {
@@ -760,7 +774,8 @@ function bus70DriverRunLogPlans_(from,to,driverId){
     if(!reference||!reference.ok){unavailableDates.push(date);return;}
     const trips=bus70PrivateTripsForSequence_(reference.trips,sequence);
     if(!trips.length){unavailableDates.push(date);return;}
-    const schedule={ok:true,type:'WORK',route:route,dispatch:{sequence:sequence},trips:trips};
+    const scheduleVersion=String(row[c['시간표버전']]||reference.scheduleVersion||'');
+    const schedule={ok:true,type:'WORK',route:route,date:date,scheduleVersion:scheduleVersion,dispatch:{sequence:sequence,scheduleVersion:scheduleVersion},trips:trips};
     bus70ScheduleWithAdjustments_(schedule,date);
     schedule.trips.forEach(function(trip){
       const roles=bus70RunLogPointRoles_(schedule.trips,trip);
@@ -779,12 +794,12 @@ function bus70RunLogTimetable_(ss, route, date, sequence, scheduleVersion, drive
     if(sheet&&sheet.getLastRow()>1){
       configured=true;
       const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);
-      trips=rows.slice(1).filter(function(row){return (!scheduleVersion||String(row[c['버전']]||'')===scheduleVersion)&&Number(row[c['순차']]||0)===sequence&&String(row[c['상태']]||'')!=='중지';}).map(function(row){const value=function(header){return c[header]===undefined?'':String(row[c[header]]||'');};return {sequence:sequence,trip:Number(row[c['탕']]||0),startPlace:value('발차지'),startTime:value('발차시간'),turnPlace:value('회차지'),turnTime:value('회차시간'),endPlace:value('도착지'),endTime:value('도착시간'),serviceEndType:value('영업종료형태'),serviceEndPlace:value('영업종료지'),deadheadDestination:value('회송목적지'),serviceRole:value('서비스역할'),finalService:value('최종운행').toUpperCase()==='Y'};});
+      trips=rows.slice(1).filter(function(row){return Boolean(scheduleVersion)&&String(row[c['버전']]||'')===scheduleVersion&&c['노선']!==undefined&&String(row[c['노선']]||'')===String(route)&&Number(row[c['순차']]||0)===sequence&&/^(사용|활성|확정)$/.test(String(row[c['상태']]||''));}).map(function(row){const value=function(header){return c[header]===undefined?'':String(row[c[header]]||'');};return {sequence:sequence,trip:Number(row[c['탕']]||0),startPlace:value('발차지'),startTime:value('발차시간'),turnPlace:value('회차지'),turnTime:value('회차시간'),endPlace:value('도착지'),endTime:value('도착시간'),serviceEndType:value('영업종료형태'),serviceEndPlace:value('영업종료지'),deadheadDestination:value('회송목적지'),serviceRole:value('서비스역할'),finalService:value('최종운행').toUpperCase()==='Y'};});
       trips=bus70PrivateTripsForSequence_(trips,sequence);
     }
   }
   if(trips.length){
-    const schedule={ok:true,type:'WORK',route:route,dispatch:{sequence:sequence},trips:trips};
+    const schedule={ok:true,type:'WORK',route:route,date:date,scheduleVersion:scheduleVersion,dispatch:{sequence:sequence,scheduleVersion:scheduleVersion},trips:trips};
     bus70ScheduleWithAdjustments_(schedule,date);trips=schedule.trips;
   }
   return {configured:configured,trips:trips};
@@ -955,7 +970,7 @@ function bus70ScheduleWithAdjustments_(schedule, rawDate) {
       if (applied.length) schedule.timeAdjustments = applied;
     }
   } catch (ignore) {}
-  try { bus70AttachPlannedHeadways_(schedule); } catch (ignore) {}
+  try { bus70AttachPlannedHeadways_(schedule); bus70AdjustedHeadways_(schedule,date); } catch (ignore) {}
   return schedule;
 }
 
@@ -968,19 +983,25 @@ function bus70OperationalMinutes_(value) {
 
 function bus70AttachPlannedHeadways_(schedule) {
   const sequence=Number(schedule.dispatch.seq||schedule.dispatch.sequence||0), version=String(schedule.dispatch.scheduleVersion||schedule.scheduleVersion||'');
+  const route=String(schedule.route||''),date=normalizeDate_(schedule.date||schedule.dispatch.date||'');
+  // Dated route references already carry their own headways. The legacy sheet
+  // is a fallback, never a source of neighbouring rows from another route.
+  if(!route||!version)return schedule;
   const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('스케줄');
   if(!sheet||sheet.getLastRow()<2||!sequence)return schedule;
   const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]),starts={};
   rows.slice(1).forEach(function(row){
-    if(version&&String(row[c['버전']]||'')!==version)return;
-    if(c['상태']!==undefined&&String(row[c['상태']]||'')&&String(row[c['상태']]||'')!=='사용')return;
+    if(String(row[c['버전']]||'')!==version||c['노선']===undefined||String(row[c['노선']]||'')!==route)return;
+    if(c['상태']!==undefined&&!/^(사용|활성|확정)$/.test(String(row[c['상태']]||'')))return;
+    const from=normalizeDate_(row[c['적용시작일']]||''),through=normalizeDate_(row[c['적용종료일']]||'');
+    if(date&&(from&&date<from||through&&date>through))return;
     const seq=Number(row[c['순차']]||0),trip=Number(row[c['탕']]||0),time=String(row[c['발차시간']]||'');
     if(seq&&trip&&time)starts[seq+'-'+trip]=time;
   });
   schedule.trips.forEach(function(trip){
-    const no=Number(trip.trip), own=bus70OperationalMinutes_(trip.startTime), front=bus70OperationalMinutes_(starts[(sequence-1)+'-'+no]), rear=bus70OperationalMinutes_(starts[(sequence+1)+'-'+no]);
-    if(own!==null&&front!==null)trip.plannedFrontGapMinutes=own>=front&&own-front<=120?own-front:null;
-    if(own!==null&&rear!==null)trip.plannedRearGapMinutes=rear>=own&&rear-own<=120?rear-own:null;
+    const no=Number(trip.trip), own=bus70OperationalMinutes_(trip.publishedStartTime||trip.startTime), front=bus70OperationalMinutes_(starts[(sequence-1)+'-'+no]), rear=bus70OperationalMinutes_(starts[(sequence+1)+'-'+no]);
+    if(trip.plannedFrontGapMinutes===undefined&&own!==null&&front!==null){trip.plannedFrontGapMinutes=own>=front&&own-front<=120?own-front:null;trip.frontSequence=sequence-1;}
+    if(trip.plannedRearGapMinutes===undefined&&own!==null&&rear!==null){trip.plannedRearGapMinutes=rear>=own&&rear-own<=120?rear-own:null;trip.rearSequence=sequence+1;}
   });
   schedule.headwayRules={basis:'발차시간',unit:'분',serviceDayCutoff:'03:30',sequence:sequence};
   return schedule;
@@ -1112,4 +1133,22 @@ function bus70DriverLeaveContext_(driver, rawDate) {
     result.available=true;
   }catch(error){console.error('Driver leave lookup failed');}
   return result;
+}
+
+// Reconcile confirmed departure adjustments against the dated reference gaps.
+// Other routes, dates and turnaround/arrival edits cannot change headways.
+function bus70AdjustedHeadways_(schedule,date){
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('배차간격조정DB');if(!sheet||sheet.getLastRow()<2)return;
+  const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);
+  const changes=rows.slice(1).filter(function(r){return normalizeDate_(r[c['날짜']])===date&&String(r[c['노선']]||'70')===String(schedule.route)&&String(r[c['공지상태']]||'확정')==='확정'&&(!r[c['시간구분']]||r[c['시간구분']]==='발차');});
+  const changed=function(time,sequence,trip){changes.forEach(function(r){if(Number(r[c['순차']])===Number(sequence)&&Number(r[c['탕']])===Number(trip)&&bus70OperationalMinutes_(r[c['기존시간']])===time){const next=bus70OperationalMinutes_(r[c['조정시간']]);if(next!==null)time=next;}});return time;};
+  schedule.trips.forEach(function(t){
+    const base=bus70OperationalMinutes_(t.publishedStartTime||t.startTime),own=bus70OperationalMinutes_(t.startTime);if(base===null||own===null)return;
+    for(const side of ['Front','Rear']){
+      const key='planned'+side+'GapMinutes',saved='published'+side+'GapMinutes';if(t[key]==null||!Number.isFinite(Number(t[key])))continue;
+      if(t[saved]===undefined)t[saved]=Number(t[key]);const gap=t[saved],front=side==='Front',sequence=t[front?'frontSequence':'rearSequence'];
+      if(!sequence)continue;const other=changed(base+(front?-gap:gap),sequence,t.trip),value=front?own-other:other-own;
+      t[key]=value>=0&&value<=120?value:null;
+    }
+  });
 }

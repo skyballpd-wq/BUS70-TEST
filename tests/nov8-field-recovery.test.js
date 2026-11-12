@@ -21,9 +21,9 @@ assert.equal(sample(200,10,10,{log:{actualEnd:'observed'}}).event,null,'post-shi
 const scope={route:'70',date,vehicleId:'OWN',running:true},nav={configured:true,matchedIndex:5},publicPeer=(order,id='UNREGISTERED')=>({source:'GYEONGGI_BUS_LOCATION_V2',positionBasis:'PROVIDER_STOP_REFERENCE',route:'70',date,vehicleId:id,matchedStopOrder:order,stateCd:2,fetchedAt:base});
 const fleet={route:'70',date,positions:[],crossCheck:{fleet:[publicPeer(8),publicPeer(4,'BEHIND')]}};
 let peers=cockpit.ringPeers(path,fleet,nav,scope,base);assert.deepEqual(peers.map(p=>p.side),['front','rear']);assert(peers.every(p=>p.reference));
-assert.equal(cockpit.ringPeers(path,fleet,nav,scope,base+61000).length,0);
-assert.equal(cockpit.ringPeers(path,fleet,{...nav,retained:true},scope,base).length,0,'stale own location never invents relative order');
-fleet.positions=[{running:true,vehicleId:'UNREGISTERED',route:'70',date,matchedStopOrder:9,recordedAt:new Date(base).toISOString(),accuracyM:5}];peers=cockpit.ringPeers(path,fleet,nav,scope,base);assert.equal(peers.find(p=>p.vehicle==='UNREGISTERED').order,9);assert.equal(peers.filter(p=>p.vehicle==='UNREGISTERED').length,1);
+assert(cockpit.ringPeers(path,fleet,nav,scope,base+61000).every(p=>p.fresh===false));assert.equal(cockpit.ringPeers(path,fleet,nav,scope,base+181000).length,0);
+assert(cockpit.ringPeers(path,fleet,{...nav,retained:true},scope,base).every(p=>p.fresh===false),'retained relative order is marked historical');
+fleet.positions=[{running:true,vehicleId:'UNREGISTERED',route:'70',date,matchedStopOrder:7,recordedAt:new Date(base).toISOString(),accuracyM:5}];peers=cockpit.ringPeers(path,fleet,nav,scope,base);assert.equal(peers.find(p=>p.vehicle==='UNREGISTERED').order,7);assert.equal(peers.filter(p=>p.vehicle==='UNREGISTERED').length,1);
 const p=publicPeer(1);fleet.positions=[];fleet.crossCheck.fleet=[p,{...p,matchedStopOrder:12},{...p,matchedStopOrder:8,route:'5'}];assert.equal(cockpit.ringPeers(path,fleet,nav,scope,base).length,0);
 for(const text of ['고강공영차고지','신월청소년문화센터','화곡터널입구교차로(미정차)','신월사거리.국민은행신월동지점'])assert.equal(cockpit.phraseParts(text).join(''),text);
 assert.deepEqual(cockpit.phraseParts('고강공영차고지'),['고강','공영차고지']);assert.equal(cockpit.plannedGap({plannedFrontGapMinutes:11,actualFrontGapMinutes:25},'front'),'11분');assert.equal(cockpit.plannedGap({},'rear'),'확인 중');
