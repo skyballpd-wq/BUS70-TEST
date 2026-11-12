@@ -1,0 +1,13 @@
+.notice-message{padding:12px;margin:10px 0;border:1px solid #d7e2ed;border-radius:12px;background:#fff;overflow-wrap:anywhere}
+.notice-message.urgent{border-left:5px solid #b75217;background:#fff8ed}
+.notice-message p{white-space:pre-wrap;line-height:1.5;margin:8px 0}
+.notice-message small{display:block;color:#516379;line-height:1.5}
+#noticeManagerPanel textarea{box-sizing:border-box;width:100%;font:inherit;border:1px solid #bdcbda;border-radius:8px;padding:10px;resize:vertical}
+#noticeManagerPanel select{max-width:100%;min-width:0}
+.notice-confirm{display:flex;gap:8px;align-items:center;margin:12px 0}
+.notice-confirm input{width:auto;flex:none}
+#noticePreview{overflow-wrap:anywhere;white-space:pre-wrap}
+.driver-notice-strip{font-size:11px;line-height:1.35;background:#eaf2fa;border-radius:5px;padding:3px 5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#173d69;min-width:0}
+.driver-notice-strip.urgent{background:#fff1db;color:#8d3e0e;font-weight:700}
+.driver-notice-strip[hidden]{display:none}
+@media(min-width:560px) and (max-height:520px){.driver-live-primary .driver-notice-strip{grid-column:2;grid-row:8}.driver-live-primary:has(.driver-notice-strip:not([hidden])) .driver-scroll-hint{visibility:hidden}}

@@ -49,6 +49,7 @@
     fit();
     if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of primary.children)observer.observe(node);}
     refresh(doc,live);
+    root.Bus70Notices?.refreshStrip();
   }
   root.Bus70Viewport={mount,refresh};
 })(typeof window==='object'?window:globalThis);

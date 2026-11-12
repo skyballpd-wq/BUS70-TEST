@@ -892,6 +892,7 @@
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
 <link rel="stylesheet" href="./driver-viewport.css?v=893">
+<link rel="stylesheet" href="./operations-notices.css?v=894">
 </head>
 
 <body>
@@ -1107,11 +1108,14 @@
         <button type="button" data-manager-page="ATTENDANCE"><strong>근태·대체</strong><small>휴무 · 병가 · 예비기사</small></button>
         <button type="button" data-manager-page="ROSTER"><strong>기사 관리</strong><small>등록 · 조회 · 노선 이동</small></button>
         <button type="button" data-manager-page="REPLACEMENT"><strong>차량 대차</strong><small>적용일 선택 · 대체 차량 · 차량 추가</small></button>
+        <button type="button" data-manager-page="NOTICES"><strong>기사 공지</strong><small>전체·노선·개별 전달 · 수신 확인</small></button>
         <button type="button" data-manager-page="FLEET"><strong>차량·정비</strong><small>차량 상태 · 고장 접수</small></button>
         <button type="button" data-manager-page="CONTACTS"><strong>긴급연락망</strong><small>영업소 · 소장 · 사고 · 정비</small></button>
         <button type="button" data-manager-page="SETTINGS"><strong>계정 설정</strong><small>운영계정 · 비밀번호</small></button>
       </div>
     </section>
+    <section id="noticeInbox" class="manager-panel" hidden></section>
+    <section id="noticeManagerPanel" class="manager-panel" hidden></section>
     <section id="replacementPanel" class="manager-panel" hidden></section>
     <section id="managerContactsPanel" class="manager-panel" hidden>
       <h2>소신여객 긴급연락망</h2><p class="hint">등록한 번호는 로그인한 기사에게 전화 버튼으로 표시됩니다.</p>
@@ -1327,7 +1331,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.3
+    소신여객 통합 운행관리 TEST · v89.4
   </footer>
 
 </div>
@@ -1337,6 +1341,7 @@
 <script src="./login-korean.js"></script>
 <script src="./driver-signup.js?v=881"></script>
 <script src="./manager-replacement.js?v=8821"></script>
+<script src="./operations-notices.js?v=894"></script>
 <script src="./driver-automation.js?v=89"></script>
 <script src="./driver-recording.js?v=89"></script>
 <script src="./driver-cockpit.js?v=893"></script>
@@ -1555,7 +1560,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.3";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.4";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1673,6 +1678,7 @@
     document.getElementById("incidentDate").value = calendarDateInSeoul();
     document.getElementById("adjustmentDate").value = calendarDateInSeoul();
     if(!verified)return;
+    Bus70Notices.start();
     initManagerWorkspace();
     if(currentIsManager){loadMasterAdmin();loadAdjustmentScheduleOptions(true);showManagerPage("HOME",false);}
     clearTimeout(operationStartupTimer);
@@ -1747,6 +1753,7 @@
   }
 
   function clearLocalAuth() {
+    Bus70Notices.reset();
     Bus70Replacement.reset();
     Bus70Signup.clear();Bus70Signup.resetMaster();
     stopDriverLocationTracking(true);
@@ -1793,7 +1800,8 @@
   }
 
   function showLoginScreen(text) {
-    ["managerWorkspace","managerContactsPanel","replacementPanel"].forEach(id=>document.getElementById(id).hidden=true);
+    Bus70Notices.reset();
+    ["managerWorkspace","managerContactsPanel","replacementPanel","noticeManagerPanel","noticeInbox"].forEach(id=>document.getElementById(id).hidden=true);
     document.body.classList.remove("manager-layout");
     authRequestId++;
     scheduleRequestId++;
@@ -2261,6 +2269,8 @@
       card.append(el("div","상황 "+(v.status||"접수")+" / 정비 "+(v.maintenanceStatus||"접수")+(reserve?" / 예비차 "+(reserve.displayNo||reserve.no):""),"operation-meta"));
       if(v.handlerName&&v.handler!==v.requesterId)card.append(el("div","최근 처리: "+v.handlerName+" ("+(roleNames[v.handlerRole]||"사용자")+")","operation-meta"));
       if(v.accident&&typeof Bus70Accident!=="undefined")Bus70Accident.showSaved(card,v,payload=>apiPost({action:"managerAccountUpsert",token:authToken,...payload}));
+      if(v.maintenanceAcknowledgedAt)card.append(el("div","정비소 접수 확인: "+v.maintenanceAcknowledgedBy+" · "+v.maintenanceAcknowledgedAt,"operation-meta"));
+      if(v.maintId&&!closed&&!v.maintenanceAcknowledgedAt&&(currentRole==="CENTER"||currentRole==="MASTER")){const ack=el("button","정비 요청 접수 확인");ack.type="button";ack.addEventListener("click",async()=>{ack.disabled=true;try{const r=await apiPost({action:"managerAccountUpsert",operation:"maintenanceAcknowledge",token:authToken,maintId:v.maintId});operationNotice(r.message,!r.ok);if(r.ok)await loadOperationData(true);}catch(e){operationNotice("접수 확인 결과를 확인하지 못했습니다. 다시 조회하세요.",true);}finally{ack.disabled=false;}});card.append(ack);}
       if(v.result)card.append(el("div","정비결과: "+v.result,"operation-meta"));
       if(v.completedDate||v.availableDate)card.append(el("div","정비 완료 "+(v.completedDate||"-")+" / 운행 가능 "+(v.availableDate||"-"),"operation-meta"));
       if(v.maintId&&!closed&&(currentRole==="CENTER"||currentRole==="MASTER")){
@@ -3010,6 +3020,7 @@
   function speakDriverNotice(kind,gap,message,accepted){
     const now=Date.now();if(document.hidden||!roadSafetySelected()||now-driverNoticeAttemptAt<10000)return false;
     if(driverNoticePending&&now-driverNoticePending.at<10000)return false;
+    Bus70Notices.interrupt();
     const scope=driverLiveRequestScope(),id=String(now);driverNoticeAttemptAt=now;
     if(typeof window.Bus70Android?.speakDriverGuidance==='function'){
       driverNoticePending={id,at:now,scope,accepted};
@@ -3034,7 +3045,7 @@
     stopDriverLiveTimer();
     driverLiveTimer=setInterval(()=>{
       if(refreshScheduleDate())return;
-      flushGpsOutbox();pollNativeLocation();resumeDriverLocationIfAllowed();updateDriverLiveDashboard();
+      flushGpsOutbox();pollNativeLocation();resumeDriverLocationIfAllowed();updateDriverLiveDashboard();Bus70Notices.tick();
       if(!document.hidden&&authToken&&!currentRole&&!scheduleRefreshInFlight&&Date.now()-scheduleRefreshAttemptAt>60000)loadMySchedule(true);
     },1000);
     updateDriverLiveDashboard();
@@ -4352,6 +4363,14 @@
   document.getElementById("managerRoute").addEventListener("change",()=>{invalidateManagerRequest();resetOperationsData();managerData=null;managerImageBlob=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");applyRouteBrand(document.getElementById("managerRoute").value,currentRole);document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOcr").hidden=true;document.getElementById("managerGenerate").hidden=true;document.getElementById("managerOutput").hidden=true;managerNotice("선택한 노선의 기사·차량을 불러오세요.");});
   document.getElementById("managerDate").addEventListener("change",()=>{invalidateManagerRequest();resetOperationsData();syncManagerShiftToDate();managerData=null;resetManagerTimetableEditor(true);resetManagerStopImport(document.getElementById("managerRoute").value==="ALL");document.getElementById("managerRows").replaceChildren();document.getElementById("managerSave").hidden=true;document.getElementById("managerOutput").hidden=true;});
 
+  function noticeCanInteract(){
+    if(!lastSchedule||!Array.isArray(lastSchedule.trips))return true;
+    const running=lastSchedule.trips.some(trip=>{const log=runLogForTrip(lastSchedule,trip)||{};return log.actualStart&&!log.actualEnd;})||Boolean(document.body.classList.contains('live-first-screen')&&currentNavigation?.configured);
+    if(!running)return true;
+    const position=lastDriverPosition,age=position?Date.now()-position.timestamp:Infinity,speed=position?.coords?.speed;
+    return age>=0&&age<10000&&Number.isFinite(speed)&&speed>=0&&speed<=.3;
+  }
+  Bus70Notices.init({api:body=>apiPost(body),session:()=>({token:authToken,driverId:currentDriverId,role:currentRole}),canInteract:noticeCanInteract,audioBusy:()=>Boolean(driverNoticePending||Date.now()-driverNoticeAttemptAt<10000||window.speechSynthesis?.speaking||window.speechSynthesis?.pending)});
   let managerPage = "HOME";
   let depotContacts = [], depotContactsVersion = 0;
   let depotContactRequestId = 0;
@@ -4364,10 +4383,10 @@
   }
   function showManagerPage(page,focus=true){
     if(!currentIsManager)return;
-    const titles={HOME:"소장 업무 홈",DISPATCH:"배차·시간표",ATTENDANCE:"근태·대체",ROSTER:"기사 관리",FLEET:"차량·정비",CONTACTS:"긴급연락망",SETTINGS:"계정 설정",REPLACEMENT:"차량 대차"};
+    const titles={HOME:"소장 업무 홈",DISPATCH:"배차·시간표",ATTENDANCE:"근태·대체",ROSTER:"기사 관리",FLEET:"차량·정비",CONTACTS:"긴급연락망",SETTINGS:"계정 설정",REPLACEMENT:"차량 대차",NOTICES:"기사 공지·수신 확인"};
     managerPage=titles[page]?page:"HOME";
-    document.getElementById("managerContext").hidden=managerPage==="REPLACEMENT";
-    const target={replacementPanel:"REPLACEMENT",managerPanel:"DISPATCH",centerPanel:"FLEET",managerContactsPanel:"CONTACTS",staffAccountPanel:"SETTINGS"};
+    document.getElementById("managerContext").hidden=["REPLACEMENT","NOTICES"].includes(managerPage);
+    const target={noticeManagerPanel:"NOTICES",replacementPanel:"REPLACEMENT",managerPanel:"DISPATCH",centerPanel:"FLEET",managerContactsPanel:"CONTACTS",staffAccountPanel:"SETTINGS"};
     Object.entries(target).forEach(([id,key])=>document.getElementById(id).hidden=managerPage!==key);
     document.getElementById("masterAdminPanel").hidden=!["ROSTER","ATTENDANCE","SETTINGS"].includes(managerPage);
     document.getElementById("managerRosterTools").hidden=managerPage!=="ROSTER";
@@ -4381,6 +4400,7 @@
     document.getElementById("managerPageTitle").textContent=titles[managerPage];
     if(managerPage==="DISPATCH"&&!managerData)loadManagerData();
     if(managerPage==="REPLACEMENT")Bus70Replacement.open();
+    if(managerPage==="NOTICES")Bus70Notices.open();
     if(managerPage==="FLEET")renderVehicleStatusList();
     if(managerPage==="CONTACTS")loadDepotContacts();
     if(focus){document.getElementById("managerPageTitle").focus();document.getElementById("managerWorkspace").scrollIntoView({block:"start"});}

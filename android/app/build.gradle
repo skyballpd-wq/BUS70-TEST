@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 90
-        versionName "0.90-field-headways"
+        versionCode 91
+        versionName "0.91-operations-notices"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

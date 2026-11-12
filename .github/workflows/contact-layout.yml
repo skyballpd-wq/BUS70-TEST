@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "operations-notices.*"
+      - "apps-script/OperationsNotice.gs"
+      - "tests/operations-notices*"
       - "driver-viewport.js"
       - "driver-viewport.css"
       - "tests/driver-viewport.browser.cjs"
@@ -71,6 +74,9 @@ jobs:
           node tests/mobile-compat.test.js
           node tests/mobile-compat.browser.cjs
           node tests/driver-viewport.browser.cjs
+          node tests/operations-notices.test.js
+          node tests/operations-notices-client.test.js
+          node tests/operations-notices.browser.cjs
           node tests/driver-signup.test.js
           node tests/driver-signup.browser.cjs
           node tests/vehicle-replacement.test.js
@@ -148,6 +154,9 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
           node tests/mobile-compat.browser.cjs
           node tests/driver-viewport.browser.cjs
+          node tests/operations-notices.test.js
+          node tests/operations-notices-client.test.js
+          node tests/operations-notices.browser.cjs
           node tests/driver-signup.browser.cjs
           node tests/vehicle-replacement.test.js
           node tests/vehicle-replacement.browser.cjs
