@@ -40,7 +40,7 @@
   root.bus70OperationsNoticeResult=function(raw){try{const r=typeof raw==='string'?JSON.parse(raw):raw;if(r.state==='DONE'||r.state==='FAILED')completeSpeech(r.requestId,r.state==='DONE');}catch(ignore){}};
   function play(n,manual=false){
     if(!active()||document.hidden||!fresh()||!current(n)||speaking||!voice||cfg.audioBusy()||manual&&!cfg.canInteract())return false;
-    const e=epoch,message=(n.kind==='MAINTENANCE'?'정비 회신입니다. ':'소장 공지입니다. ')+n.title+'. '+n.message;
+    const e=epoch,message=(n.kind==='MAINTENANCE_CALL'?'정비소 점검 안내입니다. ':n.kind==='MAINTENANCE'?'정비 회신입니다. ':'소장 공지입니다. ')+n.title+'. '+n.message;
     const requestId='PLAY-'+root.crypto.randomUUID();speaking={id:n.id,requestId,epoch:e,native:false};attempts.set(n.id,Date.now());
     if(root.Bus70Android?.speakOperationsNotice){speaking.native=true;root.Bus70Android.speakOperationsNotice(JSON.stringify({requestId,driverId:session().driverId,message:message.slice(0,800)}));}
     else if('speechSynthesis' in root&&typeof root.SpeechSynthesisUtterance==='function'){

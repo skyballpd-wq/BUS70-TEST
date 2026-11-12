@@ -30,8 +30,12 @@ function bus70ManagerAction_(body, driverId) {
   if (action === 'noticeCancel') return bus70NoticeCancel_(body,driverId);
   if (action === 'noticeFeed') return bus70NoticeFeed_(driverId);
   if (action === 'noticeReceipt') return bus70NoticeReceipt_(body,driverId);
+  if (action === 'maintenanceBoard') return bus70MaintenanceBoard_(driverId);
+  if (action === 'maintenanceCallPreview') return bus70MaintCallPreview_(body,driverId);
+  if (action === 'maintenanceCallPublish') return bus70MaintCallPublish_(body,driverId);
+  if (action === 'maintenanceCallCancel') return bus70MaintCallCancel_(body,driverId);
   if (action === 'maintenanceAcknowledge') return bus70MaintenanceAcknowledge_(body,driverId);
-  if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId);
+  if (action === 'operationBootstrap') return bus70OperationBootstrap_(driverId, body.maintId);
   if (action === 'accidentReportSave') return bus70AccidentSave_(body,driverId);
   if (action === 'accidentPhotoGet') return bus70AccidentPhotoGet_(body,driverId);
   if (action === 'vehicleIncidentSave') return bus70VehicleIncidentSave_(body, driverId);
@@ -63,7 +67,7 @@ function bus70CanOperate_(driverId) {
   return role==='MASTER'||role==='MANAGER'||role==='CENTER';
 }
 
-function bus70OperationBootstrap_(requesterId) {
+function bus70OperationBootstrap_(requesterId, requestedMaintId) {
   if(!bus70CanOperate_(requesterId)&&!bus70IsKnownDriver_(requesterId)) return {ok:false,error:'LOGIN_REQUIRED',message:'로그인이 필요합니다.'};
   const viewerRole=bus70RoleFor_(requesterId),serviceDate=bus70ServiceDateKey_(new Date());
   const ss=SpreadsheetApp.getActiveSpreadsheet(), vs=ss.getSheetByName('차량DB'), is=ss.getSheetByName('사건DB'), ms=ss.getSheetByName('정비DB'), ds=ss.getSheetByName('기사DB'), ps=ss.getSheetByName('배차DB'), gs=viewerRole?ss.getSheetByName('배차간격조정DB'):null;
@@ -97,6 +101,7 @@ function bus70OperationBootstrap_(requesterId) {
     incidents=incidents.filter(function(v){return v.requesterId===requesterId||Boolean(related[v.vehicleId]);});
     vehicles=vehicles.filter(function(v){return Boolean(related[v.id]);});
   }
+  if(viewerRole&&requestedMaintId)incidents=incidents.filter(v=>v.maintId===String(requestedMaintId));
   incidents=incidents.slice(0,30);
   vehicles.sort(function(a,b){return a.order-b.order||a.no.localeCompare(b.no);});
   let adjustments=[];

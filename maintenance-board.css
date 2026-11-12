@@ -1,0 +1,21 @@
+body.maintenance-layout .app{max-width:1180px}
+#maintenanceBoard{margin:0 0 24px;padding:16px;border:1px solid #ccd8e4;border-radius:12px;background:#f4f8fc;min-width:0}
+#maintenanceBoard [hidden]{display:none!important}
+.maint-heading,.maint-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.maint-heading h2{margin:0}.maint-heading button{width:auto;margin:0}
+#maintRouteHealth{display:flex;gap:8px;flex-wrap:wrap}.maint-route-health{font-size:12px;padding:5px 8px;background:#e7edf5;border-radius:6px}
+#maintFleet{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+.maint-vehicle{background:#fff;border:1px solid #d2dce6;border-radius:10px;padding:14px;min-width:0;overflow-wrap:anywhere}
+.maint-vehicle.needs-check{border-left:5px solid #b86513}.maint-vehicle.location-unknown .maint-location{color:#667085}
+.maint-card-heading strong{font-size:19px}.maint-badge{font-size:12px;padding:4px 7px;background:#fff1d8;color:#70420a;border-radius:6px}
+.maint-vehicle p{margin:8px 0;line-height:1.45}.maint-vehicle small{display:block;line-height:1.5;color:#566477}
+.maint-meta{font-size:13px;color:#52627a}.maint-location{display:block;margin:10px 0;color:#075e55}.maint-return{color:#075e55;font-weight:700}
+.maint-vehicle progress{width:100%;accent-color:#087d6b;height:12px}.maint-case,.maint-delivery{border-top:1px solid #e1e7ef;margin-top:12px;padding-top:10px}
+.maint-vehicle button{font-size:14px;min-height:42px;margin:8px 0 0}.maint-vehicle summary{margin-top:12px;font-size:14px;font-weight:700;cursor:pointer}
+#maintCallForm{padding:16px;margin:16px 0;border:2px solid #17655f;border-radius:10px;background:#fff;scroll-margin-top:16px}
+#maintCallPreview{padding:0 10px;background:#edf7f5;overflow-wrap:anywhere}#maintCallPreview:empty{display:none}
+#maintenanceBoard .maint-check{display:flex;align-items:center;gap:8px;font-size:14px;margin:12px 0}#maintenanceBoard input[type=checkbox]{width:auto;flex:0 0 auto}
+#maintenanceBoard .error{color:#ad2525}#maintenanceBoard textarea,#maintenanceBoard select{max-width:100%;box-sizing:border-box}
+@media(max-width:480px){#maintenanceBoard{padding:10px}.maint-vehicle{padding:11px}.maint-heading h2{font-size:20px}}
+
+#maintApproaching{padding:12px;background:#fff0cc;color:#743f08;border-left:4px solid #bd701b;border-radius:6px;font-weight:700;overflow-wrap:anywhere}

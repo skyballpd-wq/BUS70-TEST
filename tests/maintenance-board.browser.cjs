@@ -1,0 +1,32 @@
+const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
+(async()=>{
+ const browser=await(process.env.BROWSER_ENGINE==='webkit'?webkit.launch({headless:true}):chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||undefined,args:['--no-sandbox']}));
+ try{for(const width of [320,412,1180]){
+  const page=await browser.newPage({viewport:{width,height:850},serviceWorkers:'block'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.clock.install({time:new Date('2099-01-08T10:00:00+09:00')});
+  await page.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin!=='https://synthetic.test')return r.abort();const f=decodeURIComponent(u.pathname).slice(1)||'index.html';if(f.includes('..')||!fs.existsSync(f))return r.fulfill({status:404,body:''});return r.fulfill({contentType:f.endsWith('.html')?'text/html':f.endsWith('.js')?'application/javascript':f.endsWith('.css')?'text/css':'image/png',body:fs.readFileSync(f)});});
+  await page.goto('https://synthetic.test/');
+  await page.evaluate(()=>{
+   authToken='TEST';currentRole='CENTER';currentDriverId='CENTER';document.getElementById('loginSection').hidden=true;document.getElementById('centerPanel').hidden=false;
+   window.calls=[];window.failPublish=true;window.failBoard=false;window.lastReceipt='';
+   window.fixture={ok:true,date:'2099-01-08',serverTime:new Date().toISOString(),canCall:true,routes:['5','23','70'].map(route=>({route,available:true})),vehicles:[{id:'V1',number:'시험0001',route:'5',status:'운행가능',pendingCount:1,assignments:[{id:'P1',driverId:'D1',driverName:'합성기사',shift:'B',sequence:1,run:{running:true,trip:1,plannedEnd:'11:00'}}],position:{state:'RETURNING',label:'차고지 방면',stop:'합성정류장.아주긴표시이름겹침확인',source:'GBIS_REFERENCE',at:Date.now(),progress:95,remainingStops:1},maintenance:[{id:'M1',status:'접수',request:'<img src=x onerror=alert(1)> 합성 점검 요청',intakeAt:''}],calls:[]},{id:'V2',number:'시험0002',route:'23',status:'정비중',pendingCount:0,assignments:[],position:{state:'UNKNOWN',label:'위치 확인 중',progress:null,remainingStops:null},maintenance:[],calls:[]}]};
+   apiPost=async b=>{calls.push(structuredClone(b));if(b.operation==='maintenanceBoard'){if(failBoard)throw Error('synthetic outage');return structuredClone(fixture);}if(b.operation==='maintenanceCallPreview')return {ok:true,revision:'SYNTHETIC',vehicleNo:'시험0001',driverName:'합성기사',route:'5',request:'합성 점검'};if(b.operation==='maintenanceCallPublish'){if(failPublish){failPublish=false;throw Error('lost response');}fixture.vehicles[0].calls=[{id:b.requestId,driverName:'합성기사',message:b.message,mode:b.mode,status:'ACTIVE',receivedAt:'',playedAt:'',acknowledgedAt:''}];return {ok:true,message:'합성 저장 완료'};}if(b.operation==='maintenanceCallCancel'){fixture.vehicles[0].calls[0].status='CANCELLED';return {ok:true,message:'합성 취소 완료'};}return {ok:false,message:'합성 미제공'};};
+   Bus70Maintenance.start();
+  });
+  await page.getByText('2대 표시 · 점검 요청 1대 · 차고지 근접 1대').waitFor();assert.equal(await page.locator('#maintFleet img').count(),0,'render escaped text');assert.equal(await page.locator('#maintFleet .maint-vehicle').count(),2);
+  await page.locator('#maintRoute').selectOption('23');assert.equal(await page.locator('#maintFleet .maint-vehicle').count(),1);await page.locator('#maintRoute').selectOption('ALL');await page.locator('#maintPendingOnly').check();assert.equal(await page.locator('#maintFleet .maint-vehicle').count(),1);await page.locator('#maintPendingOnly').uncheck();
+  await page.getByRole('button',{name:'점검 안내 준비',exact:true}).click();await page.locator('#maintCallCheck').click();await page.locator('#maintCallPreview strong').waitFor();await page.locator('#maintCallConfirm').check();await page.locator('#maintCallMessage').fill('합성 변경 안내');assert.equal(await page.locator('#maintCallSend').isEnabled(),false);
+  await page.locator('#maintCallCheck').click();await page.locator('#maintCallPreview strong').waitFor();await page.locator('#maintCallConfirm').check();await page.locator('#maintCallSend').click();await page.getByText(/저장 결과를 확인하지 못했습니다/).waitFor();await page.locator('#maintCallSend').click();await page.getByText('합성 저장 완료').waitFor();
+  const publishes=await page.evaluate(()=>calls.filter(b=>b.operation==='maintenanceCallPublish'));assert.equal(publishes.length,2);assert.equal(publishes[0].requestId,publishes[1].requestId);await page.locator('#maintCallClose').click();
+  await page.getByText('기사 안내·확인 1건').click();await page.getByText('미수신 · 음성 미재생 · 기사 미확인').waitFor();assert.equal(await page.locator('#maintFleet').getByText('실제 입고').count(),0,'sending never implies intake');
+  await page.getByRole('button',{name:'안내 취소',exact:true}).click();await page.locator('#maintBoardStatus').getByText(/갱신/).waitFor();assert.equal(await page.getByRole('button',{name:'안내 취소',exact:true}).count(),0);
+  await page.evaluate(async()=>{failBoard=true;await Bus70Maintenance.load();});await page.getByText(/아래는 이전 조회 내용/).waitFor();assert.equal(await page.locator('#maintFleet progress').count(),0);assert.equal(await page.getByRole('button',{name:'점검 안내 준비',exact:true}).isEnabled(),false);
+  await page.evaluate(async()=>{failBoard=false;currentRole='MANAGER';fixture.canCall=false;await Bus70Maintenance.load();});assert.equal(await page.getByRole('button',{name:'점검 안내 준비',exact:true}).count(),0,'manager read-only call scope');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no page horizontal overflow');
+  assert(await page.locator('.maint-vehicle').evaluateAll(cards=>cards.every(c=>c.scrollWidth<=c.clientWidth+1)),'card contents stay within bounds');
+  if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/maintenance-board-'+width+'.png',fullPage:true});}
+  await page.evaluate(()=>{Bus70Maintenance.reset();currentRole='';authToken='';});assert.equal(await page.locator('#maintenanceBoard').isVisible(),false);assert.equal(await page.locator('#maintFleet').innerText(),'');assert.equal(await page.evaluate(()=>Object.values(localStorage).some(v=>/합성 점검|합성기사/.test(v))),false);
+  assert.deepEqual(errors,[]);await page.close();
+ }console.log('Maintenance monitor mobile/desktop layout, filters, preview, retry identity, receipts, cancellation, outage invalidation, role controls and logout privacy passed.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
