@@ -45,6 +45,13 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정 환산 약 7정류장/);
   await check('comparison '+width+'x'+height);
+  await page.evaluate(async()=>{
+   apiPost=async b=>b.operation==='noticeFeed'?{ok:true,items:[{id:'SYNTHETIC-NOTICE',kind:'NOTICE',title:'시험 긴급 공지 · 긴 제목도 한 줄 표시',message:'합성 공지 내용',priority:'URGENT',expiresAt:new Date(Date.now()+3600000).toISOString()}]}:{ok:true};
+   Bus70Notices.start();await Bus70Notices.poll();
+  });
+  await check('notice '+width+'x'+height);
+  assert.equal(await page.locator('#driverNoticeStrip').isVisible(),true);
+
   const cardsFit=await page.locator('.headway-card').evaluateAll(cards=>cards.every(card=>{const box=card.getBoundingClientRect();let bottom=box.top;return [...card.children].every(child=>{const r=child.getBoundingClientRect();const okay=child.scrollWidth<=child.clientWidth+1&&r.left>=box.left&&r.right<=box.right+1&&r.top>=bottom-1&&r.bottom<=box.bottom+1;bottom=r.bottom;return okay;});}));
   assert(cardsFit,'headway text stays within each card without overlapping at '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),4);
