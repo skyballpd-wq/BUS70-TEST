@@ -25,7 +25,7 @@
     const basis=doc.getElementById('driverPeerBasis')||element(doc,'small','peer-basis');basis.id='driverPeerBasis';
     const signals=element(doc,'div','driver-live-signals'),safety=element(doc,'span','driver-live-safety');safety.id='driverLiveSafety';
     for(const selector of ['.cockpit-now','.cockpit-head','#driverPlannedGaps']){const node=box.querySelector(selector);if(node)primary.append(node);}
-    if(ring)stage.append(ring);primary.append(stage,legend,basis);
+    if(ring)stage.append(ring.closest('.orbit-route')||ring);primary.append(stage,legend,basis);
     for(const selector of ['.orbit-stops','.cockpit-target']){const node=box.querySelector(selector);if(node)primary.append(node);}
     const recording=doc.getElementById('driverRecordingSummary');if(recording)signals.append(recording);signals.append(safety);primary.append(signals);
     primary.append(element(doc,'small','driver-scroll-hint','아래로 스크롤 · 운행기록·관리'));
@@ -41,13 +41,15 @@
       const style=root.getComputedStyle(primary);
       if(style.display==='flex'){
         const visible=Array.from(primary.children).filter(n=>!n.hidden),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
-        const minimum=Math.ceil(fixed+170+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
+        const points=Array.from(stage.querySelectorAll('.orbit-point')).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
+        const minimum=Math.ceil(fixed+170+points+4+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
         const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }else if(primary.style.minHeight)primary.style.removeProperty('min-height');
-      const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+      const track=stage.querySelector('.orbit-track')||stage;
+      const size=Math.max(0,Math.min(track.clientWidth,track.clientHeight,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
     };
     fit();
-    if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of primary.children)observer.observe(node);}
+    if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of [...primary.children,...stage.querySelectorAll('.orbit-point,.orbit-track')])observer.observe(node);}
     refresh(doc,live);
     root.Bus70Notices?.refreshStrip();
   }

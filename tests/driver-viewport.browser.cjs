@@ -27,6 +27,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    renderSchedule(false);window.scrollTo(0,0);
   });
   const check=async(label)=>{
+   // Layout is driven by ResizeObserver after a render or text-size change.
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
    const rects=await page.evaluate(()=>{
     const rect=n=>{const r=n.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};};
     const primary=document.querySelector('.driver-live-primary');
@@ -39,8 +41,23 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
+   const points=await page.evaluate(()=>{
+    const svg=document.querySelector('#driverTripProgressRing svg').getBoundingClientRect();
+    return [...document.querySelectorAll('#driverRingPoints>.orbit-point')].map(n=>{
+     const r=n.getBoundingClientRect();let right=r.left;
+     const childrenFit=[...n.children].every(c=>{const b=c.getBoundingClientRect();const fits=b.left>=right-1&&b.right<=r.right+1&&c.scrollWidth<=c.clientWidth+1;right=b.right;return fits;});
+     return {outside:n.classList.contains('depot')?r.bottom<=svg.top:r.top>=svg.bottom,childrenFit};
+    });
+   });
+   assert.equal(points.length,2);
+   assert(points.every(p=>p.outside&&p.childrenFit),label+' endpoint names/times stay outside all ticks and do not overlap each other: '+JSON.stringify(points));
   };
   await check('running '+width+'x'+height);
+  assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
+  assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
+  assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
+  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'도착 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
   await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정 환산 약 7정류장/);
@@ -84,6 +101,17 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await page.evaluate(()=>selectDriverTrip(1));assert.equal(await page.locator('.driver-live-primary').count(),0);
   assert.equal(await page.locator('body').evaluate(n=>n.classList.contains('live-first-screen')),false);
   await page.evaluate(()=>{selectDriverTrip(0);window.scrollTo(0,0);});await check('return-current '+width+'x'+height);
+  // Before departure, no live location is invented; endpoint rows still fit.
+  await page.evaluate(()=>{Bus70Notices.reset();lastSchedule.runLogs=[];lastSchedule.trips[0].startTime='10:30';lastDriverPosition=null;renderSchedule(false);window.scrollTo(0,0);});
+  await check('waiting '+width+'x'+height);
+  assert.match(await page.locator('#driverLiveSpeed').innerText(),/출발 대기/);
+  // Boundary markers at the depot and turnaround must never sit under text.
+  await page.evaluate(()=>{
+   const ring=document.getElementById('driverTripProgressRing'),plan=Bus70Cockpit.ringPlan(lastSchedule.trips[0],{turnIndex:30,stops:Array(61)});
+   Bus70Cockpit.drawRing(ring,61,31,50,false,{color:'#078564',key:'moving'},[0,30,31,60].map((index,n)=>({side:n<2?'front':'rear',index,rank:n%2+1,stopGap:1,stopName:'시험 경계 정류장'})),plan);
+  });
+  await check('boundary-markers '+width+'x'+height);
+  assert.equal(await page.locator('.route-peer').count(),4);
   await page.evaluate(()=>showLoginScreen());assert.equal(await page.locator('body').evaluate(n=>n.classList.contains('live-first-screen')),false);
   assert(await page.locator('.app>.header').isVisible());assert.deepEqual(errors,[]);await page.close();
  }
