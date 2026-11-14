@@ -36,7 +36,7 @@ console.log('Outage departure timing, walking/early/completed/identity/gap guard
 
 const page=fs.readFileSync('index.html','utf8'),worker=fs.readFileSync('sw.js','utf8');
 for(const [name,version] of [['driver-automation',896],['driver-recording',89],['driver-cockpit',896],['driver-headway',896],['road-safety',893]]){assert(page.includes(name+'.js?v='+version));assert(worker.includes(name+'.js?v='+version));}
-assert(worker.includes('soshin-ops-static-v896-actual-guidance'));
+assert(worker.includes('soshin-ops-static-v896-k1-audit'));
 
 const xml='<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>22</returnReasonCode><returnAuthMsg>LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR</returnAuthMsg></cmmMsgHeader></OpenAPI_ServiceResponse>';
 assert.equal(c.bus70GyeonggiResponse_(xml,'5',now).error,'GBIS_DAILY_LIMIT');

@@ -32,6 +32,14 @@ if(require.main===module){
   const sparse=harness(fixture()).context.bus70DbObjects_([['id'],[],['A'],[''],['B']]);assert.equal(sparse[0]._row,3);assert.equal(sparse[1]._row,5,'blank rows must not shift physical write targets');
   for(const field of [5,6,7,9]){const t=fixture();t['배차DB'][1][field]='MISSING';r=harness(t).run('5');assert.ok(r.issues.some(i=>i.code==='DISPATCH_RELATION'));}
   const t=fixture();t['운행일DB'][1][2]='70';r=harness(t).run('5');assert.equal(r.rows[0].state,'확인 필요');
+  const crossRoute=fixture();crossRoute['배차DB'][2][5]='D5';crossRoute['배차DB'][2][6]='REPLACE';
+  r=harness(crossRoute).run('5');
+  assert.equal(r.rows.length,1,'single route screen retains its scope');
+  assert.ok(r.issues.some(i=>i.message.includes('기사 노선 간 중복')&&i.message.includes('차량 노선 간 중복')),'detect conflicts against other routes even from a single route screen');
+  crossRoute['배차DB'][2][3]='A';
+  assert.equal(harness(crossRoute).run('5').issues.length,0,'opposite shifts can share a vehicle');
+  crossRoute['배차DB'][2][3]='B';crossRoute['배차DB'][2][8]='취소';
+  assert.equal(harness(crossRoute).run('5').issues.length,0,'cancelled assignment cannot create a cross-route conflict');
   const duplicate=fixture();duplicate['노선_5_배차스케줄DB_2099_01'].push(duplicate['노선_5_배차스케줄DB_2099_01'][2].slice());r=harness(duplicate).run('5');assert.ok(r.issues.some(i=>i.code==='DUPLICATE_REVISION'));assert.deepEqual(r.rows[0].tripNumbers,[7]);
   const large=fixture();for(let i=0;i<700;i++)large['기사DB'].push(['SYN-'+i,'합성기사'+i]);h=harness(large);h.run();assert.ok(Object.values(h.reads).every(n=>n===1));
   console.log('Normalized joins, route/day/version isolation, permissions, fixed vs replacement, missing links, revision conflicts and bounded per-request reads passed.');

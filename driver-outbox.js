@@ -5,7 +5,17 @@
   const binding=(driverId,body)=>[driverId,body.date,body.dispatchId,body.vehicleId].join('|');
   function plannedAt(date,time){if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{1,2}:\d{2}$/.test(String(time)))return NaN;const [y,m,d]=date.split('-').map(Number),[h,min]=time.split(':').map(Number);return h>47||min>59?NaN:Date.UTC(y,m-1,d+(h<24&&h*60+min<210?1:0),h-9,min);}
   function add(items,driverId,body){const id=binding(driverId,body),key=id+'|'+body.trip+'|'+body.event+'|'+body.observedAt;if(!items.some(i=>!i.voided&&i.binding===id&&Number(i.body.trip)===Number(body.trip)&&i.body.event===body.event)){const copy={...body};delete copy.token;items.push({key,driverId,binding:id,body:copy,delivered:false});}return items;}
-  function next(items,driverId,now){const blocked=new Set(items.filter(i=>i.driverId===driverId&&i.blocked&&!i.delivered).map(i=>i.binding));const item=items.find(i=>i.driverId===driverId&&!i.delivered&&!blocked.has(i.binding));return item&&Number(item.retryAt||0)<=now?item:null;}
+  function next(items,driverId,now){
+    const blocked=new Set(items.filter(i=>i.driverId===driverId&&i.blocked&&!i.delivered&&!i.voided).map(i=>i.binding));
+    for(const item of items){
+      if(item.driverId!==driverId||item.delivered||item.voided||blocked.has(item.binding))continue;
+      // Preserve event order within a dispatch while allowing other days or
+      // replacement vehicles to sync during this dispatch's retry delay.
+      blocked.add(item.binding);
+      if(Number(item.retryAt||0)<=now)return item;
+    }
+    return null;
+  }
   function prune(items,now){return items.filter(i=>!i.delivered||now-Number(i.body.observedAt)<172800000);}
   function overlay(items,driverId,data){if(!data?.dispatch)return;const d=data.dispatch,v=data.vehicle||{},date=data.date?.value||data.date,id=binding(driverId,{date,dispatchId:d.dispatchId||d.id,vehicleId:v.vehicleId||v.id||d.vehicleId});data.runLogs=data.runLogs||[];
     for(const log of data.runLogs){const trip=(data.trips||[]).find(t=>Number(t.trip)===Number(log.trip)),planned=plannedAt(date,trip?.startTime),text=String(log.actualStart||'').replace(' ','T'),observed=Date.parse(/[Zz]|[+-]\d{2}:?\d{2}$/.test(text)?text:text+'+09:00');if(!log.actualTurn&&!log.actualEnd&&['GPS 자동','기기 저장·전송 대기'].includes(log.startRecordMode)&&observed<planned){log.actualStart='';log.startRecordMode='';log.startDeviationMinutes='';log.status='출발대기';}}

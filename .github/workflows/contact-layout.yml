@@ -10,6 +10,8 @@ on:
       - "tests/maintenance-board*"
       - "apps-script/OperationsNotice.gs"
       - "tests/operations-notices*"
+      - "driver-outbox.js"
+      - "tests/*.test.js"
       - "driver-viewport.js"
       - "driver-viewport.css"
       - "tests/driver-viewport.browser.cjs"
@@ -56,6 +58,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Check all Node regression tests
+        run: |
+          for test in tests/*.test.js; do node "$test" || exit 1; done
       - name: Install Korean font for visual evidence
         run: |
           timeout 60s sudo apt-get update -qq -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 || true

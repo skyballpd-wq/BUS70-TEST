@@ -4,6 +4,19 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class EventOutboxTest {
+    @Test public void retryDelayPreservesOrderOnlyWithinItsDispatch() throws Exception {
+        JSONArray queue=new JSONArray();JSONObject original=schedule("D1","V1");
+        EventOutbox.add(queue,original,event("DEPART",100000));
+        EventOutbox.add(queue,original,event("ARRIVE",200000));
+        queue.getJSONObject(0).put("retryAt",400000);
+        EventOutbox.add(queue,schedule("D1","V2"),event("DEPART",300000));
+        assertSame(queue.getJSONObject(2),EventOutbox.next(queue,"D1",300000));
+        queue.getJSONObject(2).put("delivered",true);
+        assertNull(EventOutbox.next(queue,"D1",300000));
+        assertSame(queue.getJSONObject(0),EventOutbox.next(queue,"D1",400000));
+        queue.getJSONObject(0).put("voided",true).put("blocked",true);
+        assertSame(queue.getJSONObject(1),EventOutbox.next(queue,"D1",300000));
+    }
     @Test public void responsePersistsOriginalTimeAndPreservesEventsQueuedDuringRequest()throws Exception {
         JSONArray q=new JSONArray();JSONObject s=schedule("D1","V1");
         EventOutbox.add(q,s,event("TURN",100000));String key=q.getJSONObject(0).getString("key");

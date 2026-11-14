@@ -21,7 +21,7 @@ vm.runInContext(fs.readFileSync('apps-script/Route5Schedule.gs','utf8'),c);
 c.normalizeDate_=x=>String(x||'');
 const trip={sequence:7,trip:6,startPlace:'가상차고지',startTime:'22:00',turnPlace:'가상회차지',turnTime:'00:05',endPlace:'가상차고지',endTime:'00:30'};
 const result=c.bus70Route5ApplyTripException_(trip,{controlPoint:'가상 기준점',controlTime:'00:05',controlPurpose:'기준시각 준수'});
-assert.equal(result.turnTime,'');assert.equal(result.turnPlace,'');assert.equal(result.controlTime,'00:05');
+assert.equal(result.turnTime,'');assert.equal(result.turnPlace,'가상회차지','retain physical turn when the control timestamp replaces only its planned time');assert.equal(result.controlTime,'00:05');
 const missing=c.bus70Route5PhaseMissingFields_(result,{firstScheduledTrips:{},firstTripOrigins:{},turnPlace:'가상회차지',defaultOrigin:'가상차고지'});assert.equal(missing.length,0);
 const headers=c.bus70RoutePartitionHeaders_('schedule'),row=headers.map(()=>''),map=Object.fromEntries(headers.map((h,i)=>[h,i]));row[map['시간기준지']]='가상 기준점';row[map['시간기준시각']]='00:05';assert.equal(c.bus70RouteScheduleTripFromRow_(row,map).controlPoint,'가상 기준점');
 console.log('Pilot readiness tests passed');
