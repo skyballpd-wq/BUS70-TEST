@@ -71,6 +71,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
     while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push(node.textContent);}
     return {outside,overlaps,textOutside,secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
    });
+   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
    assert.deepEqual(result.outside,[],label+' child overflow');assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks');assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
   };
   await check('running '+width+'x'+height);
@@ -127,7 +128,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await contained('terminal '+width+'x'+height);
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/terminal-'+width+'x'+height+'.png',fullPage:false});
   await page.setViewportSize({width:height,height:width});await contained('rotated '+width+'x'+height);
-  await page.setViewportSize({width,height});
+  await page.setViewportSize({width,height});await contained('restored '+width+'x'+height);
   await page.evaluate(()=>{for(const n of document.querySelectorAll('.driver-live-primary *'))if([...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim()))n.style.setProperty('font-size',parseFloat(getComputedStyle(n).fontSize)*1.2+'px','important');});
   await contained('enlarged '+width+'x'+height);
   await page.evaluate(()=>{Object.assign(lastSchedule.trips[0],{turnPlace:'삼정종합사회복지회관',turnTime:'11:00',endPlace:'고강공영차고지',serviceEndPlace:'',deadheadDestination:'',endLocation:null});renderSchedule(false);window.scrollTo(0,0);});
