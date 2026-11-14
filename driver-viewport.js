@@ -66,14 +66,14 @@
       if(style.display==='flex'){
         const fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+height(n),0);
         const minimum=Math.ceil(fixed+minimumRing+pointHeight+4+padding+Math.max(0,visible.length-1)*gap);
-        const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
+        const value='max(100svh, '+Math.max(500,minimum)+'px)';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }else if(style.display==='grid'){
         const right=visible.filter(n=>root.getComputedStyle(n).gridColumnStart==='2');
         const rightHeight=right.reduce((sum,n)=>sum+height(n),0)+Math.max(0,right.length-1)*gap;
         const leftHeight=minimumRing+pointHeight+4+height(legend)+height(basis)+2*gap;
         // Fixed viewport height is only a target. Enlarged text/long station
         // names must grow the panel, never paint over the records below it.
-        const value=Math.max(340,Math.ceil(Math.max(leftHeight,rightHeight)+padding))+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
+        const value='max(100svh, '+Math.max(340,Math.ceil(Math.max(leftHeight,rightHeight)+padding))+'px)';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }
       const stageMinimum=minimumRing+pointHeight+4+'px';if(stage.style.minHeight!==stageMinimum)stage.style.minHeight=stageMinimum;
       const size=Math.max(0,Math.min(stage.clientWidth,Math.max(minimumRing,stage.clientHeight-pointHeight-4),380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
