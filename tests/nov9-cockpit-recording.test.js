@@ -18,6 +18,18 @@ assert.equal(plan.depot.before,'출발 17:00');assert.equal(plan.depot.after,'�
 assert.equal(back.depot.before,'');assert.equal(back.depot.after,'도착 06:30');assert.equal(back.turn.after,'출발 05:15');
 assert.equal(ui.shortVehicle({displayNo:'시험00가0001',vehicleNo:'001'}),'0001호');
 assert.equal(ui.ringPlan({startPlace:'송내역',endPlace:'고강공영차고지',startTime:'05:30',endTime:'06:40'},{turnIndex:-1,stops:[]}).span,180);
+// A truncated final service ends at a terminal, then has a separate depot return.
+const terminal={startPlace:'고강공영차고지',endPlace:'시험산업단지 정류소',serviceEndPlace:'시험산업단지 정류소',deadheadDestination:'고강공영차고지',startTime:'21:00',endTime:'22:00'};
+for(const course of [null,{turnIndex:-1,stops:Array(80)}]){
+ const endPlan=ui.ringPlan(terminal,course);
+ assert.equal(endPlan.depot.name,terminal.startPlace);assert.equal(endPlan.depot.before,'출발 21:00');assert.equal(endPlan.depot.after,'');
+ assert.equal(endPlan.turn.name,terminal.endPlace);assert.equal(endPlan.turn.after,'영업종료 22:00');assert.equal(endPlan.turn.shortName,'시험산업단지');
+ assert.equal(ui.ringAngle(0,endPlan),-90);assert.equal(ui.ringAngle(1,endPlan),90);
+ assert.equal(ui.travelDirection(terminal,{direction:'회차 방면'}),'시험산업단지 방면');
+}
+assert.equal(ui.travelDirection(trip,{direction:'고강공영차고지 방면'}),'고강차고지 방면');
+assert.equal(ui.phases(terminal,{}).at(-1).label,'차고지 복귀');
+assert.equal(ui.phases(terminal,{}).at(-2).label,'영업 종료');
 const fleet={requestScope:'SYN',crossCheck:{available:true,fetchedAt:now-1000}};
 assert.equal(ui.retainedReference(fleet,'SYN',now),fleet.crossCheck);assert.equal(ui.retainedReference(fleet,'OTHER',now),null);assert.equal(ui.retainedReference(fleet,'SYN',now+60001),null);assert.equal(ui.retainedReference(fleet,'SYN',now-2000),null);
 assert.match(ui.peerStatus({crossCheck:{error:'GBIS_HTTP_429'}},{configured:true},{running:true},[],now),/요청 제한/);

@@ -59,7 +59,22 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert.equal(points.length,2);
    assert(points.every(p=>p.outside&&p.childrenFit),label+' endpoint names/times stay outside all ticks and do not overlap each other: '+JSON.stringify(points));
   };
+
+  const contained=async(label)=>{
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const result=await page.evaluate(()=>{
+    const primary=document.querySelector('.driver-live-primary'),bounds=primary.getBoundingClientRect(),secondary=document.querySelector('.driver-live-secondary').getBoundingClientRect();
+    const nodes=[...primary.children].filter(n=>!n.hidden&&getComputedStyle(n).display!=='none'&&getComputedStyle(n).visibility!=='hidden').map(n=>({id:n.id||n.className,r:n.getBoundingClientRect()}));
+    const outside=nodes.filter(({r})=>r.top<bounds.top-1||r.bottom>bounds.bottom+1||r.left<bounds.left-1||r.right>bounds.right+1).map(n=>n.id);
+    const overlaps=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];if(Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>1&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>1)overlaps.push([a.id,b.id]);}
+    const ring=document.getElementById('driverTripProgressRing').getBoundingClientRect(),center=document.querySelector('.orbit-center'),walker=document.createTreeWalker(center,NodeFilter.SHOW_TEXT),textOutside=[];
+    while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push(node.textContent);}
+    return {outside,overlaps,textOutside,secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
+   });
+   assert.deepEqual(result.outside,[],label+' child overflow');assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks');assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
+  };
   await check('running '+width+'x'+height);
+  await contained('running '+width+'x'+height);
   assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
   assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
   assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
@@ -94,6 +109,28 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await check('outage '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),0);
   assert.match(await page.locator('#driverPeerBasis').innerText(),/연결 실패/);
+  // Field regressions: one-way final service, missing speed, a long status,
+  // orientation change and enlarged text. All values are synthetic.
+  await page.evaluate(()=>{
+   const trip=lastSchedule.trips[0];Object.assign(trip,{turnPlace:'',turnTime:'',endPlace:'시험산업단지 정류소',serviceEndPlace:'시험산업단지 정류소',deadheadDestination:'고강공영차고지',endLocation:{lat:37.05,lng:127}});
+   lastSchedule.routeProfile.stops[50].name=trip.endPlace;
+   lastDriverPosition={timestamp:Date.now(),coords:{latitude:37.049,longitude:127,accuracy:3,speed:null}};
+   routeNavigationState=()=>({configured:true,timestamp:Date.now(),matchedIndex:49,tripPassedStops:50,tripStopCount:51,tripProgressPercent:97,previousStop:'시험아파트.청소년문화센터',nextStop:'시험산업단지 정류소',direction:'회차 방면'});
+   renderSchedule(false);window.scrollTo(0,0);
+   document.querySelector('#driverRoadSafety .road-safety-status').textContent='보호시설 인근 안내 · 제한속도 미확인 · 안내 음성은 설치본 업데이트 필요';Bus70Viewport.refresh(document,true);
+  });
+  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'');
+  assert.equal(await page.locator('.orbit-point.turn .after').innerText(),'영업종료 12:00');
+  assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
+  assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
+  await contained('terminal '+width+'x'+height);
+  if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/terminal-'+width+'x'+height+'.png',fullPage:false});
+  await page.setViewportSize({width:height,height:width});await contained('rotated '+width+'x'+height);
+  await page.setViewportSize({width,height});
+  await page.evaluate(()=>{for(const n of document.querySelectorAll('.driver-live-primary *'))if([...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim()))n.style.setProperty('font-size',parseFloat(getComputedStyle(n).fontSize)*1.2+'px','important');});
+  await contained('enlarged '+width+'x'+height);
+  await page.evaluate(()=>{Object.assign(lastSchedule.trips[0],{turnPlace:'삼정종합사회복지회관',turnTime:'11:00',endPlace:'고강공영차고지',serviceEndPlace:'',deadheadDestination:'',endLocation:null});renderSchedule(false);window.scrollTo(0,0);});
   // Scrolling is deliberately possible; all work controls remain reachable.
   await page.locator('.quick-run-actions').scrollIntoViewIfNeeded();
   assert(await page.evaluate(()=>scrollY>0));

@@ -23,7 +23,7 @@
 .driver-mode .driver-live-primary .orbit-ring{width:180px;max-width:100%;height:auto;margin:0;aspect-ratio:1}
 .driver-live-primary .orbit-point strong{font-size:12px}
 .driver-live-primary .orbit-point span{font-size:11px}
-.driver-live-primary .orbit-ring>.orbit-center{inset:24% 13%;gap:2px}
+.driver-live-primary .orbit-ring>.orbit-center{inset:22% 17%;gap:2px}
 .driver-live-primary .orbit-progress{font-size:12px;line-height:1.35}
 .driver-mode .driver-live-primary .ring-peer-label{margin:0;font-size:12px;line-height:1.3}
 .driver-mode .driver-live-primary .peer-basis{margin:0;font-size:11px;line-height:1.3}
@@ -99,7 +99,6 @@
   .driver-live-primary .headway-card small{font-size:12px}
   .driver-live-primary .orbit-point strong{font-size:16px}
   .driver-live-primary .orbit-point span,.driver-live-primary .orbit-progress{font-size:15px}
-  .driver-live-primary .orbit-ring .orbit-speed{font-size:44px!important}
   .driver-mode .driver-live-primary .orbit-stops strong{font-size:18px}
   .driver-mode .driver-live-primary .cockpit-target strong{font-size:16px}
   .driver-mode .driver-live-primary .recording-summary,.driver-live-primary .driver-live-safety{font-size:13px}
@@ -107,6 +106,11 @@
 
 .driver-mode .driver-live-primary .headway-title strong.unknown{font-size:14px}
 .driver-mode .driver-live-primary .orbit-stops strong{display:block;-webkit-line-clamp:unset;overflow:visible}
+
+/* The centre scales with the measured circle, including unknown speed. */
+.driver-live-primary .orbit-ring .orbit-speed{font-size:clamp(22px,calc(var(--ring-size, 180px) * .14),44px)!important}
+.driver-live-primary .orbit-ring .orbit-speed.waiting{font-size:clamp(20px,calc(var(--ring-size, 180px) * .11),30px)!important}
+.driver-live-primary .orbit-ring .orbit-progress{font-size:clamp(10px,calc(var(--ring-size, 180px) * .055),15px);line-height:1.3;overflow-wrap:anywhere;word-break:keep-all}
 
 /* Endpoint rows occupy their own space, outside every tick and vehicle marker. */
 .orbit-route{display:flex;flex-direction:column;gap:2px;max-width:380px;width:100%;margin:0 auto;min-width:0}

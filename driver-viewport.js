@@ -2,6 +2,11 @@
 (function(root){
   let observer;
   function element(doc,tag,cls,text){const node=doc.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;}
+  function safetySummary(text){
+    // Keep actionable status on the live panel; installation diagnostics remain
+    // in the safety controls immediately below it, without hiding the warning.
+    return String(text||'').replace(/ · 안내 음성은 설치본 업데이트 필요/g,' · 음성 업데이트 필요').replace(/ · 설치형 음성| · 화면 켜짐 중 음성/g,'').replace(/보호시설 인근 안내/g,'보호시설 주의');
+  }
   function refresh(doc,live){
     doc.body.classList.toggle('live-first-screen',Boolean(live&&doc.body.classList.contains('driver-mode')));
     doc.querySelector('.driver-live-primary')?.classList.toggle('inactive',!live);
@@ -9,7 +14,7 @@
     if(status&&source){
       const arrival=doc.getElementById('driverArrivalEstimate');
       const conflict=doc.querySelector('.driver-live-secondary>.notice.warning');
-      const text=conflict?'배차·휴무 확인 필요 · 아래 상세 확인':arrival?.classList.contains('early-warning')?'10분 이상 조기 도착 예상 · 운행시각 확인':source.textContent;
+      const text=conflict?'배차·휴무 확인 필요 · 아래 상세 확인':arrival?.classList.contains('early-warning')?'10분 이상 조기 도착 예상 · 운행시각 확인':safetySummary(source.textContent);
       if(status.textContent!==text)status.textContent=text;
       status.classList.toggle('warning',Boolean(conflict||arrival?.classList.contains('early-warning')||doc.getElementById('driverRoadSafety')?.classList.contains('warning')));
     }
@@ -40,12 +45,22 @@
       if(!ring||!stage.isConnected)return;
       const style=root.getComputedStyle(primary);
       const pointHeight=Array.from(stage.querySelectorAll('.orbit-point')).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
+      const visible=Array.from(primary.children).filter(n=>!n.hidden&&root.getComputedStyle(n).display!=='none'&&root.getComputedStyle(n).visibility!=='hidden');
+      const height=n=>n.getBoundingClientRect().height,padding=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom),gap=parseFloat(style.rowGap)||0;
       if(style.display==='flex'){
-        const visible=Array.from(primary.children).filter(n=>!n.hidden&&root.getComputedStyle(n).display!=='none'),fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+n.getBoundingClientRect().height,0);
-        const minimum=Math.ceil(fixed+170+pointHeight+4+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+Math.max(0,visible.length-1)*parseFloat(style.rowGap));
+        const fixed=visible.filter(n=>n!==stage).reduce((sum,n)=>sum+height(n),0);
+        const minimum=Math.ceil(fixed+170+pointHeight+4+padding+Math.max(0,visible.length-1)*gap);
         const value=Math.max(500,minimum)+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
-      }else if(primary.style.minHeight)primary.style.removeProperty('min-height');
+      }else if(style.display==='grid'){
+        const right=visible.filter(n=>root.getComputedStyle(n).gridColumnStart==='2');
+        const rightHeight=right.reduce((sum,n)=>sum+height(n),0)+Math.max(0,right.length-1)*gap;
+        const leftHeight=170+pointHeight+4+height(legend)+height(basis)+2*gap;
+        // Fixed viewport height is only a target. Enlarged text/long station
+        // names must grow the panel, never paint over the records below it.
+        const value=Math.max(340,Math.ceil(Math.max(leftHeight,rightHeight)+padding))+'px';if(primary.style.minHeight!==value)primary.style.minHeight=value;
+      }
       const size=Math.max(0,Math.min(stage.clientWidth,stage.clientHeight-pointHeight-4,380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+      const actual=ring.getBoundingClientRect().width+'px';if(ring.style.getPropertyValue('--ring-size')!==actual)ring.style.setProperty('--ring-size',actual);
     };
     fit();
     if(typeof root.ResizeObserver==='function'){observer=new root.ResizeObserver(fit);observer.observe(stage);for(const node of [...primary.children,...stage.querySelectorAll('.orbit-point,.orbit-track')])observer.observe(node);}

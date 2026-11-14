@@ -157,10 +157,28 @@
   }
   function ringPlan(trip,path){
     const samjeong=s=>/삼정.*(복지회관|복지관)/.test(String(s||''));
-    const returningOnly=path?.turnIndex<0&&/고강/.test(trip.endPlace)&&!/고강/.test(trip.startPlace);
+    const oneWay=!trip.turnTime&&!trip.turnPlace&&Boolean(trip.startPlace&&trip.endPlace&&trip.startPlace!==trip.endPlace);
+    const returningOnly=oneWay&&/고강/.test(trip.endPlace)&&!/고강/.test(trip.startPlace);
+    if(oneWay&&!returningOnly){
+      const end=trip.serviceEndPlace||trip.endPlace,label=trip.deadheadDestination&&trip.deadheadDestination!==end?'영업종료':'도착';
+      return {startAngle:-90,span:180,turnFraction:null,returningOnly:false,oneWay:true,
+        depot:{name:trip.startPlace,shortName:shortPoint(trip.startPlace),before:'출발 '+(trip.startTime||'—'),after:'',time:'출발 '+(trip.startTime||'—')},
+        turn:{name:end,shortName:shortPoint(end),before:'',after:label+' '+(trip.endTime||'—'),time:label+' '+(trip.endTime||'—')}};
+    }
     return {startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:path?.turnIndex>0?path.turnIndex/(path.stops.length-1):null,
       depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',shortName:/고강/.test(trip.endPlace||trip.startPlace)?'고강차고지':trip.endPlace||trip.startPlace||'도착지',before:returningOnly?'':'출발 '+(trip.startTime||'—'),after:'도착 '+(trip.endTime||'—'),time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
       turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',shortName:samjeong(trip.turnPlace||trip.startPlace)?'삼정복지회관':trip.turnPlace||trip.startPlace||'출발지',before:'',after:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—'),time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—')},returningOnly};
+  }
+  function shortPoint(name){
+    if(/고강.*차고지/.test(name||''))return '고강차고지';
+    if(/삼정.*(복지회관|복지관)/.test(name||''))return '삼정복지회관';
+    return String(name||'').replace(/\s*정류소$/,'');
+  }
+  // A planned one-way service has no turnaround, including on older native apps.
+  // This changes display text only; navigation evidence and recording stay intact.
+  function travelDirection(trip,navigation){
+    if(!trip.turnTime&&!trip.turnPlace&&trip.startPlace&&trip.endPlace&&trip.startPlace!==trip.endPlace)return shortPoint(trip.serviceEndPlace||trip.endPlace)+' 방면';
+    return String(navigation.direction||'방향 확인 중').replace(/고강공영차고지/g,'고강차고지');
   }
   function weatherView(weather,now){
     const valid=weatherLabel(weather,now).includes('°C'),condition=valid?String(weather.condition||''):'';
@@ -213,5 +231,5 @@
     }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {shortVehicle,ringPlan,ringAngle,weatherView,renderWeather,peerStatus,retainedReference,phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
+  return {shortVehicle,ringPlan,ringAngle,travelDirection,weatherView,renderWeather,peerStatus,retainedReference,phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });
