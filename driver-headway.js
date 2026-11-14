@@ -50,7 +50,7 @@
       const actual=doc.createElement('b');actual.className='headway-actual';actual.textContent=m.actual;
       const detail=doc.createElement('small');detail.textContent=m.target+(m.second?' · '+(m.side==='front'?'앞2 ':'뒤2 ')+(m.second.fresh===false?'이전 위치':m.second.stopGap+'정류장'):'');
       const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent='혼잡도 '+m.crowding;crowd.dataset.level=m.crowding;
-      item.append(top,identity,actual,crowd,detail);item.title=[m.estimate,'권장 간격은 최근 정류장 통과시간과 예정 배차간격으로 환산',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 기준'].filter(Boolean).join(' · ');host.append(item);
+      label.append(crowd);item.append(top,identity,actual,detail);item.title=[m.estimate,'권장 간격은 최근 정류장 통과시간과 예정 배차간격으로 환산',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 기준'].filter(Boolean).join(' · ');host.append(item);
     }
   }
   function warning(models,state,now,active){
