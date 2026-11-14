@@ -76,6 +76,8 @@ jobs:
           node tests/schedule-controls.browser.cjs
           node tests/mobile-compat.test.js
           node tests/mobile-compat.browser.cjs
+          node tests/live-trip-guidance.test.js
+          node tests/gbis-outage-recovery.test.js
           node tests/driver-viewport.browser.cjs
           node tests/maintenance-board.test.js
           node tests/maintenance-board-client.test.js
@@ -159,6 +161,8 @@ jobs:
         run: |
           export NODE_PATH="$RUNNER_TEMP/ios-compat/node_modules"
           node tests/mobile-compat.browser.cjs
+          node tests/live-trip-guidance.test.js
+          node tests/gbis-outage-recovery.test.js
           node tests/driver-viewport.browser.cjs
           node tests/maintenance-board.test.js
           node tests/maintenance-board-client.test.js

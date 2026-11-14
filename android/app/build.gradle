@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 91
-        versionName "0.91-operations-notices"
+        versionCode 92
+        versionName "0.92-actual-trip-guidance"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

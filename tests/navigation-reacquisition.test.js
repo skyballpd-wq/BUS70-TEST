@@ -27,6 +27,6 @@ const snapshot={...recovered,trip:3,date:'2099-01-08',...binding};
 c.restoreNativeNavigation({versionCode:71,navigation:snapshot});assert.equal(map.size,1);assert.equal([...map.values()][0].fraction,15);
 for(const changed of [{vehicleId:'OTHER'},{dispatchId:'OTHER'},{date:'2099-01-09'},{trip:2}]){map.clear();c.restoreNativeNavigation({versionCode:71,navigation:{...snapshot,...changed}});assert.equal(map.size,0);}
 // Payload must retain the road pivot separately from the operating turnaround.
-c.authToken='SYNTHETIC';c.currentDriverId='SYN';c.driverAlertSettings={};c.normalizeScheduleTrips=t=>t;c.endOfShiftMeta=()=>null;c.isElectricSchedule=()=>false;c.hasNumericValue=v=>Number.isFinite(Number(v));c.runLogForTrip=()=>log;c.tripLocationPoint=()=>null;c.API_URL='synthetic';vm.runInContext(extract('nativeSchedulePayload'),c);
+c.authToken='SYNTHETIC';c.currentDriverId='SYN';c.driverAlertSettings={};c.normalizeScheduleTrips=t=>t;c.endOfShiftMeta=()=>null;c.isElectricSchedule=()=>false;c.hasNumericValue=v=>Number.isFinite(Number(v));c.runLogForTrip=()=>log;c.tripLocationPoint=()=>null;c.API_URL='synthetic';c.roadSafetySelected=()=>false;vm.runInContext(extract('nativeSchedulePayload'),c);
 const payload=c.nativeSchedulePayload(data);assert.equal(payload.trips[0].course.pivotIndex,57);assert.equal(payload.trips[0].course.turnIndex,55);
 console.log('Field stop reacquisition, stale/foreign hints, slow movement, background continuity and distinct native pivots passed');

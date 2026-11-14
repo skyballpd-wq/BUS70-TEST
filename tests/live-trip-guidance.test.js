@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const automation=require('../driver-automation'),cockpit=require('../driver-cockpit'),headway=require('../driver-headway');
+const stops=require('./route5-public-stops.json');
+const trip={startPlace:stops[0].name,turnPlace:stops[55].name,endPlace:stops.at(-1).name,startTime:'10:00',turnTime:'11:00',endTime:'12:00'};
+const path=automation.course(trip,stops);assert.equal(path.turnIndex,55);assert.equal(path.pivotIndex,57);
+const plan=cockpit.ringPlan(trip,path);assert.equal(plan.turn.shortName,'테크노파크');assert.match(plan.turn.after,/삼정 기준 11:00/);assert.equal(cockpit.ringAngle(57/(stops.length-1),plan),90);
+const outward={...trip,turnPlace:'',turnTime:'',endPlace:stops[57].name,deadheadDestination:stops[0].name};
+const short=automation.course(outward,stops);const outPlan=cockpit.ringPlan(outward,short);assert.equal(outPlan.span,180);assert.equal(cockpit.ringAngle(0,outPlan),-90);assert.equal(cockpit.ringAngle(1,outPlan),90);assert.match(outPlan.turn.after,/영업종료/);
+const inward={...trip,startPlace:stops[55].name,turnPlace:'',turnTime:''};const back=automation.course(inward,stops);const backPlan=cockpit.ringPlan(inward,back);assert.equal(back.pivotIndex,2);assert.equal(backPlan.span,180);assert.equal(cockpit.ringAngle(0,backPlan),90);assert.equal(cockpit.ringAngle(1,backPlan),270);
+const partial=automation.course({...outward,endPlace:stops[56].name},stops);assert.equal(partial.pivotIndex,-1,'pivot outside selected course is not an in-course turn');
+const now=Date.parse('2099-01-01T10:00:00+09:00'),scope={route:'5',date:'2099-01-01',vehicleId:'SYN-OWN',running:true};
+const ref={available:true,fleet:[56,57,59].map((i,n)=>({source:'GYEONGGI_BUS_LOCATION_V2',positionBasis:'PROVIDER_STOP_REFERENCE',vehicleId:'SYN-'+n,route:'5',date:scope.date,matchedStopOrder:stops[i].order,stateCd:1,crowded:n+2,fetchedAt:now}))};
+let fleet={route:'5',date:scope.date,crossCheck:ref};
+let peers=cockpit.ringPeers(path,fleet,{configured:true,matchedIndex:54},scope,now);
+assert.equal(peers.length,2,'Samjeong schedule point must not hide outbound Techno buses');assert.deepEqual(peers.map(p=>p.crowded),[2,3]);
+assert.equal(headway.model('front',{},fleet,peers,{}).crowding,'보통');
+for(const [crowded,label] of [[1,'여유'],[2,'보통'],[3,'혼잡'],[4,'매우혼잡'],[null,'미수신'],[0,'미수신'],[5,'미수신']])assert.equal(headway.model('front',{},fleet,[{side:'front',rank:1,fresh:true,crowded}],{}).crowding,label);
+fleet={...fleet,lastCrossCheck:ref,crossCheck:{error:'GBIS_HTTP_429'},positions:[{running:true,vehicleId:'SYN-0',route:'5',date:scope.date,matchedStopOrder:57,recordedAt:new Date(now).toISOString(),accuracyM:3}]};
+peers=cockpit.ringPeers(path,fleet,{configured:true,matchedIndex:54},scope,now);
+assert(peers[0].fresh&&!peers[0].reference);assert.equal(headway.model('front',{},fleet,peers,{}).crowding,'미수신');assert.match(cockpit.peerStatus(fleet,{},scope,peers,now),/앱 GPS/);
+const c=vm.createContext({console});vm.runInContext(fs.readFileSync('apps-script/PublicTransitApi.gs','utf8'),c);
+for(const code of ['1','2','3','4','',null,0,5]){const value=c.bus70GyeonggiLiveParse_({response:{msgHeader:{resultCode:0},msgBody:{busLocationList:[{routeId:'TEST',plateNo:'SYN',stationSeq:1,stateCd:1,crowded:code}]}}},'TEST',now).items[0].crowded;assert.equal(value,[1,2,3,4].includes(Number(code))?Number(code):null);}
+console.log('Physical pivot vs timetable control, both one-way arcs, fresh crowding and independent phone GPS passed');

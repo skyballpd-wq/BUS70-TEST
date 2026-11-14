@@ -35,12 +35,13 @@
     const digits=String(plate).match(/(\d{4})\s*$/),vehicle=digits?digits[1]+'호':plate?'차량 확인 중':'차량 대기';
     const c=comparison(peer,planned,state);
     return {side,peer,second,planned,comparison:c,identity:vehicle+' · '+name,
+      crowding:peer?.fresh!==false&&[1,2,3,4].includes(peer?.crowded)?['','여유','보통','혼잡','매우혼잡'][peer.crowded]:'미수신',
       actual:peer?(peer.fresh===false?'이전 위치 · '+peer.age+'초 전':'실제 '+peer.stopGap+'정류장'):'실제 간격 수신 대기',
       target:c.targetStops===null?'관측 중': '예정 환산 약 '+c.targetStops+'정류장',
       estimate:c.estimatedMinutes===null?'':'약 '+c.estimatedMinutes+'분 추정'};
   }
   function render(host,models){
-    const key=JSON.stringify(models.map(m=>[m.identity,m.actual,m.target,m.planned,m.comparison.status,m.second?.stopGap,m.second?.fresh]));
+    const key=JSON.stringify(models.map(m=>[m.identity,m.actual,m.crowding,m.target,m.planned,m.comparison.status,m.second?.stopGap,m.second?.fresh]));
     if(host.dataset.headway===key)return;host.dataset.headway=key;host.replaceChildren();
     for(const m of models){
       const doc=host.ownerDocument,item=doc.createElement('div');item.className='headway-card '+m.side+' '+m.comparison.status;
@@ -48,7 +49,8 @@
       const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=m.identity;
       const actual=doc.createElement('b');actual.className='headway-actual';actual.textContent=m.actual;
       const detail=doc.createElement('small');detail.textContent=m.target+(m.second?' · '+(m.side==='front'?'앞2 ':'뒤2 ')+(m.second.fresh===false?'이전 위치':m.second.stopGap+'정류장'):'');
-      item.append(top,identity,actual,detail);item.title=[m.estimate,'권장 간격은 최근 정류장 통과시간과 예정 배차간격으로 환산',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 기준'].filter(Boolean).join(' · ');host.append(item);
+      const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent='혼잡도 '+m.crowding;crowd.dataset.level=m.crowding;
+      item.append(top,identity,actual,crowd,detail);item.title=[m.estimate,'권장 간격은 최근 정류장 통과시간과 예정 배차간격으로 환산',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 기준'].filter(Boolean).join(' · ');host.append(item);
     }
   }
   function warning(models,state,now,active){

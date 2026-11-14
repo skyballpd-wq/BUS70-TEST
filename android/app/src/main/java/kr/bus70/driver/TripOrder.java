@@ -28,7 +28,7 @@ final class TripOrder {
     }
     static long observedMoment(String date,String value){
         try {
-            if(value.matches("\\d{1,2}:\\d{2}(:\\d{2})?"))return moment(date,value.split(":")[0]+":"+value.split(":")[1]);
+            if(value.matches("\\d{1,2}:\\d{2}(:\\d{2})?")){String[] parts=value.split(":");int seconds=parts.length>2?Integer.parseInt(parts[2]):0;long base=moment(date,parts[0]+":"+parts[1]);return base>0&&seconds<60?base+seconds*1000L:0;}
             String iso=value.replace(' ','T');
             if(iso.matches(".*([Zz]|[+-]\\d{2}:?\\d{2})$"))return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
             return LocalDateTime.parse(iso).atZone(ZoneId.of("Asia/Seoul")).toInstant().toEpochMilli();

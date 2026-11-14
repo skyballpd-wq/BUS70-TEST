@@ -11,9 +11,11 @@ final class AlarmPolicy {
     static boolean started(JSONObject trip){
         return trip!=null&&(!trip.optString("actualStart").isEmpty()||!trip.optString("actualEnd").isEmpty());
     }
-    static String receiptKey(JSONObject alarm){return alarm.optString("key",String.valueOf(alarm.optInt("id")))+"@"+alarm.optLong("at");}
-    static boolean future(JSONObject alarm,long now,JSONObject receipts){return alarm.optLong("at")>now&&!receipts.has(receiptKey(alarm));}
+    static boolean completion(JSONObject alarm){return alarm.optString("type").startsWith("ACTUAL_END_")||alarm.optString("type").startsWith("ACTUAL_RETURN_");}
+    static String receiptKey(JSONObject alarm){return alarm.optString("key",String.valueOf(alarm.optInt("id")))+(completion(alarm)?"":"@"+alarm.optLong("at"));}
+    static boolean future(JSONObject alarm,long now,JSONObject receipts){return !completion(alarm)&&alarm.optLong("at")>now&&!receipts.has(receiptKey(alarm));}
     static boolean due(JSONObject alarm,long now,JSONObject receipts){
+        if(alarm.optString("type").equals("END_OF_SHIFT")||alarm.optString("type").startsWith("BREAK_CHARGE_"))return false;
         long at=alarm.optLong("at");return at>0&&now>=at&&now-at<=MAX_DELAY_MS&&!receipts.has(receiptKey(alarm));
     }
     static boolean contains(JSONArray alarms,JSONObject candidate){
@@ -45,10 +47,18 @@ final class AlarmPolicy {
             String preparation=sequence+"순차 "+no+"탕 출발 준비 시간입니다. 출발 예정 "+trip.getString("startTime")+"."+(payload.optBoolean("electricVehicle",false)&&i>0?" 휴식 충전을 했다면 충전잭 분리와 출발 준비를 확인하십시오.":"");
             if(!AlarmPolicy.started(trip))addOffsets(result,"TRIP_"+no,start,tripMinutes,route+"번 "+no+"탕 준비",preparation,soundUri,payload);
             if(!AlarmPolicy.started(trip)&&payload.optBoolean("exact",true))add(result,"EXACT_"+no,start,route+"번 "+no+"탕 출발",sequence+"순차 "+no+"탕 출발 예정 시각입니다.",soundUri,payload);
-            if(payload.optBoolean("electricVehicle",false)&&i<trips.length()-1){long end=moment(date,trip.optString("endTime",trip.getString("startTime")));add(result,"BREAK_CHARGE_"+no,end,"전기버스 휴식 충전 선택",no+"탕 운행을 마쳤습니다. 배터리 상태와 대기시간을 확인하여 필요한 경우 충전잭을 연결하십시오. 운행 중 휴식 충전은 기사 판단 사항입니다.",soundUri,payload);}
+            long actualEnd=TripOrder.observedMoment(date,trip.optString("actualEnd"));
+            boolean last=i==trips.length()-1,returning=!trip.optString("deadheadDestination").isEmpty()&&!trip.optString("deadheadDestination").equals(trip.optString("endPlace"));
+            if(actualEnd>0&&trip.optString("deadheadReturnedAt").isEmpty()&&(last||payload.optBoolean("electricVehicle",false))){
+                String clock=java.time.Instant.ofEpochMilli(actualEnd).atZone(java.time.ZoneId.of("Asia/Seoul")).format(java.time.format.DateTimeFormatter.ofPattern("H시 m분"));
+                String message=clock+", "+no+"탕 "+(last?"영업운행":"운행")+" 종료가 기록되었습니다. ";
+                if(last)message+=returning?trip.optString("deadheadDestination")+"로 복귀한 뒤 차량 점검과 퇴근 절차를 확인해 주세요.":"차량 점검과 퇴근 절차를 확인해 주세요.";
+                if(payload.optBoolean("electricVehicle",false))message+=last?" 차고지 복귀 후 충전 상태를 확인해 주세요.":"배터리 상태와 다음 탕까지의 시간을 확인해 주세요.";
+                add(result,"ACTUAL_END_"+no,actualEnd,last?"막탕 실제 영업 종료":"실제 운행 종료",message,soundUri,payload);
+            }
+            long returned=TripOrder.observedMoment(date,trip.optString("deadheadReturnedAt"));
+            if(last&&actualEnd>0&&returning&&returned>=actualEnd)add(result,"ACTUAL_RETURN_"+no,returned,"차고지 실제 복귀","차고지 복귀가 기록되었습니다. 차량 점검과 퇴근 절차를 확인해 주세요.",soundUri,payload);
         }
-        JSONObject finish=payload.optJSONObject("endOfShift");
-        if(finish!=null){JSONObject last=trips.getJSONObject(trips.length()-1);long end=moment(date,last.optString("endTime",last.getString("startTime")));String endPlace=finish.optString("serviceEndPlace","테크노파크4차 정류장"),garage=finish.optString("deadheadDestination","고강동공영차고지");add(result,"END_OF_SHIFT",end,"막탕 영업운행 종료",endPlace+"에서 영업운행을 종료했습니다. "+garage+"로 회송한 뒤 차량 청소와 충전잭 연결을 반드시 완료하고 퇴근 처리하십시오. 다음 조 운행을 위해 막탕 후 충전은 필수입니다. 충전 상태는 사무실에서 확인합니다.",soundUri,payload);}
         return result;
     }
 

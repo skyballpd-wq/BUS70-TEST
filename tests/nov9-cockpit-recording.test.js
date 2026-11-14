@@ -11,9 +11,9 @@ const later=gps.moment(date,'19:35');nav=gps.navigate(path,fix(111,later),{...lo
 const start={lat:37,lng:127,radiusM:80},edge={lat:37+84/111195,lng:127};
 const result=gps.step({}, {date,startTime:'17:00',now,log:{},position:{timestamp:now,coords:{latitude:edge.lat,longitude:edge.lng,accuracy:7,speed:0}},points:{start}});
 assert.equal(result.state.startVisitAt,now);assert.equal(result.event,null,'a start visit is not a departure');
-const plan=ui.ringPlan(trip,path);assert.equal(ui.ringAngle(0,plan),-90);assert.equal(ui.ringAngle(plan.turnFraction,plan),90);assert.equal(ui.ringAngle(1,plan),270);assert.match(plan.depot.time,/17:00.*19:40/);assert.equal(plan.turn.name,'삼정종합사회복지회관');
+const plan=ui.ringPlan(trip,path);assert.equal(ui.ringAngle(0,plan),-90);assert.equal(ui.ringAngle(plan.turnFraction,plan),90);assert.equal(ui.ringAngle(1,plan),270);assert.match(plan.depot.time,/17:00.*19:40/);assert.equal(plan.turn.name,stops[57].name);assert.match(plan.turn.after,/삼정 기준/);
 const back=ui.ringPlan({startPlace:'삼정동복지회관',endPlace:'고강공영차고지',startTime:'05:15',endTime:'06:30'},{turnIndex:-1,stops:stops.slice(55)});assert.equal(ui.ringAngle(0,back),90);assert.equal(ui.ringAngle(1,back),270);assert.match(back.turn.time,/출발 05:15/);assert.match(back.depot.time,/도착 06:30/);
-assert.equal(plan.depot.shortName,'고강차고지');assert.equal(plan.turn.shortName,'삼정복지회관');
+assert.equal(plan.depot.shortName,'고강차고지');assert.equal(plan.turn.shortName,'테크노파크');
 assert.equal(plan.depot.before,'출발 17:00');assert.equal(plan.depot.after,'도착 19:40');
 assert.equal(back.depot.before,'');assert.equal(back.depot.after,'도착 06:30');assert.equal(back.turn.after,'출발 05:15');
 assert.equal(ui.shortVehicle({displayNo:'시험00가0001',vehicleNo:'001'}),'0001호');

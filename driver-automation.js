@@ -166,7 +166,7 @@
     const turns=indices("turn",trip.turnPlace).filter(i=>i>start&&i<end),hasTurn=Boolean(trip.turnPlace||trip.turnTime);
     if(hasTurn&&turns.length!==1)return null;
     const control=indices("control",trip.controlPoint).filter(i=>i>=start&&i<=end);
-    return {stops:stops.slice(start,end+1),turnIndex:hasTurn?turns[0]-start:-1,controlIndex:control.length===1?control[0]-start:-1,pivotIndex:stops.findIndex(s=>s.turnaround)-start};
+    return {stops:stops.slice(start,end+1),turnIndex:hasTurn?turns[0]-start:-1,controlIndex:control.length===1?control[0]-start:-1,pivotIndex:(()=>{const pivots=stops.map((s,i)=>s.turnaround?i:-1).filter(i=>i>=start&&i<=end);return pivots.length===1?pivots[0]-start:-1;})()};
   }
   // Match occurrences in the complete ordered circuit. A missing timestamp is
   // a log problem, not proof that the vehicle is still on the outward leg.
