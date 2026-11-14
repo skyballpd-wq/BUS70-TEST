@@ -425,6 +425,9 @@ public class DriverLocationService extends Service implements LocationListener {
             if(!store.eventOutbox(items.toString()))throw new IllegalStateException("local storage");
             // Advance locally only after durable storage, even when the network is down.
             EventOutbox.overlay(items,schedule);scheduleRaw=schedule.toString();store.trackingSchedule(scheduleRaw);
+            // Only durable actual events may announce completion. Network retries
+            // and corrected timestamps share the same delivery receipt.
+            if("ARRIVE".equals(event)||"SERVICE_END".equals(event)||"DEADHEAD_RETURN".equals(event))try{AlarmScheduler.sync(this,schedule);}catch(Exception ignored){}
             setStatus(tripNo+"탕 "+eventLabel(event)+" 기기 저장 · 서버 전송 대기");
         } catch(Exception error) { setStatus("기기 저장 실패 · 휴대폰 저장 공간을 확인하세요."); }
         inFlight.remove(key);flushEvents();

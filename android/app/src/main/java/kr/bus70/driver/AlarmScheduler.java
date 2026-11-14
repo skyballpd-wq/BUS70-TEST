@@ -17,14 +17,19 @@ final class AlarmScheduler {
         AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         boolean exactAllowed = Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms();
         long now = System.currentTimeMillis();
-        JSONObject receipts=new JSONObject(store.alarmReceipts());JSONArray scheduled=new JSONArray();
+        JSONObject receipts=new JSONObject(store.alarmReceipts());JSONArray scheduled=new JSONArray(),due=new JSONArray();
         for (int i=0; i<alarms.length(); i++) {
             JSONObject item=alarms.getJSONObject(i);
+            if(AlarmPolicy.completion(item)&&AlarmPolicy.due(item,now,receipts)){scheduled.put(item);due.put(item);continue;}
             if(!AlarmPolicy.future(item,now,receipts))continue;
             PendingIntent pending=pendingIntent(context,item,PendingIntent.FLAG_UPDATE_CURRENT);
             if(exactAllowed){manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,item.getLong("at"),pending);scheduled.put(item);}
         }
         store.schedule(payload.toString()); store.alarms(scheduled.toString());
+        for(int i=0;i<due.length();i++){
+            Intent playback=new Intent(context,AlarmPlaybackService.class).putExtra("alarm",due.getJSONObject(i).toString());
+            if(Build.VERSION.SDK_INT>=26)context.startForegroundService(playback);else context.startService(playback);
+        }
         return new JSONObject().put("ok",true).put("alarmCount",scheduled.length()).put("exactAllowed",exactAllowed);
     }
 

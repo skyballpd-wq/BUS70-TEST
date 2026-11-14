@@ -14,7 +14,9 @@ assert.equal(select([peer(7,1),peer(7,2,{vehicleId:'ANOTHER'})]).length,2,'two b
 assert.equal(select([peer(7,1),peer(7,2)]).length,1,'one vehicle never appears twice');
 assert.equal(select([peer(7,-1),peer(4,1,{accuracyM:null}),peer(3,181),peer(8,1,{running:false}),peer(9,1,{running:undefined})]).length,0);
 assert.equal(select([peer(7,45)])[0].fresh,true);assert.equal(select([peer(7,46)])[0].fresh,false);
-assert.equal(cockpit.ringPeers({...path,turnIndex:6},fleet,nav,scope,now).filter(p=>p.side==='front').length,0,'opposite leg is not a live front bus');
+assert.equal(cockpit.ringPeers({...path,turnIndex:6},fleet,nav,scope,now).filter(p=>p.side==='front').length,2,'timetable control does not override physical stop direction');
+assert.equal(cockpit.ringPeers({...path,stops:stops.map((s,i)=>({...s,direction:i<=5?'OUT':'BACK'}))},fleet,nav,scope,now).filter(p=>p.side==='front').length,0,'physical opposite leg is not a live front bus');
+assert.equal(cockpit.ringPeers({...path,stops:stops.map(s=>({...s,direction:''}))},fleet,nav,scope,now).filter(p=>p.side==='front').length,0,'physical pivot is used when stop direction is absent');
 assert.equal(select([peer(7,2,{vehicleId:'OWN'}),peer(4,1,{date:'2099-01-09'}),peer(8,1,{route:'23'})]).length,0);
 assert.deepEqual(select([peer(7,2),peer(8,2),peer(4,2,{running:false}),peer(3,2,{running:false})]).map(p=>p.side),['front','front'],'rear buses not yet departed');
 assert.deepEqual(select([peer(7,2,{running:false}),peer(8,2),peer(4,2)]).map(p=>p.order),[9,5],'completed front bus disappears');

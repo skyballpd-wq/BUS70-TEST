@@ -92,7 +92,7 @@ function bus70OperationBootstrap_(requesterId, requestedMaintId) {
   const pr=ps&&ps.getLastRow()>1?ps.getDataRange().getDisplayValues():[];
   if(pr.length){
     const pc=makeHeaderMap_(pr[0]);
-    pr.slice(1).filter(function(r){return String(r[pc['상태']]||'')==='확정';}).sort(function(a,b){return normalizeDate_(a[pc['날짜']]).localeCompare(normalizeDate_(b[pc['날짜']]))||Number(a[pc['순차']]||0)-Number(b[pc['순차']]||0);}).forEach(function(r){const vehicle=vehicleMap[String(r[pc['차량ID']]||'')];if(vehicle)vehicle.assignment={date:normalizeDate_(r[pc['날짜']]),shift:String(r[pc['근무조']]||''),sequence:Number(r[pc['순차']]||0)};});
+    pr.slice(1).filter(function(r){return String(r[pc['상태']]||'')==='확정'&&normalizeDate_(r[pc['날짜']])===serviceDate;}).sort(function(a,b){return normalizeDate_(a[pc['날짜']]).localeCompare(normalizeDate_(b[pc['날짜']]))||Number(a[pc['순차']]||0)-Number(b[pc['순차']]||0);}).forEach(function(r){const vehicle=vehicleMap[String(r[pc['차량ID']]||'')];if(vehicle)vehicle.assignment={date:normalizeDate_(r[pc['날짜']]),shift:String(r[pc['근무조']]||''),sequence:Number(r[pc['순차']]||0)};});
   }
   if(!viewerRole){
     const related={};

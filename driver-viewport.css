@@ -127,3 +127,8 @@
   .driver-live-primary{gap:2px;padding-top:calc(2px + env(safe-area-inset-top));padding-bottom:calc(1px + env(safe-area-inset-bottom))}
   .driver-live-primary:has(.driver-notice-strip:not([hidden])) .driver-scroll-hint{display:none}
 }
+
+/* Content contributes to measured panel height in both orientations. */
+.headway-crowding{display:block;font-size:10px;line-height:1.25;color:#52657a;overflow-wrap:anywhere}
+.headway-crowding[data-level="여유"]{color:#146b54}
+.headway-crowding[data-level="혼잡"],.headway-crowding[data-level="매우혼잡"]{color:#9a4215;font-weight:700}

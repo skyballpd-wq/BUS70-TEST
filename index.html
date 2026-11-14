@@ -891,7 +891,7 @@
     @media(max-width:340px){.orbit-point strong{font-size:10px}.driver-mode .cockpit-head>strong{font-size:11px}.driver-mode .cockpit-head>span{font-size:10px}}
   </style>
 <link rel="stylesheet" href="./accident-report.css?v=77">
-<link rel="stylesheet" href="./driver-viewport.css?v=8952">
+<link rel="stylesheet" href="./driver-viewport.css?v=896">
 <link rel="stylesheet" href="./operations-notices.css?v=894">
 <link rel="stylesheet" href="./maintenance-board.css?v=895">
 </head>
@@ -1333,7 +1333,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.5.2
+    소신여객 통합 운행관리 TEST · v89.6
   </footer>
 
 </div>
@@ -1343,15 +1343,15 @@
 <script src="./login-korean.js"></script>
 <script src="./driver-signup.js?v=881"></script>
 <script src="./manager-replacement.js?v=8821"></script>
-<script src="./operations-notices.js?v=895"></script>
+<script src="./operations-notices.js?v=896"></script>
 <script src="./maintenance-board.js?v=895"></script>
-<script src="./driver-automation.js?v=89"></script>
+<script src="./driver-automation.js?v=896"></script>
 <script src="./driver-recording.js?v=89"></script>
-<script src="./driver-cockpit.js?v=8952"></script>
-<script src="./driver-headway.js?v=893"></script>
-<script src="./driver-viewport.js?v=8952"></script>
+<script src="./driver-cockpit.js?v=896"></script>
+<script src="./driver-headway.js?v=896"></script>
+<script src="./driver-viewport.js?v=896"></script>
 <script src="./road-safety.js?v=893"></script>
-<script src="./driver-outbox.js?v=771"></script>
+<script src="./driver-outbox.js?v=896"></script>
 <script src="./driver-ledger.js?v=78"></script>
 <script src="./mobile-compat.js?v=823"></script>
 <script src="./accident-report.js?v=821"></script>
@@ -1563,7 +1563,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.5.2";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.6";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -2628,7 +2628,7 @@
   function nativeSchedulePayload(data){
     const d=data.dispatch||{},vehicle=data.vehicle||{},trips=normalizeScheduleTrips(data.trips),normalizedData=Object.assign({},data,{trips}),last=trips[trips.length-1],finish=last?endOfShiftMeta(normalizedData,last,trips.length-1):null;
     const routeStops=(data.routeProfile?.stops||[]).filter(stop=>hasNumericValue(stop.lat)&&hasNumericValue(stop.lng)).map(stop=>({id:String(stop.id||""),stationId:String(stop.externalStopId||stop.stationId||""),name:String(stop.name||""),number:String(stop.number||""),order:Number(stop.order||0),direction:String(stop.direction||""),origin:Boolean(stop.origin),turnaround:Boolean(stop.turnaround),lat:Number(stop.lat),lng:Number(stop.lng)}));
-    return {apiUrl:API_URL,token:authToken,driverId:currentDriverId,route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicleId:String(vehicle.vehicleId||vehicle.id||d.vehicleId||""),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||d.vehicleNo||""),vehicleIdentityAt:typeof driverVehicleIdentityAt==="function"?driverVehicleIdentityAt(data):0,electricVehicle:isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,firstScheduledTrip:trips.length?Number(trips[0].trip):null,endOfShift:finish,roadSafety:data.roadSafety||{zones:[]},roadSafetyEnabled:roadSafetySelected(),routeStops:routeStops,liveLocation:{enabled:true,minimumIntervalSeconds:15,snapshotRetentionSeconds:600},trips:trips.map(v=>{const log=runLogForTrip(data,v)||{};return {course:Bus70Automation.course(v,routeStops),trip:Number(v.trip),startPlace:v.startPlace||"",startTime:v.startTime,turnPlace:v.turnPlace||"",turnTime:v.turnTime||"",endPlace:v.endPlace||"",endTime:v.endTime||v.startTime,plannedFrontGap:v.plannedFrontGapMinutes,plannedRearGap:v.plannedRearGapMinutes,startLocation:tripLocationPoint(v,"start"),turnLocation:tripLocationPoint(v,"turn"),endLocation:tripLocationPoint(v,"end"),controlPoint:v.controlPoint||"",controlTime:v.controlTime||"",controlLocation:tripLocationPoint(v,"control"),deadheadDestination:v.deadheadDestination||"",returnLocation:tripLocationPoint(v,"return"),turnDepartedAt:log.turnDepartedAt||"",actualControl:log.actualControl||"",deadheadReturnedAt:log.deadheadReturnedAt||"",actualStart:log.actualStart||"",startRecordMode:log.startRecordMode||"",actualTurn:log.actualTurn||"",actualEnd:log.actualEnd||""};})};
+    return {apiUrl:API_URL,token:authToken,driverId:currentDriverId,route:String(data.route||vehicle.route||"70"),date:document.getElementById("workDate").value,dispatchId:String(d.dispatchId||d.id||""),scheduleVersion:String(d.scheduleVersion||data.scheduleVersion||""),sequence:Number(d.seq||d.sequence||0),vehicleId:String(vehicle.vehicleId||vehicle.id||d.vehicleId||""),vehicle:String(vehicle.displayNo||vehicle.vehicleNo||d.vehicleNo||""),vehicleIdentityAt:typeof driverVehicleIdentityAt==="function"?driverVehicleIdentityAt(data):0,electricVehicle:typeof nativeAppVersion!=="undefined"&&nativeAppVersion>=92&&isElectricSchedule(data),commuteMinutes:driverAlertSettings.commuteMinutes,tripMinutes:driverAlertSettings.tripMinutes,exact:driverAlertSettings.exact,voice:driverAlertSettings.voice,vibration:driverAlertSettings.vibration,enabled:driverAlertSettings.enabled,firstScheduledTrip:trips.length?Number(trips[0].trip):null,completionGuidance:finish,roadSafety:data.roadSafety||{zones:[]},roadSafetyEnabled:roadSafetySelected(),routeStops:routeStops,liveLocation:{enabled:true,minimumIntervalSeconds:15,snapshotRetentionSeconds:600},trips:trips.map(v=>{const log=runLogForTrip(data,v)||{};return {course:Bus70Automation.course(v,routeStops),trip:Number(v.trip),startPlace:v.startPlace||"",startTime:v.startTime,turnPlace:v.turnPlace||"",turnTime:v.turnTime||"",endPlace:v.endPlace||"",endTime:v.endTime||v.startTime,plannedFrontGap:v.plannedFrontGapMinutes,plannedRearGap:v.plannedRearGapMinutes,startLocation:tripLocationPoint(v,"start"),turnLocation:tripLocationPoint(v,"turn"),endLocation:tripLocationPoint(v,"end"),controlPoint:v.controlPoint||"",controlTime:v.controlTime||"",controlLocation:tripLocationPoint(v,"control"),deadheadDestination:v.deadheadDestination||"",returnLocation:tripLocationPoint(v,"return"),turnDepartedAt:log.turnDepartedAt||"",actualControl:log.actualControl||"",deadheadReturnedAt:log.deadheadReturnedAt||"",actualStart:log.actualStart||"",startRecordMode:log.startRecordMode||"",actualTurn:log.actualTurn||"",actualEnd:log.actualEnd||""};})};
   }
 
   function syncNativeSchedule(data){
@@ -3384,7 +3384,11 @@
         else {stored.error=result.message||"서버 전송 대기";stored.retryAt=Date.now()+15000;if(["GPS_EVENT_STALE","GPS_EVENT_DATE_MISMATCH","DISPATCH_MISMATCH","VEHICLE_MISMATCH","TRIP_NOT_SCHEDULED"].includes(result.error))stored.blocked=true;}writeGpsOutbox(items);}
       if(authToken===token&&currentDriverId===owner)refreshRunLogView();
       if(authToken===token&&currentDriverId===owner&&lastSchedule){overlayGpsEvents(lastSchedule);locationStatusText=result.ok?"기점 기록 서버 저장 완료":(result.message||"기점 시각 기기 보관 · 자동 재전송 대기");locationStatusType=result.ok?"ok":"error";renderSchedule(false);}
-    }catch(error){locationStatusText="통신 대기 · 기점 시각은 기기에 보관 중";locationStatusType="error";updateLocationPanel();}
+    }catch(error){
+      const items=readGpsOutbox(),stored=items.find(i=>i.key===item.key);
+      if(stored&&!stored.delivered&&!stored.voided){stored.retryAt=Date.now()+15000;writeGpsOutbox(items);}
+      if(authToken===token&&currentDriverId===owner){locationStatusText="통신 대기 · 기점 시각은 기기에 보관 중";locationStatusType="error";updateLocationPanel();}
+    }
     finally{gpsOutboxSending=false;}
   }
   async function automaticRunEvent(trip,event,position,evidenceSource){
@@ -3408,7 +3412,7 @@
     try{
       const data=lastSchedule,date=document.getElementById("workDate").value,token=authToken,driverId=currentDriverId,d=data.dispatch,vehicle=data.vehicle||{},result=await apiPost(Object.assign({action:"managerAccountUpsert",operation:"driverRunLogSave",token:authToken,date:document.getElementById("workDate").value,route:data.route||vehicle.route||"",dispatchId:d.dispatchId||d.id||"",vehicleId:vehicle.vehicleId||vehicle.id||d.vehicleId||"",sequence:d.seq||d.sequence,trip:trip.trip,event:event,plannedStart:trip.startTime,plannedTurn:trip.turnTime,plannedEnd:trip.endTime,plannedFrontGap:trip.plannedFrontGapMinutes,plannedRearGap:trip.plannedRearGapMinutes,source:"MANUAL"},extra||{}));
       if(authToken!==token||currentDriverId!==driverId||document.getElementById("workDate").value!==date||driverAssignmentBinding(lastSchedule).dispatchId!==driverAssignmentBinding(data).dispatchId)return result;
-      if(result.ok){upsertLocalRunEvent(trip,event,result,extra);if(lastSchedule.trips.every(t=>tripCompleted(lastSchedule,t))&&locationTrackingActive){stopDriverLocationTracking(true);locationStatusText="오늘 운행 자동 기록 완료";}renderSchedule(false);renderRunLogRows((lastSchedule&&lastSchedule.runLogs)||[]);}
+      if(result.ok){upsertLocalRunEvent(trip,event,result,extra);if(hasAndroidBridge())syncNativeSchedule(lastSchedule);if(lastSchedule.trips.every(t=>tripCompleted(lastSchedule,t))&&locationTrackingActive){stopDriverLocationTracking(true);locationStatusText="오늘 운행 자동 기록 완료";}renderSchedule(false);renderRunLogRows((lastSchedule&&lastSchedule.runLogs)||[]);}
       const feedback=document.getElementById(feedbackId||"confirmResult");if(feedback)feedback.replaceChildren(el("div",result.message||"운행시간을 기록하지 못했습니다.",result.ok?"notice":"notice error"));
       return result;
     } catch(error){

@@ -153,7 +153,9 @@ assert.equal(normalEdited.ok,true); assert.equal(vehicles.rows[vehicles.rows.len
 const vehicleIncident=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'vehicleIncidentSave',date:'2026-09-20',sequence:1,vehicleId:'V1',reserveVehicleId:reserveId,type:'고장',content:'시동 불량'},'D1');
 assert.equal(vehicleIncident.ok,true); assert.equal(incidents.rows.length,2); assert.equal(maintenance.rows.length,2); assert.equal(vehicles.rows[1][3],'정비중');
 assert.equal(dispatch.rows.find(r=>r[1]==='2026-09-20'&&Number(r[3])===1)[5],reserveId);
+const serviceDateForTest=context.bus70ServiceDateKey_;context.bus70ServiceDateKey_=()=> '2026-09-20';
 const operationBoot=context.bus70ManagerAction_({action:'managerAccountUpsert',operation:'operationBootstrap'},'CTR-CENTER-001');
+context.bus70ServiceDateKey_=serviceDateForTest;
 assert.equal(operationBoot.ok,true); assert.equal(operationBoot.incidents.length,1);
 const originalStatus=operationBoot.vehicles.find(v=>v.id==='V1'), reserveStatus=operationBoot.vehicles.find(v=>v.id===reserveId);
 assert.equal(originalStatus.status,'정비중'); assert.equal(originalStatus.lastChangeReason,'고장 · 시동 불량');

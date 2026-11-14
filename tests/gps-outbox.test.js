@@ -7,6 +7,15 @@ outbox.add(items,driver,{...base,event:'DEPART',observedAt:at});assert.equal(ite
 const data={date,dispatch:{dispatchId:base.dispatchId},vehicle:{vehicleId:base.vehicleId},trips:[{trip:2}]};
 outbox.overlay(items,driver,data);assert(data.runLogs[0].actualEnd);assert.equal(data.runLogs[0].endRecordMode,'기기 저장·전송 대기');
 assert.equal(outbox.next(items,driver,at).body.event,'DEPART');items[0].retryAt=at+10000;assert.equal(outbox.next(items,driver,at),null);
+const parallel=JSON.parse(JSON.stringify(items));
+outbox.add(parallel,driver,{...base,vehicleId:'REPLACEMENT',event:'DEPART',observedAt:at});
+outbox.add(parallel,driver,{...base,date:'2099-01-09',event:'DEPART',observedAt:at});
+assert.equal(outbox.next(parallel,driver,at).body.vehicleId,'REPLACEMENT','a retry delay only holds its own dispatch binding');
+parallel[4].delivered=true;
+assert.equal(outbox.next(parallel,driver,at).body.date,'2099-01-09','another service day can sync during the old retry delay');
+assert.equal(outbox.next(parallel,driver,at+10000).body.event,'DEPART','the delayed departure still precedes its turn');
+parallel[0].voided=true;parallel[0].blocked=true;
+assert.equal(outbox.next(parallel,driver,at).body.event,'TURN','voided legacy entries cannot block surviving records');
 items[0].delivered=true;items[0].recordedAt='2099-01-08T08:01:00+09:00';outbox.overlay(items,driver,data);assert.equal(data.runLogs[0].actualStart,items[0].recordedAt);assert.equal(data.runLogs[0].startRecordMode,'GPS 자동');
 assert.equal(outbox.next(items,'other',at),null);const other=JSON.parse(JSON.stringify(data));other.vehicle.vehicleId='OTHER';other.runLogs=[];outbox.overlay(items,driver,other);assert.equal(other.runLogs.length,0);
 assert.equal(outbox.prune(items,at+172800001).length,3,'unacknowledged checkpoint timestamps survive beyond retry window');

@@ -52,7 +52,7 @@ assert.match(html, /plannedTurn:trip\.turnTime/);
 assert.match(html, /id="managerRoute"/);
 assert.match(html, /value="ALL">전체 노선 현황/);
 assert.match(html, /managerDispatchBootstrap",token:authToken,date,route/);
-assert.match(html, /route:document\.getElementById\("managerRoute"\)\.value/);
+assert.match(html, /saveManagerDispatchDay",token,date,route,shift,assignments/);
 assert.match(html, /id="managerTimetablePanel"/);
 assert.match(html, /operation:"routeTimetableEditorLoad"/);
 assert.match(html, /operation:"routeTimetableBulkSave"/);

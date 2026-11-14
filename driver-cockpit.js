@@ -82,14 +82,14 @@
       if(i<0||!Number.isFinite(age)||age<0||age>180||![0,1,2].includes(p.stateCd))return null;
       // Exclude layover/deadhead ambiguity at route boundaries.
       if(i===0||i===stops.length-1)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,vehicleNo:p.vehicleNo||'',stopGap:Math.abs(i-index),source:'GBIS',reference:true,fresh:age<=60&&fleet.crossCheck===reference&&!reference.error&&!own.retained&&!fleet.error};
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,vehicleNo:p.vehicleNo||'',stopGap:Math.abs(i-index),source:'GBIS',reference:true,crowded:[1,2,3,4].includes(p.crowded)?p.crowded:null,fresh:age<=60&&fleet.crossCheck===reference&&!reference.error&&!own.retained&&!fleet.error};
     }).filter(Boolean);
     // Fresh authenticated phone fixes take priority over the same bus's public reference.
     const unique=[...new Map([...publicPeers,...candidates].sort((a,b)=>Number(a.fresh)-Number(b.fresh)||b.age-a.age).map(p=>[p.vehicle,p])).values()];
     for(const side of ['front','rear']){
-      const leg=i=>path.turnIndex>0?(i<path.turnIndex?'out':'return'):(stops[i].direction||'leg');
+      const leg=i=>stops[i].direction||(path.pivotIndex>=0?(i<=path.pivotIndex?'out':'return'):'unknown');
       const peers=unique.filter(p=>leg(p.index)===leg(index)&&(side==='front'?p.index>index:p.index<index)).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
-      peers.forEach((p,i)=>{const matches=(fleet.roster||[]).filter(r=>r.vehicleId===p.vehicle),identity=matches.length===1?matches[0]:{};result.push({...p,driverName:identity.driverName||'',vehicleNo:identity.vehicleNo||p.vehicleNo||'',sequence:identity.sequence||p.sequence,side,rank:i+1,fraction:(p.index+.5)/stops.length});});
+      peers.forEach((p,i)=>{const matches=(fleet.roster||[]).filter(r=>r.vehicleId===p.vehicle),identity=matches.length===1?matches[0]:{};const crowd=publicPeers.find(r=>r.vehicle===p.vehicle&&r.fresh);result.push({...p,crowded:crowd?.crowded??null,driverName:identity.driverName||'',vehicleNo:identity.vehicleNo||p.vehicleNo||'',sequence:identity.sequence||p.sequence,side,rank:i+1,fraction:(p.index+.5)/stops.length});});
     }
     return result;
   }
@@ -102,7 +102,7 @@
     let svg=host.querySelector('svg');
     if(!svg||host.dataset.ringTotal!==signature){
       if(svg)svg.remove();host.dataset.ringTotal=signature;
-      svg=svgNode(doc,'svg',{viewBox:'0 0 120 120','aria-hidden':'true',class:'stop-segment-ring'});
+      svg=svgNode(doc,'svg',{viewBox:'0 0 120 120',preserveAspectRatio:'none','aria-hidden':'true',class:'stop-segment-ring'});
       const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0,startAngle,span,plan.turnFraction);
       if(!segments.length)svg.append(svgNode(doc,'circle',{cx:60,cy:60,r:49,fill:'none',stroke:'#dce4ed','stroke-width':7}));
       segments.forEach(s=>{const a=point(s.start),b=point(s.end);const arc=svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7});svg.append(arc);const fill=arc.cloneNode();fill.setAttribute('class','route-fill');fill.setAttribute('pathLength','1');fill.style.transition='stroke-dasharray 1s linear';svg.append(fill);});
@@ -165,11 +165,15 @@
         depot:{name:trip.startPlace,shortName:shortPoint(trip.startPlace),before:'출발 '+(trip.startTime||'—'),after:'',time:'출발 '+(trip.startTime||'—')},
         turn:{name:end,shortName:shortPoint(end),before:'',after:label+' '+(trip.endTime||'—'),time:label+' '+(trip.endTime||'—')}};
     }
-    return {startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:path?.turnIndex>0?path.turnIndex/(path.stops.length-1):null,
+    const physical=!returningOnly&&path?.pivotIndex>=0?path.stops[path.pivotIndex]:null;
+    const plan={startAngle:returningOnly?90:-90,span:returningOnly?180:360,turnFraction:!returningOnly&&path?.pivotIndex>0&&path.pivotIndex<path.stops.length-1?path.pivotIndex/(path.stops.length-1):null,
       depot:{name:/고강/.test(trip.endPlace||trip.startPlace)?'고강공영차고지':trip.endPlace||trip.startPlace||'도착지',shortName:/고강/.test(trip.endPlace||trip.startPlace)?'고강차고지':trip.endPlace||trip.startPlace||'도착지',before:returningOnly?'':'출발 '+(trip.startTime||'—'),after:'도착 '+(trip.endTime||'—'),time:returningOnly?'도착 '+(trip.endTime||'—'):'출발 '+(trip.startTime||'—')+' · 도착 '+(trip.endTime||'—')},
       turn:{name:samjeong(trip.turnPlace||trip.startPlace)?'삼정종합사회복지회관':trip.turnPlace||trip.startPlace||'출발지',shortName:samjeong(trip.turnPlace||trip.startPlace)?'삼정복지회관':trip.turnPlace||trip.startPlace||'출발지',before:'',after:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—'),time:(returningOnly?'출발 ':'회차 ')+(returningOnly?trip.startTime||'—':trip.turnTime||'—')},returningOnly};
+    if(physical){plan.turn={name:physical.name,shortName:shortPoint(physical.name),before:'방향전환',after:trip.turnTime?(samjeong(trip.turnPlace)?'삼정':shortPoint(trip.turnPlace))+' 기준 '+trip.turnTime:'',time:'실제 방향전환 · '+physical.name+(trip.turnTime?' · 시간표 기준 '+trip.turnPlace+' '+trip.turnTime:'')};}
+    return plan;
   }
   function shortPoint(name){
+    if(/테크노파크/.test(name||''))return '테크노파크';
     if(/고강.*차고지/.test(name||''))return '고강차고지';
     if(/삼정.*(복지회관|복지관)/.test(name||''))return '삼정복지회관';
     return String(name||'').replace(/\s*정류소$/,'');
@@ -201,6 +205,7 @@
   function peerStatus(fleet,own,scope,peers,now){
     if(fleet?.error)return '차량정보 연결 실패 · 재시도 중';
     const ref=fleet?.crossCheck;
+    if(peers.some(p=>p.fresh&&!p.reference)&&ref?.error)return '앱 GPS 간격 표시 · 경기버스정보 수신 대기';
     if(['GBIS_HTTP_429','GBIS_DAILY_LIMIT','GBIS_RATE_LIMIT'].includes(ref?.error))return (ref.error==='GBIS_DAILY_LIMIT'?'경기버스정보 일일 호출한도':'경기버스정보 요청 제한')+(ref.retryAt>now?' · '+Math.ceil((ref.retryAt-now)/60000)+'분 후 재시도':' · 재시도 대기');
     if(ref?.error==='GBIS_REFRESH_PENDING')return '경기버스정보 갱신 중';
     if(peers.length)return peers.some(p=>p.reference)?'경기버스정보 · 정류장 위치 기준':'앱 GPS · 정류장 위치 기준';

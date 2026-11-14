@@ -366,7 +366,7 @@ function bus70GyeonggiLiveParse_(json,routeId,fetchedAt){
   const envelope=json&&json.response||json||{},header=envelope.msgHeader||{},code=String(header.resultCode==null?'':header.resultCode);
   if(code!=='0')return {ok:false,available:false,error:'GBIS_RESPONSE',providerCode:String(code).replace(/[^A-Za-z0-9_-]/g,'').slice(0,16),message:code==='4'?'경기도 운행 차량정보 없음':'경기도 차량위치 API 응답 확인 필요',fetchedAt:fetchedAt};
   let items=envelope.msgBody&&envelope.msgBody.busLocationList||[];if(!Array.isArray(items))items=[items];
-  items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd)};});
+  items=items.filter(function(v){return String(v.routeId)===String(routeId)&&v.plateNo&&Number.isInteger(Number(v.stationSeq))&&Number(v.stationSeq)>0;}).map(function(v){return {plateNo:String(v.plateNo),vehicleId:String(v.vehId||''),stationId:String(v.stationId||''),stationSeq:Number(v.stationSeq),stateCd:Number(v.stateCd),crowded:[1,2,3,4].includes(Number(v.crowded))?Number(v.crowded):null};});
   return {ok:true,available:true,items:items,fetchedAt:fetchedAt,queryTime:String(header.queryTime||''),source:'GYEONGGI_BUS_LOCATION_V2'};
 }
 // Gateway errors can arrive as XML even when format=json was requested.
@@ -404,9 +404,11 @@ function bus70GyeonggiLiveFetch_(route){
     const now=Date.now(),global=read(globalKey),state=read(stateKey);
     if(Number(global.retryAt)>now)return {available:false,error:global.error||'GBIS_HTTP_429',message:global.error==='GBIS_DAILY_LIMIT'?'경기버스정보 일일 호출한도 · GPS 기록 계속':'경기도 API 요청 제한 · GPS 기록 계속',retryAt:global.retryAt};
     if(Number(state.inFlightUntil)>now)return busy();
+    // CacheService may evict early. Enforce the shared request cadence durably.
+    if(Number(state.nextRequestAt)>now)return Object.assign(busy(),{retryAt:Number(state.nextRequestAt)});
     day=Utilities.formatDate(new Date(now),'Asia/Seoul','yyyy-MM-dd');
     if(state.day!==day){state.day=day;state.requests=0;state.responses={};}
-    lease=now;state.lease=lease;state.inFlightUntil=now+90000;state.requests=Number(state.requests||0)+1;
+    lease=now;state.lease=lease;state.inFlightUntil=now+90000;state.nextRequestAt=now+45000;state.requests=Number(state.requests||0)+1;
     properties.setProperty(stateKey,JSON.stringify(state));
   }finally{lock.releaseLock();}
   let result,http=0,retryAt=0,transition=null;
@@ -520,7 +522,7 @@ function bus70GyeonggiFleet_(fetched,stops,assignment,registry,own){
     const id=String(stop.externalStopId||stop.stationId||stop.id);
     if(!v.stationId||id!==String(v.stationId)&&!id.endsWith('-'+v.stationId)||!v.vehicleId&&!v.plateNo)return null;
     const matches=registry.filter(function(r){return r.id&&bus70GyeonggiSelectVehicle_(fetched.items,r.plate)===v;});
-    return {source:'GYEONGGI_BUS_LOCATION_V2',route:String(assignment.route),date:assignment.date,vehicleId:matches.length===1?matches[0].id:'GBIS:'+String(v.vehicleId||v.plateNo),vehicleNo:String(v.plateNo||''),own:Boolean(own&&own===v),matchedStopOrder:Number(stop.order),stateCd:v.stateCd,direction:stop.direction||'',fetchedAt:at,observedAt:null,positionBasis:'PROVIDER_STOP_REFERENCE'};
+    return {source:'GYEONGGI_BUS_LOCATION_V2',route:String(assignment.route),date:assignment.date,vehicleId:matches.length===1?matches[0].id:'GBIS:'+String(v.vehicleId||v.plateNo),vehicleNo:String(v.plateNo||''),own:Boolean(own&&own===v),matchedStopOrder:Number(stop.order),stateCd:v.stateCd,crowded:[1,2,3,4].includes(v.crowded)?v.crowded:null,direction:stop.direction||'',fetchedAt:at,observedAt:null,positionBasis:'PROVIDER_STOP_REFERENCE'};
   }).filter(Boolean);
 }
 function BUS70_checkGyeonggiLiveConnection(){

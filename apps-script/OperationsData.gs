@@ -36,6 +36,16 @@ function bus70DbOverview_(body,requesterId){
   const drivers=unique(table('기사DB'),'driverId','기사DB'),vehicles=unique(table('차량DB'),'vehicleId','차량DB');
   const days=unique(table('운행일DB'),'serviceDayId','운행일DB'),versions=unique(table('시간표버전DB'),'versionId','시간표버전DB');
   const dispatches=table('배차DB').filter(function(r){return normalizeDate_(r['날짜'])===date&&r['상태']==='확정';});
+  const driverRoutes=new Map(),vehicleRoutes=new Map();
+  dispatches.forEach(function(d){
+    const assignedRoute=bus70DbText_(d['노선']),shift=bus70DbText_(d['근무조']);
+    if(!assignedRoute||!shift)return;
+    const driverKey=bus70DbKey_([shift,bus70DbText_(d['기사ID'])]),vehicleKey=bus70DbKey_([shift,bus70DbText_(d['차량ID'])]);
+    if(!driverRoutes.has(driverKey))driverRoutes.set(driverKey,new Set());
+    if(!vehicleRoutes.has(vehicleKey))vehicleRoutes.set(vehicleKey,new Set());
+    driverRoutes.get(driverKey).add(assignedRoute);
+    vehicleRoutes.get(vehicleKey).add(assignedRoute);
+  });
   const fixed=table('고정차량배정DB').filter(function(r){return r['상태']==='확정'&&bus70DbActive_(r,date,'적용시작일','적용종료일');});
   const rows=[],routes=[];
   scope.forEach(function(routeRow){
@@ -64,6 +74,8 @@ function bus70DbOverview_(body,requesterId){
       if(slots[slot])problems.push('동일 순차 중복');slots[slot]=true;
       if(assignedDrivers[driverKey])problems.push('동일 기사 중복');assignedDrivers[driverKey]=true;
       if(assignedVehicles[vehicleKey])problems.push('동일 차량 중복');assignedVehicles[vehicleKey]=true;
+      if(driverId&&driverRoutes.get(driverKey)?.size>1)problems.push('같은 근무조 기사 노선 간 중복');
+      if(vehicleId&&vehicleRoutes.get(vehicleKey)?.size>1)problems.push('같은 근무조 차량 노선 간 중복');
       if(!driver)problems.push('기사 ID');if(!vehicle)problems.push('차량 ID');
       if(!day||normalizeDate_(day['운행일'])!==date||bus70DbText_(day['노선'])!==id||bus70DbText_(day['근무조'])!==shift||bus70DbText_(day['시간표버전'])!==version)problems.push('운행일 연결');
       if(!trips.length)problems.push('해당 버전·순차 시간표 없음');

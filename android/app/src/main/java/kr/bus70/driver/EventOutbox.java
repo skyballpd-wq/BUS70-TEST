@@ -47,12 +47,14 @@ final class EventOutbox {
         }
     }
     static JSONObject next(JSONArray items,String driverId,long now) throws Exception {
-        java.util.Set<String> blocked=new java.util.HashSet<>();for(int i=0;i<items.length();i++){JSONObject item=items.getJSONObject(i);if(driverId.equals(item.optString("driverId"))&&item.optBoolean("blocked")&&!item.optBoolean("delivered"))blocked.add(item.optString("binding"));}
+        java.util.Set<String> blocked=new java.util.HashSet<>();for(int i=0;i<items.length();i++){JSONObject item=items.getJSONObject(i);if(driverId.equals(item.optString("driverId"))&&item.optBoolean("blocked")&&!item.optBoolean("delivered")&&!item.optBoolean("voided"))blocked.add(item.optString("binding"));}
         for(int i=0;i<items.length();i++) {
             JSONObject item=items.getJSONObject(i);
-            if(!driverId.equals(item.optString("driverId"))||item.optBoolean("delivered")||blocked.contains(item.optString("binding")))continue;
-            // Preserve order. A failed departure must precede its turn and arrival.
-            return item.optLong("retryAt")>now?null:item;
+            if(!driverId.equals(item.optString("driverId"))||item.optBoolean("delivered")||item.optBoolean("voided")||blocked.contains(item.optString("binding")))continue;
+            // Keep departure before arrival for this dispatch. Another day or
+            // replacement vehicle can sync while this dispatch waits to retry.
+            blocked.add(item.optString("binding"));
+            if(item.optLong("retryAt")<=now)return item;
         }
         return null;
     }

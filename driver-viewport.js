@@ -43,20 +43,21 @@
     for(const node of Array.from(box.children))if(node!==primary)details.append(node);
     box.append(details);
     let minimumRing=170,ringContent='';
-    const fit=()=>{
+    const fit=(pass=0)=>{
       if(!ring||!stage.isConnected)return;
-      const style=root.getComputedStyle(primary);
+      const style=root.getComputedStyle(primary),ratio=style.display==='grid'?1.25:1;
+      if(ring.style.aspectRatio!==String(ratio))ring.style.aspectRatio=String(ratio);
       const center=ring.querySelector('.orbit-center'),bounds=ring.getBoundingClientRect();
-      const key=center?.textContent+'|'+stage.clientWidth;
+      const key=center?.textContent+'|'+stage.clientWidth+'|'+ratio;
       if(key!==ringContent){minimumRing=170;ringContent=key;}
-      // Respect enlarged text by growing its circle and panel. Measure glyph
+      // Respect enlarged text by growing its circle/ellipse and panel. Measure glyph
       // boxes, not just line-height: Korean fonts can paint above the line box.
       if(center&&bounds.width){
         let radius=0;const walker=doc.createTreeWalker(center,4);
         while(walker.nextNode()){
           if(!walker.currentNode.textContent.trim())continue;
           const range=doc.createRange();range.selectNodeContents(walker.currentNode);
-          for(const r of range.getClientRects())for(const [x,y] of [[r.left,r.top],[r.right,r.top],[r.left,r.bottom],[r.right,r.bottom]])radius=Math.max(radius,Math.hypot(x-bounds.left-bounds.width/2,y-bounds.top-bounds.height/2));
+          for(const r of range.getClientRects())for(const [x,y] of [[r.left,r.top],[r.right,r.top],[r.left,r.bottom],[r.right,r.bottom]])radius=Math.max(radius,Math.hypot(x-bounds.left-bounds.width/2,(y-bounds.top-bounds.height/2)*ratio));
         }
         if(radius>bounds.width*.37)minimumRing=Math.min(stage.clientWidth,Math.max(minimumRing,Math.ceil(radius/.36)));
       }
@@ -70,14 +71,27 @@
       }else if(style.display==='grid'){
         const right=visible.filter(n=>root.getComputedStyle(n).gridColumnStart==='2');
         const rightHeight=right.reduce((sum,n)=>sum+height(n),0)+Math.max(0,right.length-1)*gap;
-        const leftHeight=minimumRing+pointHeight+4+height(legend)+height(basis)+2*gap;
+        const leftHeight=minimumRing/ratio+pointHeight+4+height(legend)+height(basis)+2*gap;
         // Fixed viewport height is only a target. Enlarged text/long station
         // names must grow the panel, never paint over the records below it.
         const value='max(100svh, '+Math.max(340,Math.ceil(Math.max(leftHeight,rightHeight)+padding))+'px)';if(primary.style.minHeight!==value)primary.style.minHeight=value;
       }
-      const stageMinimum=minimumRing+pointHeight+4+'px';if(stage.style.minHeight!==stageMinimum)stage.style.minHeight=stageMinimum;
-      const size=Math.max(0,Math.min(stage.clientWidth,Math.max(minimumRing,stage.clientHeight-pointHeight-4),380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
-      const actual=ring.getBoundingClientRect().width+'px';if(ring.style.getPropertyValue('--ring-size')!==actual)ring.style.setProperty('--ring-size',actual);
+      const stageMinimum=minimumRing/ratio+pointHeight+4+'px';if(stage.style.minHeight!==stageMinimum)stage.style.minHeight=stageMinimum;
+      const size=Math.max(0,Math.min(stage.clientWidth,Math.max(minimumRing,(stage.clientHeight-pointHeight-4)*ratio),380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
+      const measured=ring.getBoundingClientRect(),actual=Math.min(measured.width,measured.height)+'px';if(ring.style.getPropertyValue('--ring-size')!==actual)ring.style.setProperty('--ring-size',actual);
+      // A resize can wrap fixed enlarged text after the first measurement.
+      // Recheck the resulting layout now instead of relying on another
+      // ResizeObserver delivery (WebKit may coalesce that delivery).
+      if(center&&pass<6){
+        const b=ring.getBoundingClientRect();let radius=0;const walker=doc.createTreeWalker(center,4);
+        while(walker.nextNode()){
+          if(!walker.currentNode.textContent.trim())continue;
+          const range=doc.createRange();range.selectNodeContents(walker.currentNode);
+          for(const r of range.getClientRects())for(const [x,y] of [[r.left,r.top],[r.right,r.top],[r.left,r.bottom],[r.right,r.bottom]])radius=Math.max(radius,Math.hypot(x-b.left-b.width/2,(y-b.top-b.height/2)*ratio));
+        }
+        const required=Math.min(stage.clientWidth,Math.ceil(radius/.36));
+        if(radius>b.width*.37&&required>minimumRing){minimumRing=required;fit(pass+1);}
+      }
     };
     fitPanel=fit;fit();
     if(typeof root.ResizeObserver==='function'){let queued=false;observer=new root.ResizeObserver(()=>{if(!queued){queued=true;root.requestAnimationFrame(()=>{queued=false;fit();});}});observer.observe(stage);for(const node of [...primary.children,...stage.querySelectorAll('.orbit-point,.orbit-track,.orbit-center')])observer.observe(node);}

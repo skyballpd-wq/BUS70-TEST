@@ -14,7 +14,15 @@
   async function poll(){
     if(!active()||document.hidden||busy)return;const e=epoch;busy=true;
     try{const r=await request('noticeFeed');if(e!==epoch)return;if(!r.ok){lastSync=0;status(r.message||'공지 연결을 확인하세요.',true);refreshStrip();return;}
-      items=(r.items||[]).filter(current);lastSync=Date.now();if(speaking&&!items.some(n=>n.id===speaking.id))stopSpeech();status('공지 동기화 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));renderInbox();for(const event of ['PLAYED','ACKNOWLEDGED']){const ids=[...queued.values()].filter(q=>q.event===event&&items.some(n=>n.id===q.id)).map(q=>q.id);if(ids.length)await receipt(ids,event);}await receipt(items.filter(n=>!n.receivedAt).map(n=>n.id),'RECEIVED');if(e===epoch)tryAutoVoice();
+      items=(r.items||[]).filter(current);lastSync=Date.now();if(speaking&&!items.some(n=>n.id===speaking.id))stopSpeech();status('공지 동기화 완료 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));renderInbox();
+      for(const event of ['PLAYED','ACKNOWLEDGED']){
+        if(e!==epoch)return;
+        const ids=[...queued.values()].filter(q=>q.event===event&&items.some(n=>n.id===q.id)).map(q=>q.id);
+        if(ids.length)await receipt(ids,event);
+      }
+      if(e!==epoch)return;
+      await receipt(items.filter(n=>!n.receivedAt).map(n=>n.id),'RECEIVED');
+      if(e===epoch)tryAutoVoice();
     }catch(error){if(e===epoch){lastSync=0;status('공지 수신 지연 · 다시 연결 중',true);refreshStrip();}}finally{if(e===epoch)busy=false;}
   }
   function refreshStrip(){

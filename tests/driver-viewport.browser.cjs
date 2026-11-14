@@ -16,13 +16,13 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    apiPost=async()=>({ok:false,message:'합성 응답'});loadOperationData=async()=>{};resumeDriverLocationIfAllowed=()=>{};refreshCockpitWeather=()=>{};startDriverFleetTimer=()=>{};armDriverAlarms=()=>{};
    openDriverScreen({driverId:'TEST',name:'시험 기사',route:'5',status:'재직'},false,false,'',false);stopDriverLiveTimer();stopDriverFleetTimer();
    document.getElementById('workDate').value='2099-01-08';
-   const stops=Array.from({length:61},(_,i)=>({id:'S'+i,order:i+1,name:i===0||i===60?'고강공영차고지':i===30?'삼정종합사회복지회관':'시험정류장'+i,lat:37+i*.001,lng:127,origin:i===0,turnaround:i===30,direction:i<30?'OUTBOUND':'RETURN'}));
+   const stops=Array.from({length:61},(_,i)=>({id:'S'+i,order:i+1,name:i===0||i===60?'고강공영차고지':i===30?'삼정종합사회복지회관':i===32?'부천테크노파크3단지300동앞':'시험정류장'+i,lat:37+i*.001,lng:127,origin:i===0,turnaround:i===32,direction:i<=32?'OUTBOUND':'RETURN'}));
    const trip={frontSequence:2,rearSequence:3,trip:1,startTime:'10:00',turnTime:'11:00',endTime:'12:00',startPlace:'고강공영차고지',turnPlace:'삼정종합사회복지회관',endPlace:'고강공영차고지',plannedFrontGapMinutes:7,plannedRearGapMinutes:9};
    lastSchedule={ok:true,type:'WORK',temporalState:'CURRENT',date:'2099-01-08',route:'5',trips:[trip,{...trip,trip:2,startTime:'13:00',turnTime:'14:00',endTime:'15:00'}],dispatch:{dispatchId:'TEST-D',seq:1,vehicleId:'TEST-V',scheduleVersion:'TEST-VERSION'},vehicle:{vehicleId:'TEST-V',displayNo:'시험00가0001'},routeProfile:{stops},runLogs:[{date:'2099-01-08',sequence:1,trip:1,actualStart:'10:00:00'}]};
    followCurrentTrip=true;activeTripIndex=0;locationTrackingActive=true;locationPermissionState='granted';nativeLocationEnabled=true;operationDataLoaded=true;
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37.010,longitude:127,accuracy:2,speed:7}};
    cockpitWeather={available:true,temperature:12.3,condition:'맑음',windMps:2.1,observedAt:new Date(Date.now()).toISOString()};
-   liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[7,9,12,15].map((i,n)=>({route:'5',date:'2099-01-08',vehicleId:'TEST-PEER-'+n,running:true,matchedStopOrder:i+1,recordedAt:new Date(Date.now()).toISOString(),accuracyM:3})),crossCheck:{available:true}};
+   liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[7,9,12,15].map((i,n)=>({route:'5',date:'2099-01-08',vehicleId:'TEST-PEER-'+n,running:true,matchedStopOrder:i+1,recordedAt:new Date(Date.now()).toISOString(),accuracyM:3})),crossCheck:{available:true,fleet:[7,9,12,15].map((i,n)=>({source:'GYEONGGI_BUS_LOCATION_V2',positionBasis:'PROVIDER_STOP_REFERENCE',vehicleId:'TEST-PEER-'+n,route:'5',date:'2099-01-08',matchedStopOrder:i+1,stateCd:1,crowded:n+1,fetchedAt:Date.now()}))}};
    routeNavigationState=()=>({configured:true,trip:1,timestamp:Date.now(),matchedIndex:10,tripPassedStops:11,tripStopCount:61,tripProgressPercent:18,previousStop:'성곡중학교.장애인종합복지관',nextStop:'수주도서관.고강선사유적공원',direction:'회차 방면',path:Bus70Automation.course(trip,stops)});
    renderSchedule(false);window.scrollTo(0,0);
   });
@@ -37,6 +37,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});}
    assert(rects.primary.top>=0&&rects.primary.top<=1,label+' starts at the visible top: '+JSON.stringify(rects));
    assert(rects.primary.bottom<=height+1,label+' fits the actual viewport: '+JSON.stringify(rects));
+   assert(Math.abs(rects.ring.width/rects.ring.height-(width>=560&&height<=520?1.25:1))<.01,label+' responsive circle/ellipse ratio');
    assert(rects.ring.width>=165&&rects.ring.height>=165&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
@@ -68,7 +69,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
     const outside=nodes.filter(({r})=>r.top<bounds.top-1||r.bottom>bounds.bottom+1||r.left<bounds.left-1||r.right>bounds.right+1).map(n=>n.id);
     const overlaps=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];if(Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>1&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>1)overlaps.push([a.id,b.id]);}
     const ring=document.getElementById('driverTripProgressRing').getBoundingClientRect(),center=document.querySelector('.orbit-center'),walker=document.createTreeWalker(center,NodeFilter.SHOW_TEXT),textOutside=[];
-    while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push({text:node.textContent,x:r.left,y:r.top,width:r.width,height:r.height,font:getComputedStyle(node.parentElement).fontSize});}
+    while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot((x-ring.left-ring.width/2)/ring.width,(y-ring.top-ring.height/2)/ring.height)>45.5/120))textOutside.push({text:node.textContent,x:r.left,y:r.top,width:r.width,height:r.height,font:getComputedStyle(node.parentElement).fontSize});}
     return {outside,overlaps,textOutside,geometry:{primary:{height:bounds.height,top:bounds.top},style:primary.style.cssText,nodes:nodes.map(({id,r})=>({id,top:r.top,height:r.height})),ring:{top:ring.top,left:ring.left,width:ring.width,height:ring.height}},secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
    });
    if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
@@ -77,8 +78,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await check('running '+width+'x'+height);
   await contained('running '+width+'x'+height);
   assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
-  assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
-  assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
+  assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'테크노파크');
+  assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'부천테크노파크3단지300동앞');
   assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
   assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'도착 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
@@ -103,7 +104,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
   assert.equal(await page.locator('.driver-live-primary #driverLiveSafety').isVisible(),true);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+width+'x'+height+'.png'});}
-  await page.evaluate(()=>{liveFleet.positions.forEach(p=>p.recordedAt=new Date(Date.now()-90000).toISOString());updateDriverLiveDashboard();});
+  await page.evaluate(()=>{liveFleet.positions.forEach(p=>p.recordedAt=new Date(Date.now()-90000).toISOString());liveFleet.crossCheck.fleet.forEach(p=>p.fetchedAt=Date.now()-90000);updateDriverLiveDashboard();});
   assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/이전 위치/);await check('stale '+width+'x'+height);
   // A feed outage must stay visible and must not turn old values into live data.
   await page.evaluate(()=>{liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[],error:'합성 수신 중단'};lastDriverPosition.timestamp=Date.now()-120000;routeNavigationState=()=>({configured:false,reason:'위치·방향 확인 중'});updateDriverLiveDashboard();});
