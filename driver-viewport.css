@@ -110,6 +110,7 @@
 /* The centre scales with the measured circle, including unknown speed. */
 .driver-live-primary .orbit-ring .orbit-speed{font-size:clamp(22px,calc(var(--ring-size, 180px) * .14),44px)!important}
 .driver-live-primary .orbit-ring .orbit-speed.waiting{font-size:clamp(20px,calc(var(--ring-size, 180px) * .11),30px)!important}
+.driver-live-primary .orbit-ring .orbit-progress>span{display:block}
 .driver-live-primary .orbit-ring .orbit-progress{font-size:clamp(10px,calc(var(--ring-size, 180px) * .055),15px);line-height:1.3;overflow-wrap:anywhere;word-break:keep-all}
 
 /* Endpoint rows occupy their own space, outside every tick and vehicle marker. */

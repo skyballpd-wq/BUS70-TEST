@@ -28,7 +28,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   const check=async(label)=>{
    // Layout is driven by ResizeObserver after a render or text-size change.
-   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await page.evaluate(()=>new Promise(resolve=>{let frames=8;const settle=()=>--frames?requestAnimationFrame(settle):resolve();requestAnimationFrame(settle);}));
    const rects=await page.evaluate(()=>{
     const rect=n=>{const r=n.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};};
     const primary=document.querySelector('.driver-live-primary');
@@ -61,14 +61,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   };
 
   const contained=async(label)=>{
-   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await page.evaluate(()=>new Promise(resolve=>{let frames=8;const settle=()=>--frames?requestAnimationFrame(settle):resolve();requestAnimationFrame(settle);}));
    const result=await page.evaluate(()=>{
     const primary=document.querySelector('.driver-live-primary'),bounds=primary.getBoundingClientRect(),secondary=document.querySelector('.driver-live-secondary').getBoundingClientRect();
     const nodes=[...primary.children].filter(n=>!n.hidden&&getComputedStyle(n).display!=='none'&&getComputedStyle(n).visibility!=='hidden').map(n=>({id:n.id||n.className,r:n.getBoundingClientRect()}));
     const outside=nodes.filter(({r})=>r.top<bounds.top-1||r.bottom>bounds.bottom+1||r.left<bounds.left-1||r.right>bounds.right+1).map(n=>n.id);
     const overlaps=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];if(Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>1&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>1)overlaps.push([a.id,b.id]);}
     const ring=document.getElementById('driverTripProgressRing').getBoundingClientRect(),center=document.querySelector('.orbit-center'),walker=document.createTreeWalker(center,NodeFilter.SHOW_TEXT),textOutside=[];
-    while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push(node.textContent);}
+    while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push({text:node.textContent,x:r.left,y:r.top,width:r.width,height:r.height,font:getComputedStyle(node.parentElement).fontSize});}
     return {outside,overlaps,textOutside,geometry:{primary:{height:bounds.height,top:bounds.top},style:primary.style.cssText,nodes:nodes.map(({id,r})=>({id,top:r.top,height:r.height})),ring:{top:ring.top,left:ring.left,width:ring.width,height:ring.height}},secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
    });
    if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
