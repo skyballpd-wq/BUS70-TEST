@@ -43,7 +43,7 @@
     for(const node of Array.from(box.children))if(node!==primary)details.append(node);
     box.append(details);
     let minimumRing=170,ringContent='';
-    const fit=()=>{
+    const fit=(pass=0)=>{
       if(!ring||!stage.isConnected)return;
       const style=root.getComputedStyle(primary);
       const center=ring.querySelector('.orbit-center'),bounds=ring.getBoundingClientRect();
@@ -78,6 +78,19 @@
       const stageMinimum=minimumRing+pointHeight+4+'px';if(stage.style.minHeight!==stageMinimum)stage.style.minHeight=stageMinimum;
       const size=Math.max(0,Math.min(stage.clientWidth,Math.max(minimumRing,stage.clientHeight-pointHeight-4),380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
       const actual=ring.getBoundingClientRect().width+'px';if(ring.style.getPropertyValue('--ring-size')!==actual)ring.style.setProperty('--ring-size',actual);
+      // A resize can wrap fixed enlarged text after the first measurement.
+      // Recheck the resulting layout now instead of relying on another
+      // ResizeObserver delivery (WebKit may coalesce that delivery).
+      if(center&&pass<6){
+        const b=ring.getBoundingClientRect();let radius=0;const walker=doc.createTreeWalker(center,4);
+        while(walker.nextNode()){
+          if(!walker.currentNode.textContent.trim())continue;
+          const range=doc.createRange();range.selectNodeContents(walker.currentNode);
+          for(const r of range.getClientRects())for(const [x,y] of [[r.left,r.top],[r.right,r.top],[r.left,r.bottom],[r.right,r.bottom]])radius=Math.max(radius,Math.hypot(x-b.left-b.width/2,y-b.top-b.height/2));
+        }
+        const required=Math.min(stage.clientWidth,Math.ceil(radius/.36));
+        if(radius>b.width*.37&&required>minimumRing){minimumRing=required;fit(pass+1);}
+      }
     };
     fitPanel=fit;fit();
     if(typeof root.ResizeObserver==='function'){let queued=false;observer=new root.ResizeObserver(()=>{if(!queued){queued=true;root.requestAnimationFrame(()=>{queued=false;fit();});}});observer.observe(stage);for(const node of [...primary.children,...stage.querySelectorAll('.orbit-point,.orbit-track,.orbit-center')])observer.observe(node);}
