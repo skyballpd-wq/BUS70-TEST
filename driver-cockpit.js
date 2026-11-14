@@ -102,7 +102,7 @@
     let svg=host.querySelector('svg');
     if(!svg||host.dataset.ringTotal!==signature){
       if(svg)svg.remove();host.dataset.ringTotal=signature;
-      svg=svgNode(doc,'svg',{viewBox:'0 0 120 120','aria-hidden':'true',class:'stop-segment-ring'});
+      svg=svgNode(doc,'svg',{viewBox:'0 0 120 120',preserveAspectRatio:'none','aria-hidden':'true',class:'stop-segment-ring'});
       const point=angle=>[60+49*Math.cos(angle*Math.PI/180),60+49*Math.sin(angle*Math.PI/180)],segments=ringSegments(total,0,startAngle,span,plan.turnFraction);
       if(!segments.length)svg.append(svgNode(doc,'circle',{cx:60,cy:60,r:49,fill:'none',stroke:'#dce4ed','stroke-width':7}));
       segments.forEach(s=>{const a=point(s.start),b=point(s.end);const arc=svgNode(doc,'path',{class:'route-tick',d:`M ${a[0]} ${a[1]} A 49 49 0 ${s.end-s.start>180?1:0} 1 ${b[0]} ${b[1]}`,fill:'none',stroke:'#dce4ed','stroke-width':7});svg.append(arc);const fill=arc.cloneNode();fill.setAttribute('class','route-fill');fill.setAttribute('pathLength','1');fill.style.transition='stroke-dasharray 1s linear';svg.append(fill);});
