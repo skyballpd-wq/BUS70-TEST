@@ -69,10 +69,10 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
     const overlaps=[];for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];if(Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>1&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>1)overlaps.push([a.id,b.id]);}
     const ring=document.getElementById('driverTripProgressRing').getBoundingClientRect(),center=document.querySelector('.orbit-center'),walker=document.createTreeWalker(center,NodeFilter.SHOW_TEXT),textOutside=[];
     while(walker.nextNode()){const node=walker.currentNode;if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);for(const r of range.getClientRects())if([[r.left,r.top],[r.left,r.bottom],[r.right,r.top],[r.right,r.bottom]].some(([x,y])=>Math.hypot(x-ring.left-ring.width/2,y-ring.top-ring.height/2)>ring.width*45.5/120))textOutside.push(node.textContent);}
-    return {outside,overlaps,textOutside,secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
+    return {outside,overlaps,textOutside,geometry:{primary:{height:bounds.height,top:bounds.top},style:primary.style.cssText,nodes:nodes.map(({id,r})=>({id,top:r.top,height:r.height})),ring:{top:ring.top,left:ring.left,width:ring.width,height:ring.height}},secondaryClear:secondary.top>=bounds.bottom-1,horizontal:document.documentElement.scrollWidth<=innerWidth+1};
    });
    if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
-   assert.deepEqual(result.outside,[],label+' child overflow');assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks');assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
+   assert.deepEqual(result.outside,[],label+' child overflow '+JSON.stringify(result.geometry));assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks '+JSON.stringify(result.geometry));assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
   };
   await check('running '+width+'x'+height);
   await contained('running '+width+'x'+height);
@@ -116,7 +116,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    const trip=lastSchedule.trips[0];Object.assign(trip,{turnPlace:'',turnTime:'',endPlace:'시험산업단지 정류소',serviceEndPlace:'시험산업단지 정류소',deadheadDestination:'고강공영차고지',endLocation:{lat:37.05,lng:127}});
    lastSchedule.routeProfile.stops[50].name=trip.endPlace;
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37.049,longitude:127,accuracy:3,speed:null}};
-   routeNavigationState=()=>({configured:true,timestamp:Date.now(),matchedIndex:49,tripPassedStops:50,tripStopCount:51,tripProgressPercent:97,previousStop:'시험아파트.청소년문화센터',nextStop:'시험산업단지 정류소',direction:'회차 방면'});
+   routeNavigationState=()=>({configured:true,trip:1,timestamp:Date.now(),matchedIndex:49,tripPassedStops:50,tripStopCount:51,tripProgressPercent:97,previousStop:'시험아파트.청소년문화센터',nextStop:'시험산업단지 정류소',direction:'회차 방면'});
    renderSchedule(false);window.scrollTo(0,0);
    document.querySelector('#driverRoadSafety .road-safety-status').textContent='보호시설 인근 안내 · 제한속도 미확인 · 안내 음성은 설치본 업데이트 필요';Bus70Viewport.refresh(document,true);
   });
@@ -129,7 +129,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/terminal-'+width+'x'+height+'.png',fullPage:false});
   await page.setViewportSize({width:height,height:width});await contained('rotated '+width+'x'+height);
   await page.setViewportSize({width,height});await contained('restored '+width+'x'+height);
-  await page.evaluate(()=>{for(const n of document.querySelectorAll('.driver-live-primary *'))if([...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim()))n.style.setProperty('font-size',parseFloat(getComputedStyle(n).fontSize)*1.2+'px','important');});
+  await page.evaluate(()=>{const sizes=[...document.querySelectorAll('.driver-live-primary *')].filter(n=>[...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim())).map(n=>({n,font:parseFloat(getComputedStyle(n).fontSize),line:parseFloat(getComputedStyle(n).lineHeight)}));for(const {n,font,line} of sizes){n.style.setProperty('font-size',font*1.2+'px','important');if(Number.isFinite(line))n.style.setProperty('line-height',line*1.2+'px','important');}});
   await contained('enlarged '+width+'x'+height);
   await page.evaluate(()=>{Object.assign(lastSchedule.trips[0],{turnPlace:'삼정종합사회복지회관',turnTime:'11:00',endPlace:'고강공영차고지',serviceEndPlace:'',deadheadDestination:'',endLocation:null});renderSchedule(false);window.scrollTo(0,0);});
   // Scrolling is deliberately possible; all work controls remain reachable.
