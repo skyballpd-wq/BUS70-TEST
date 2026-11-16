@@ -46,6 +46,7 @@
     const fit=(pass=0)=>{
       if(!ring||!stage.isConnected)return;
       const style=root.getComputedStyle(primary),ratio=style.display==='grid'?1.25:1;
+      if(style.display!=='grid'&&primary.style.height!=='auto')primary.style.height='auto';
       if(ring.style.aspectRatio!==String(ratio))ring.style.aspectRatio=String(ratio);
       const center=ring.querySelector('.orbit-center'),bounds=ring.getBoundingClientRect();
       const key=center?.textContent+'|'+stage.clientWidth+'|'+ratio;
@@ -75,6 +76,9 @@
         // Fixed viewport height is only a target. Enlarged text/long station
         // names must grow the panel, never paint over the records below it.
         const value='max(100svh, '+Math.max(340,Math.ceil(Math.max(leftHeight,rightHeight)+padding))+'px)';if(primary.style.minHeight!==value)primary.style.minHeight=value;
+        // A definite grid height lets the flexible ring row shrink again when
+        // a notice arrives; min-height alone retains the previous ring's size.
+        if(primary.style.height!==value)primary.style.height=value;
       }
       const stageMinimum=minimumRing/ratio+pointHeight+4+'px';if(stage.style.minHeight!==stageMinimum)stage.style.minHeight=stageMinimum;
       const size=Math.max(0,Math.min(stage.clientWidth,Math.max(minimumRing,(stage.clientHeight-pointHeight-4)*ratio),380));if(size&&ring.style.width!==size+'px')ring.style.width=size+'px';
