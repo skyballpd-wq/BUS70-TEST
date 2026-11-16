@@ -49,7 +49,7 @@
       if(ring.style.aspectRatio!==String(ratio))ring.style.aspectRatio=String(ratio);
       const center=ring.querySelector('.orbit-center'),bounds=ring.getBoundingClientRect();
       const key=center?.textContent+'|'+stage.clientWidth+'|'+ratio;
-      if(key!==ringContent){minimumRing=170;ringContent=key;}
+      if(key!==ringContent){minimumRing=170*ratio;ringContent=key;}
       // Respect enlarged text by growing its circle/ellipse and panel. Measure glyph
       // boxes, not just line-height: Korean fonts can paint above the line box.
       if(center&&bounds.width){
