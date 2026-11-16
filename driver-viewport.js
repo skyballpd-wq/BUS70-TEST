@@ -1,6 +1,12 @@
 /* Separate the live first screen from records/settings without locking page scrolling. */
 (function(root){
   let observer,fitPanel;
+  // Orientation changes can switch the layout without delivering another
+  // ResizeObserver callback in WebKit. Re-evaluate the active panel explicitly.
+  let resizeQueued=false;
+  const resized=()=>{if(!resizeQueued){resizeQueued=true;root.requestAnimationFrame(()=>{resizeQueued=false;fitPanel?.();});}};
+  root.addEventListener?.('resize',resized);
+  root.visualViewport?.addEventListener('resize',resized);
   function element(doc,tag,cls,text){const node=doc.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;}
   function safetySummary(text){
     // Keep actionable status on the live panel; installation diagnostics remain
