@@ -44,7 +44,7 @@
 @container(max-width:430px){
   .cockpit-phases,.cockpit-phases tbody{display:block}
   .cockpit-phases thead{display:none}
-  .cockpit-phases tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);border-bottom:1px solid #dce4ed;padding:6px 0}
+  .cockpit-phases tr{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr) minmax(0,1fr);border-bottom:1px solid #dce4ed;padding:6px 0}
   .cockpit-phases td:first-child{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;border:0;flex-wrap:wrap}
   .cockpit-phases td[data-label]::before{content:attr(data-label);display:block;font-size:10px;font-weight:400;color:#52657a;line-height:1.7}
   .cockpit-phases td.phase-planned{white-space:normal}
@@ -61,7 +61,7 @@
 @media(min-width:560px) and (max-height:520px){
   .driver-mode.live-first-screen .app{max-width:960px}
   .driver-mode.live-first-screen main{max-width:none}
-  .driver-live-primary{min-height:340px;display:grid;grid-template-columns:minmax(180px,40%) minmax(0,1fr);grid-template-rows:auto auto auto auto auto auto 1fr auto;column-gap:12px;row-gap:2px}
+  .driver-live-primary{min-height:340px;display:grid;grid-template-columns:minmax(180px,40%) minmax(0,1fr);grid-template-rows:auto auto auto auto auto 1fr auto auto;column-gap:12px;row-gap:2px}
   .driver-live-primary .cockpit-now{grid-column:2;grid-row:1}
   .driver-live-primary .cockpit-head{grid-column:2;grid-row:2}
   .driver-live-primary .planned-gaps{grid-column:2;grid-row:3}
@@ -174,4 +174,11 @@
   .driver-live-primary .driver-scroll-hint{display:none}
   .driver-live-primary{gap:1px}
   .driver-mode .driver-live-primary .planned-gaps>.headway-card{padding-top:4px;padding-bottom:4px}
+}
+@media(min-height:740px) and (min-width:390px) and (max-width:559px){
+  .driver-live-primary .headway-title{font-size:14px}
+  .driver-live-primary .headway-planned,.driver-live-primary .headway-actual{font-size:14px}
+  .driver-live-primary .headway-meta .headway-identity{font-size:13px}
+  .driver-live-primary .headway-meta .headway-crowding,.driver-live-primary .headway-row-label{font-size:11px}
+  .turn-point-times b{font-size:15px}
 }
