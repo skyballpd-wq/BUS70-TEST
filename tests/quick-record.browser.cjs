@@ -104,8 +104,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverWeatherTime').isVisible(),false,'observation explanation is not visible');
   assert.match(await page.locator('#driverWeather').getAttribute('title'),/10:00 관측/);
   assert.equal(await page.locator('.cockpit-gaps').count(),1,'planned minute gaps appear separately from stop-position ring');
-  assert.equal(await page.locator('#driverPlannedGaps .front .headway-title strong').innerText(),'14분');
-  assert.equal(await page.locator('#driverPlannedGaps .rear .headway-title strong').innerText(),'확인 중');
+  assert.match(await page.locator('#driverPlannedGaps .front .headway-planned').innerText(),/14분/);
+  assert.match(await page.locator('#driverPlannedGaps .rear .headway-planned').innerText(),/—분/);
   assert.match(await page.locator('#driverNavNext').innerText(),/가상행정복지센터/);
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.front').count(),2);
   assert.equal(await page.locator('#driverTripProgressRing .route-peer.rear').count(),2);
@@ -147,7 +147,11 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   for(const scale of [1,1.5]){
    await page.evaluate(scale=>document.getElementById('scheduleResult').style.zoom=String(scale),scale);
    assert(await page.locator('.orbit-cockpit').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'result card fits at font/layout enlargement '+scale);
-   for(const cell of await page.locator('#driverLiveDashboard .phase-actual, #driverLiveDashboard .time-deviation').all())assert(await cell.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'time cells do not clip');
+   for(const cell of await page.locator('#driverLiveDashboard .phase-actual, #driverLiveDashboard .time-deviation').all()){
+    const metrics=await cell.evaluate(n=>({text:n.innerText,width:n.clientWidth,scroll:n.scrollWidth,cell:n.className}));
+    if(metrics.scroll>metrics.width+1&&process.env.CONTACT_LAYOUT_OUTPUT)await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/record-overflow-'+width+'-'+scale+'.png'});
+    assert(metrics.scroll<=metrics.width+1,'time cells do not clip '+width+' scale '+scale+' '+JSON.stringify(metrics));
+   }
   }
   await page.evaluate(()=>document.getElementById('scheduleResult').style.zoom='1');
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.locator('#scheduleResult').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/trip-result-'+width+'.png'});

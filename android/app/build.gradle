@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 93
-        versionName "0.93-reliable-dispatch-sync"
+        versionCode 94
+        versionName "0.94-ordered-checkpoints"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

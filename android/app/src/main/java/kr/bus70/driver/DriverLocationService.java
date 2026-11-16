@@ -244,7 +244,7 @@ public class DriverLocationService extends Service implements LocationListener {
         if (state == null) state = new JSONObject();
         JSONObject start = point(trip, "startLocation"), turn = point(trip, "turnLocation"), end = point(trip, "endLocation"), control = point(trip,"controlLocation"), returned = point(trip,"returnLocation");
         long previousSample=state.optLong("sampleTime");
-        try{if(previousSample>0&&fix-previousSample>45000)state.put("seenStart",state.optBoolean("seenStart")&&state.optLong("startVisitAt")>0&&fix-state.optLong("startVisitAt")>=0&&fix-state.optLong("startVisitAt")<=7200000L);if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
+        try{if(previousSample>0&&fix-previousSample>45000)state.put("seenStart",state.optBoolean("seenStart")&&state.optLong("startVisitAt")>0&&fix-state.optLong("startVisitAt")>=0&&fix-state.optLong("startVisitAt")<=7200000L);if(previousSample>0&&fix-previousSample>15000)for(String key:new String[]{"departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","turnStay","turnOutside","endInside","controlInside","controlVisit","returnInside"})state.remove(key);state.put("sampleTime",fix);}catch(Exception ignored){}
         String actualStart = trip.optString("actualStart"), actualTurn = trip.optString("actualTurn"), actualEnd = trip.optString("actualEnd");
         JSONObject navigation=state.optJSONObject("navigation");
         JSONObject hint=routeReference;
@@ -312,10 +312,8 @@ public class DriverLocationService extends Service implements LocationListener {
                 rememberFix(state,"turn",location,state.optInt("turnInside")==1);
                 if(state.optInt("turnInside")>=2||near&&ordered&&location.getAccuracy()<=20&&distance(location,turn)<=30)postEvent(trip,"TURN",rememberedFix(state,"turn",location));
             }
-            if (actualEnd.isEmpty() && !actualStart.isEmpty() && trip.optString("actualControl").isEmpty() && control != null) {
-                state.put("controlInside", distance(location,control) <= radius(control) ? state.optInt("controlInside")+1 : 0);
-                if (state.optInt("controlInside")>=2) postEvent(trip,"CONTROL",location);
-            }
+            JSONObject controlFix=ControlPointEvidence.update(state,trip,navigation,fix,location.getLatitude(),location.getLongitude(),location.getAccuracy(),location.hasSpeed()?location.getSpeed():-1,location.hasBearing()?location.getBearing():Double.NaN);
+            if(controlFix!=null){state.put("controlFix",controlFix);postEvent(trip,"CONTROL",rememberedFix(state,"control",location));}
             if (actualEnd.isEmpty() && !actualTurn.isEmpty() && trip.optString("turnDepartedAt").isEmpty() && turn != null) {
                 if(distance(location,turn)<=radius(turn)) { state.put("turnStay",state.optInt("turnStay")+1).put("turnOutside",0); }
                 else if(state.optInt("turnInside")>=2 || state.optInt("turnStay")>=2) {

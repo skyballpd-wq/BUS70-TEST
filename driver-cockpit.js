@@ -178,6 +178,20 @@
     if(/삼정.*(복지회관|복지관)/.test(name||''))return '삼정복지회관';
     return String(name||'').replace(/\s*정류소$/,'');
   }
+  function turnPoint(trip,log,path,nav,state,now,secondsPerStop){
+    if(!trip.turnPlace&&!trip.turnTime)return null;
+    const physical=path?.pivotIndex>=0?path.stops[path.pivotIndex]:null;
+    const result={name:trip.turnPlace||'회차 기준점',shortName:shortPoint(trip.turnPlace)||'회차 기준점',planned:trip.turnTime||'',actual:log.actualTurn||'',estimatedAt:null,reason:log.actualStart?'관측 중':'운행 전',physical:physical&&physical.name!==trip.turnPlace?'방향전환 · '+shortPoint(physical.name):''};
+    if(result.actual){result.reason='기록 완료';return result;}
+    if(log.actualEnd){result.reason='기록 확인';return result;}
+    const fresh=nav?.configured&&!nav.retained&&!nav.waiting&&Number.isFinite(nav.timestamp)&&now>=nav.timestamp&&now-nav.timestamp<=10000;
+    if(!log.actualStart||!fresh||!Number.isFinite(nav.fraction)||!path||path.turnIndex<0)return result;
+    if(nav.fraction>path.turnIndex){result.reason='통과 확인';return result;}
+    const recent=state?.samples?.at(-1)?.at;
+    if(!Number.isFinite(recent)||now-recent>180000||now<recent||!Number.isFinite(secondsPerStop)||secondsPerStop<10||secondsPerStop>300)return result;
+    result.estimatedAt=now+Math.max(0,path.turnIndex-nav.fraction)*secondsPerStop*1000;
+    return result;
+  }
   // A planned one-way service has no turnaround, including on older native apps.
   // This changes display text only; navigation evidence and recording stay intact.
   function travelDirection(trip,navigation){
@@ -236,5 +250,5 @@
     }
     return {label:comparison.label.replace(/ 지연$/, ' 늦음'),state:comparison.state,title:comparison.label};
   }
-  return {shortVehicle,ringPlan,ringAngle,travelDirection,weatherView,renderWeather,peerStatus,retainedReference,phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
+  return {shortVehicle,shortPoint,turnPoint,ringPlan,ringAngle,travelDirection,weatherView,renderWeather,peerStatus,retainedReference,phraseParts,phraseText,plannedGap,nativePosition,telemetry,phases,ringSegments,movement,bindSwipe,ringPeers,ringPeerLabel,drawRing,drawRoute,weatherLabel,weatherObservation,manualActions,phaseDifference};
 });

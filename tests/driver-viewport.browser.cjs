@@ -52,8 +52,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
     }).filter(r=>r.visible);
     const paint={top:Math.min(...marks.map(r=>r.top)),bottom:Math.max(...marks.map(r=>r.bottom))};
     return [...document.querySelectorAll('#driverRingPoints>.orbit-point')].map(n=>{
-     const r=n.getBoundingClientRect();let right=r.left;
-     const childrenFit=[...n.children].every(c=>{const b=c.getBoundingClientRect();const fits=b.left>=right-1&&b.right<=r.right+1&&c.scrollWidth<=c.clientWidth+1;right=b.right;return fits;});
+     const r=n.getBoundingClientRect();const children=[...n.children].filter(c=>!c.hidden).map(c=>({c,b:c.getBoundingClientRect()}));
+     const childrenFit=children.every(({c,b},i)=>b.left>=r.left-1&&b.right<=r.right+1&&c.scrollWidth<=c.clientWidth+1&&children.slice(i+1).every(({b:q})=>Math.min(b.right,q.right)-Math.max(b.left,q.left)<=1||Math.min(b.bottom,q.bottom)-Math.max(b.top,q.top)<=1));
      return {outside:n.classList.contains('depot')?r.bottom<=paint.top:r.top>=paint.bottom,childrenFit,point:{top:r.top,bottom:r.bottom},paint};
     });
    });
@@ -78,13 +78,16 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   await check('running '+width+'x'+height);
   await contained('running '+width+'x'+height);
   assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
-  assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'테크노파크');
-  assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'부천테크노파크3단지300동앞');
+  assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
+  assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
   assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
   assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'도착 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
   await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
-  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정 환산 약 7정류장/);
+  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정[\s\S]*7분 · 약7정류장/);
+  assert.match(await page.locator('#driverTurnTimes').innerText(),/예정[\s\S]*11:00[\s\S]*예상[\s\S]*기록/);
+  assert(await page.locator('.cockpit-target').evaluate(n=>n.hidden),'turnaround planned time is not duplicated below the station names');
+  assert.match(await page.locator('.physical-turn').innerText(),/테크노파크/);
   await check('comparison '+width+'x'+height);
   await page.evaluate(async()=>{
    apiPost=async b=>b.operation==='noticeFeed'?{ok:true,items:[{id:'SYNTHETIC-NOTICE',kind:'NOTICE',title:'시험 긴급 공지 · 긴 제목도 한 줄 표시',message:'합성 공지 내용',priority:'URGENT',expiresAt:new Date(Date.now()+3600000).toISOString()}]}:{ok:true};
@@ -98,14 +101,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.route-peer').count(),4);
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
   assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
-  assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/실제 2정류장/);
+  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/실제[\s\S]*시간 대기 · 2정류장/);
   assert.equal(await page.locator('.driver-live-primary #driverRingPoints .orbit-point').count(),2);
   assert.equal(await page.locator('.driver-live-primary .quick-run-actions').count(),0);
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
   assert.equal(await page.locator('.driver-live-primary #driverLiveSafety').isVisible(),true);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+width+'x'+height+'.png'});}
   await page.evaluate(()=>{liveFleet.positions.forEach(p=>p.recordedAt=new Date(Date.now()-90000).toISOString());liveFleet.crossCheck.fleet.forEach(p=>p.fetchedAt=Date.now()-90000);updateDriverLiveDashboard();});
-  assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/이전 위치/);await check('stale '+width+'x'+height);
+  assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front .headway-reception').innerText(),/마지막 위치 90초 전/);assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/—분 · —정류장/);await check('stale '+width+'x'+height);
   // A feed outage must stay visible and must not turn old values into live data.
   await page.evaluate(()=>{liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[],error:'합성 수신 중단'};lastDriverPosition.timestamp=Date.now()-120000;routeNavigationState=()=>({configured:false,reason:'위치·방향 확인 중'});updateDriverLiveDashboard();});
   await check('outage '+width+'x'+height);
@@ -128,8 +131,21 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
   await contained('terminal '+width+'x'+height);
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/terminal-'+width+'x'+height+'.png',fullPage:false});
-  await page.setViewportSize({width:height,height:width});await contained('rotated '+width+'x'+height);
-  await page.setViewportSize({width,height});await contained('restored '+width+'x'+height);
+  const rotate=async(viewport,label)=>{
+   await page.setViewportSize(viewport);
+   // The installed page clock advances mocked animation frames independently
+   // of WebKit's native resize event. Wait for the actual responsive result;
+   // never call the application's fitter from the test to conceal a missed event.
+   let responsive=false;
+   for(let attempt=0;attempt<100&&!responsive;attempt++){
+    responsive=await page.evaluate(()=>{const p=document.querySelector('.driver-live-primary'),r=document.getElementById('driverTripProgressRing').getBoundingClientRect(),grid=getComputedStyle(p).display==='grid';return Math.abs(r.width/r.height-(grid?1.25:1))<.01&&(grid||p.style.height==='auto');});
+    if(!responsive)await new Promise(resolve=>setTimeout(resolve,20));
+   }
+   assert(responsive,label+' refits circle/ellipse after the native resize event');
+   await contained(label);
+  };
+  await rotate({width:height,height:width},'rotated '+width+'x'+height);
+  await rotate({width,height},'restored '+width+'x'+height);
   await page.evaluate(()=>{const sizes=[...document.querySelectorAll('.driver-live-primary *')].filter(n=>[...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim())).map(n=>({n,font:parseFloat(getComputedStyle(n).fontSize),line:parseFloat(getComputedStyle(n).lineHeight)}));for(const {n,font,line} of sizes){n.style.setProperty('font-size',font*1.2+'px','important');if(Number.isFinite(line))n.style.setProperty('line-height',line*1.2+'px','important');}});
   await contained('enlarged '+width+'x'+height);
   await page.evaluate(()=>{Object.assign(lastSchedule.trips[0],{turnPlace:'삼정종합사회복지회관',turnTime:'11:00',endPlace:'고강공영차고지',serviceEndPlace:'',deadheadDestination:'',endLocation:null});renderSchedule(false);window.scrollTo(0,0);});
@@ -158,6 +174,24 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   await check('boundary-markers '+width+'x'+height);
   assert.equal(await page.locator('.route-peer').count(),4);
+  // Overnight records must fit even while the live layout disables the outer container.
+  await page.evaluate(()=>{
+   const secondary=document.querySelector('.driver-live-secondary');secondary.replaceChildren();
+   const trip={trip:9,startTime:'21:00',startPlace:'합성 출발지',turnPlace:'합성 회차지',controlPoint:'합성 연계역',controlPurpose:'전철 연계',controlTime:'00:15',endTime:'00:40',endPlace:'합성 도착지'};
+   const log={actualStart:'2099-01-08 21:01:02',actualTurn:'2099-01-08 23:10:00',actualControl:'2099-01-08 21:42:03',controlRecordMode:'GPS 자동'};
+   secondary.append(cockpitPhaseTable(lastSchedule,trip,log,true));secondary.scrollIntoView();
+  });
+  assert.equal(await page.locator('.record-review').count(),1);
+  assert.match(await page.locator('.record-review').innerText(),/회차 전 기록[\s\S]*검토 필요/);
+  assert(!await page.locator('.record-review .difference-direction').count(),'invalid order is not reported as normal early departure');
+  const overflow=await page.locator('.driver-live-secondary .cockpit-phases').evaluate(table=>{
+   const bad=[];for(const cell of table.querySelectorAll('td.phase-planned,td.phase-actual')){
+    const b=cell.getBoundingClientRect(),w=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT);
+    while(w.nextNode()){const range=document.createRange();range.selectNodeContents(w.currentNode);for(const r of range.getClientRects())if(r.right>b.right+1||r.left<b.left-1)bad.push(w.currentNode.textContent);}
+   }return bad;
+  });
+  assert.deepEqual(overflow,[],width+' overnight planned/actual text stays in its cell');
+  if(process.env.CONTACT_LAYOUT_OUTPUT)await page.locator('.driver-live-secondary').screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/overnight-records-'+width+'.png'});
   await page.evaluate(()=>showLoginScreen());assert.equal(await page.locator('body').evaluate(n=>n.classList.contains('live-first-screen')),false);
   assert(await page.locator('.app>.header').isVisible());assert.deepEqual(errors,[]);await page.close();
  }
