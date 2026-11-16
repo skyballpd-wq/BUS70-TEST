@@ -3242,7 +3242,7 @@
         const label=el('div',undefined,'turn-point-label');label.append(name,el('small','회차 기준'));
         const times=el('div',undefined,'turn-point-times');times.id='driverTurnTimes';
         for(const [field,title] of [['planned','예정'],['estimated','예상'],['recorded','기록']]){const cell=el('div',undefined,'turn-'+field),value=el('b','—');value.dataset.pointTime=field;cell.append(el('small',title),value);times.append(cell);}
-        item.append(label,times);if(path?.pivotIndex>=0&&path.stops[path.pivotIndex].name!==context.trip.turnPlace)item.append(el('small','방향전환 · '+Bus70Cockpit.shortPoint(path.stops[path.pivotIndex].name),'physical-turn'));
+        item.append(label,times);if(path?.pivotIndex>=0&&path.stops[path.pivotIndex].name!==context.trip.turnPlace)label.append(el('small','방향전환 · '+Bus70Cockpit.shortPoint(path.stops[path.pivotIndex].name),'physical-turn'));
       }else item.append(el("span",point.before,"point-time before"),name,el("span",point.after,"point-time after"));
       points.append(item);if(key==="depot")points.append(track);
     }
@@ -3250,7 +3250,7 @@
 
     const nav=el("div",undefined,"orbit-stops");[["지난 정류장","driverNavPrevious"],["다음 정류장","driverNavNext"]].forEach(([label,id])=>{const item=el("div"),name=el("strong","—");name.id=id;item.append(el("small",label),name);nav.append(item);});
     const speed=el("strong","—","orbit-speed"),weather=el("div","🌡️ —","orbit-weather"),weatherTime=el("small",""),value=el("small","위치 대기","orbit-progress");speed.id="driverLiveSpeed";weather.id="driverWeather";weatherTime.id="driverWeatherTime";weatherTime.hidden=true;value.id="driverTripProgressValue";inner.append(speed,value);ring.append(inner);box.append(points);
-    const gaps=el("div",undefined,"cockpit-gaps planned-gaps");gaps.id="driverPlannedGaps";gaps.setAttribute("aria-label","시간표상 앞뒤차 예정 간격");
+    const gaps=el("div",undefined,"cockpit-gaps planned-gaps");gaps.id="driverPlannedGaps";gaps.setAttribute("aria-label","앞뒤차 예정·실제 간격 비교");
     [["front","예정 앞차"],["rear","예정 뒷차"]].forEach(([side,label])=>{const item=el("div");item.append(el("span",label),el("strong",Bus70Cockpit.plannedGap(context.trip,side)));gaps.append(item);});box.insertBefore(gaps,points);box.append(nav);weatherBox.append(weather,weatherTime);
     const target=el("div",undefined,"cockpit-target"),count=el("small","");count.id="driverLiveCountdown";count.dataset.nextTime=context.time||"";const targetLabel=el("strong",context.action+(context.time?" · "+displayTime(context.time):""));targetLabel.id="driverLiveTarget";target.append(targetLabel,count);box.append(target);
     renderQuickRunActions(box,data,context);

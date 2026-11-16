@@ -172,4 +172,5 @@
 }
 @media(max-width:350px) and (max-height:600px){
   .driver-live-primary .driver-scroll-hint{display:none}
+  .driver-live-primary{gap:1px}
 }
