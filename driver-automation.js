@@ -85,13 +85,38 @@
     const pending=trips.findIndex((t,i)=>i>lastComplete&&!complete(i)&&(!Number.isFinite(moment(date,t.endTime))||moment(date,t.endTime)>=now));
     return pending>=0?pending:Math.max(0,trips.length-1);
   }
+  // A departure checkpoint is an ordered visit followed by measured movement,
+  // not merely entering the same roadside geofence on the opposite leg.
+  function controlStep(state,input) {
+    const p=input.position,c=p.coords,point=input.points.control,path=input.course,nav=input.navigation,log=input.log||{};
+    const departure=/전철|연계|출발/.test(input.controlPurpose||'');
+    const order=Number.isInteger(path?.controlIndex)?path.controlIndex:-1;
+    const afterTurn=input.hasTurn&&(departure||order>Number(path?.turnIndex??-1));
+    const ordered=order>=0&&nav?.configured&&!nav.retained&&!nav.waiting&&number(nav.fraction)&&Math.abs(nav.fraction-order)<=1.5;
+    const clear=()=>{delete state.controlVisit;};
+    if(!log.actualStart||log.actualEnd||log.actualControl||!validPoint(point)||(afterTurn&&!log.actualTurn)||(departure&&!ordered)){clear();return null;}
+    const ts=Number(p.timestamp),old=state.controlVisit;
+    if(old&&ts-old.at>15000)clear();
+    const s=state.controlVisit||(state.controlVisit={inside:0,outside:0});s.at=ts;
+    const here={lat:Number(c.latitude),lng:Number(c.longitude)},d=distance(here,point),radius=Number(point.radiusM||80);
+    const heading=field=>!number(point[field])||!number(c.heading)||Number(c.speed)<1.5||Math.abs((Number(c.heading)-Number(point[field])+540)%360-180)<=80;
+    if(!departure){if(d<=radius&&heading('approachBearing')){if(!s.inside)s.fix=p;if(++s.inside>=2)return s.fix;}else clear();return null;}
+    if(d<=radius&&heading('approachBearing')){s.inside++;s.outside=0;if(s.inside>=2)s.visited=true;}
+    // Leaving the stop must follow the return occurrence, with a fresh heading.
+    const forward=ordered&&nav.fraction>=order&&number(c.heading)&&number(point.departureBearing)&&heading('departureBearing')&&number(c.speed)&&Number(c.speed)>=1.5;
+    if(s.visited&&forward){
+      if(!s.motion)s.motion=p;
+      if(d>radius+Math.max(20,Number(c.accuracy))){if(++s.outside>=2)return s.motion;}
+    }else {s.outside=0;delete s.motion;}
+    return null;
+  }
   function step(previous, input) {
     const state=Object.assign({},previous),p=input.position||{},ts=Number(p.timestamp),now=Number(input.now),c=p.coords||{};
     if(!number(c.latitude)||!number(c.longitude)||!number(c.accuracy)||Number(c.accuracy)>60||Number(c.accuracy)<0||!ts||now-ts>20000||ts>now+5000||ts<=Number(state.lastTimestamp||0))return {state,event:null};
     // Cached samples and repeated callbacks cannot satisfy a dwell requirement.
     if(state.lastTimestamp&&ts-state.lastTimestamp<1500)return {state,event:null};
     if(state.lastTimestamp&&ts-state.lastTimestamp>45000){
-      for(const key of ["departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","returnInside"])delete state[key];
+      for(const key of ["departureOnset","gpsDeparture","departureNavigation","startInside","startOutside","turnInside","endInside","seenTurn","turnStay","turnOutside","controlInside","controlVisit","returnInside"])delete state[key];
       // An outage invalidates motion, not an observed visit to this trip's origin.
       // New continuous vehicle proof is still mandatory; never backdate across the gap.
       state.seenStart=Boolean(state.seenStart)&&number(state.startVisitAt)&&ts-state.startVisitAt>=0&&ts-state.startVisitAt<=7200000;
@@ -125,7 +150,7 @@
       }
       return {state,event:null};
     }
-    if(input.hasControl&&!log.actualControl&&validPoint(points.control)&&count("controlInside",inside("control"))>=2)return {state,event:"CONTROL"};
+    if(input.hasControl){const fix=controlStep(state,input);if(fix)return {state,event:"CONTROL",position:fix};}
     if(!log.actualTurn && input.hasTurn){
       const near=validPoint(points.turn)&&distance(here,points.turn)<=Number(points.turn.radiusM||80);
       if(near&&Number(state.turnInside||0)===0)state.turnFix=p;
@@ -154,6 +179,10 @@
     const points=resolvePoints(trip,stops);
     function indices(phase,place){
       const p=points[phase];let matches=[];
+      if(phase==='control'&&p&&number(p.order)){
+        const occurrence=stops.map((s,i)=>Number(s.order)===Number(p.order)?i:-1).filter(i=>i>=0);
+        if(occurrence.length===1)return occurrence;
+      }
       if(p){
         matches=stops.map((s,i)=>({i,d:distance(s,p)})).filter(v=>v.d<=40).sort((a,b)=>a.d-b.d);
         if(matches.length){const nearest=matches[0].d;return matches.filter(v=>v.d<=nearest+3).map(v=>v.i).sort((a,b)=>a-b);}

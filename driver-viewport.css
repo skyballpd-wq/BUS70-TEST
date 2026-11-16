@@ -39,6 +39,17 @@
 .driver-live-safety.warning{color:#a83924;font-weight:800}
 .driver-scroll-hint{text-align:center;font-size:11px;line-height:1.3;color:#64748b}
 .driver-live-secondary{padding:14px 8px;border-top:1px solid #dce5ef;background:#f8fafc}
+.driver-live-secondary{container-type:inline-size}
+/* The live panel deliberately has no container; records need their own one. */
+@container(max-width:430px){
+  .cockpit-phases,.cockpit-phases tbody{display:block}
+  .cockpit-phases thead{display:none}
+  .cockpit-phases tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);border-bottom:1px solid #dce4ed;padding:6px 0}
+  .cockpit-phases td:first-child{grid-column:1/-1;display:flex;align-items:baseline;gap:8px;border:0;flex-wrap:wrap}
+  .cockpit-phases td[data-label]::before{content:attr(data-label);display:block;font-size:10px;font-weight:400;color:#52657a;line-height:1.7}
+  .cockpit-phases td.phase-planned{white-space:normal}
+  .cockpit-phases td{min-width:0}
+}
 .driver-live-secondary>h2{margin:0 0 10px;font-size:17px}
 .driver-live-secondary .road-safety{margin:10px 0}
 .driver-live-secondary .quick-run-actions{margin-top:14px}
@@ -132,3 +143,29 @@
 .headway-crowding{display:block;font-size:10px;line-height:1.25;color:#52657a;overflow-wrap:anywhere}
 .headway-crowding[data-level="여유"]{color:#146b54}
 .headway-crowding[data-level="혼잡"],.headway-crowding[data-level="매우혼잡"]{color:#9a4215;font-weight:700}
+
+/* Parallel planned/observed rows, followed by the identity and crowding. */
+.driver-mode .driver-live-primary .planned-gaps{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.driver-live-primary .headway-title{font-size:12px;font-weight:800;line-height:1.2}
+.driver-live-primary .headway-planned,.driver-live-primary .headway-actual{display:flex;align-items:baseline;gap:4px;font-size:11px;line-height:1.35;font-variant-numeric:tabular-nums;white-space:normal}
+.driver-live-primary .headway-actual{font-weight:800}
+.headway-row-label{flex:0 0 auto;color:#52657a;font-size:10px;font-weight:500}
+.headway-planned>span:last-child,.headway-actual>span:last-child{min-width:0;overflow-wrap:anywhere}
+.headway-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;border-top:1px solid #d8e3ed;padding-top:3px}
+.driver-live-primary .headway-meta .headway-identity{font-size:11px;font-weight:600;line-height:1.3}
+.driver-live-primary .headway-meta .headway-crowding{font-size:10px;line-height:1.3}
+.driver-live-primary .headway-reception{font-size:10px;color:#6b5b40}
+.orbit-route>.orbit-point.turn-reference{display:flex;flex-direction:column;gap:3px}
+.turn-point-label{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;gap:5px}
+.turn-point-label small,.physical-turn{font-size:10px;color:#52657a;line-height:1.2}
+.turn-point-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:4px;text-align:center;font-variant-numeric:tabular-nums}
+.turn-point-times.recorded{grid-template-columns:repeat(2,minmax(0,1fr))}
+.turn-point-times>div{min-width:0}
+.turn-point-times small{display:block;font-size:10px;color:#52657a;line-height:1.3}
+.turn-point-times b{display:block;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+.turn-point-times .turn-recorded b{color:#b42318}
+@media(min-width:390px){
+  .driver-live-primary .headway-planned,.driver-live-primary .headway-actual{font-size:12px}
+  .driver-live-primary .headway-meta .headway-identity{font-size:12px}
+  .turn-point-times b{font-size:13px}
+}
