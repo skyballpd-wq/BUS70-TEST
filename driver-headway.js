@@ -93,7 +93,7 @@
     return {side,peer,second,planned,comparison:c,identity:vehicle+' · '+name,
       identityBasis:peer?(peer.fresh===false?'마지막':'관측'):remembered?'마지막':'예정',notice,observedGap:gap,
       plannedLine:(numeric(planned)?planned+'분':'—분')+' · '+(c.targetStops===null?'환산 대기':'약'+c.targetStops+'정류장'),
-      actualLine:(gap?'약 '+gap.minutes+'분':'시간 대기')+' · '+(fresh?peer.stopGap+'정류장':'—정류장'),
+      actualLine:(gap?'약 '+gap.minutes+'분':fresh?'시간 대기':'—분')+' · '+(fresh?peer.stopGap+'정류장':'—정류장'),
       crowding:peer?.fresh!==false&&[1,2,3,4].includes(peer?.crowded)?['','여유','보통','혼잡','매우혼잡'][peer.crowded]:'미수신',
       actual:peer?(peer.fresh===false?'이전 위치 · '+peer.age+'초 전':'실제 '+peer.stopGap+'정류장'):'실제 간격 수신 대기',
       target:c.targetStops===null?'관측 중': '예정 환산 약 '+c.targetStops+'정류장',
@@ -107,7 +107,7 @@
       const top=doc.createElement('div');top.className='headway-title';top.textContent=m.side==='front'?'앞차':'뒷차';
       const row=(label,text,cls)=>{const node=doc.createElement('div');node.className=cls;const tag=doc.createElement('span');tag.className='headway-row-label';tag.textContent=label;const value=doc.createElement('span');value.textContent=text;node.append(tag,value);return node;};
       const planned=row('예정',m.plannedLine,'headway-planned'),actual=row('실제',m.actualLine,'headway-actual');
-      const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=(m.identityBasis==='관측'?'':m.identityBasis+' ')+m.identity;identity.title='기사명은 등록된 배차 정보 기준';
+      const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=(m.identityBasis==='예정'?'예정 ':'')+m.identity;identity.title=m.identityBasis+' 차량 · 기사명은 등록된 배차 정보 기준';
       const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent='혼잡도 '+m.crowding;crowd.dataset.level=m.crowding;
       const meta=doc.createElement('div');meta.className='headway-meta';meta.append(identity,crowd);item.append(top,planned,actual,meta);
       if(m.notice){const notice=doc.createElement('small');notice.className='headway-reception';notice.textContent=m.notice;item.append(notice);}
