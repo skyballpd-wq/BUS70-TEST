@@ -131,8 +131,21 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
   await contained('terminal '+width+'x'+height);
   if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/terminal-'+width+'x'+height+'.png',fullPage:false});
-  await page.setViewportSize({width:height,height:width});await contained('rotated '+width+'x'+height);
-  await page.setViewportSize({width,height});await contained('restored '+width+'x'+height);
+  const rotate=async(viewport,label)=>{
+   await page.setViewportSize(viewport);
+   // The installed page clock advances mocked animation frames independently
+   // of WebKit's native resize event. Wait for the actual responsive result;
+   // never call the application's fitter from the test to conceal a missed event.
+   let responsive=false;
+   for(let attempt=0;attempt<100&&!responsive;attempt++){
+    responsive=await page.evaluate(()=>{const p=document.querySelector('.driver-live-primary'),r=document.getElementById('driverTripProgressRing').getBoundingClientRect(),grid=getComputedStyle(p).display==='grid';return Math.abs(r.width/r.height-(grid?1.25:1))<.01&&(grid||p.style.height==='auto');});
+    if(!responsive)await new Promise(resolve=>setTimeout(resolve,20));
+   }
+   assert(responsive,label+' refits circle/ellipse after the native resize event');
+   await contained(label);
+  };
+  await rotate({width:height,height:width},'rotated '+width+'x'+height);
+  await rotate({width,height},'restored '+width+'x'+height);
   await page.evaluate(()=>{const sizes=[...document.querySelectorAll('.driver-live-primary *')].filter(n=>[...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim())).map(n=>({n,font:parseFloat(getComputedStyle(n).fontSize),line:parseFloat(getComputedStyle(n).lineHeight)}));for(const {n,font,line} of sizes){n.style.setProperty('font-size',font*1.2+'px','important');if(Number.isFinite(line))n.style.setProperty('line-height',line*1.2+'px','important');}});
   await contained('enlarged '+width+'x'+height);
   await page.evaluate(()=>{Object.assign(lastSchedule.trips[0],{turnPlace:'삼정종합사회복지회관',turnTime:'11:00',endPlace:'고강공영차고지',serviceEndPlace:'',deadheadDestination:'',endLocation:null});renderSchedule(false);window.scrollTo(0,0);});
