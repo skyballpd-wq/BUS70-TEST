@@ -104,7 +104,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.route-peer').count(),4);
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
   assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
-  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/실제[\s\S]*시간 대기 · 2정류장/);
+  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/관측[\s\S]*관측 중 · 2정류장/);
   assert.equal(await page.locator('.driver-live-primary #driverRingPoints .orbit-point').count(),2);
   assert.equal(await page.locator('.driver-live-primary .quick-run-actions').count(),0);
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
