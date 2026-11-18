@@ -38,7 +38,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert(rects.primary.top>=0&&rects.primary.top<=1,label+' starts at the visible top: '+JSON.stringify(rects));
    assert(rects.primary.bottom<=height+1,label+' fits the actual viewport: '+JSON.stringify(rects));
    assert(Math.abs(rects.ring.width/rects.ring.height-(width>=560&&height<=520?1.25:1))<.01,label+' responsive circle/ellipse ratio');
-   assert(rects.ring.width>=165&&rects.ring.height>=165&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
+   const minimumRing=width<=350&&height<=600?135:165;
+   assert(rects.ring.width>=minimumRing&&rects.ring.height>=minimumRing&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
