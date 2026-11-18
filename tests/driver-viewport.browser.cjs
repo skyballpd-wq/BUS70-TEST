@@ -129,7 +129,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
   assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'');
-  assert.equal(await page.locator('.orbit-point.turn .after').innerText(),'영업종료 12:00');
+  assert.equal(await page.locator('.orbit-point.turn .after>span').innerText(),'영업종료 12:00');
+  assert.equal(await page.locator('.orbit-point.turn [data-journey-time="arrival"]').innerText(),'노선 위치 확인 중');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
   await contained('terminal '+width+'x'+height);
