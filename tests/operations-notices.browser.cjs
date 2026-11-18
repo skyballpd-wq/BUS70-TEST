@@ -11,7 +11,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    window.noticeCalls=[];window.spoken=[];window.failPublish=true;window.failReceipt=false;window.feed=[];
    window.Bus70Android={setOperationsNoticeSession(){},stopOperationsNotice(){},speakOperationsNotice(raw){spoken.push(JSON.parse(raw));}};
    apiPost=async b=>{noticeCalls.push(structuredClone(b));
-    if(b.operation==='noticeManagerLoad')return {ok:true,date:'2099-01-08',drivers:[{id:'D1',name:'합성기사',assignments:[{route:'5',sequence:1,vehicleNo:'시험0001'}]}],notices:[]};
+    if(b.operation==='noticeManagerLoad')return {ok:true,date:'2099-01-08',drivers:[{id:'D1',name:'합성기사',assignments:[{route:'5',sequence:1,vehicleId:'V1',vehicleNo:'시험0001'}]}],notices:[]};
     if(b.operation==='noticePreview')return {ok:true,revision:'SYNTHETIC-REVISION',targets:[{id:'D1',name:'합성기사'}]};
     if(b.operation==='noticePublish'){if(failPublish){failPublish=false;throw Error('synthetic response lost');}return {ok:true,message:'시험 저장 완료'};}
     if(b.operation==='noticeFeed')return {ok:true,items:structuredClone(feed)};
@@ -22,6 +22,15 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   await page.locator('#managerHomeMenu [data-manager-page=NOTICES]').click();await page.locator('#noticeDate').getByText(/2099/).waitFor();
   assert.equal(await page.locator('#managerContext').isVisible(),false);
+  // A gap warning prepares a draft, but cannot publish or select a changed driver.
+  await page.evaluate(()=>Bus70Notices.open({audience:'DRIVER',route:'5',driverId:'D1',vehicleId:'V1',title:'합성 간격 경고',message:'정차 후 확인해 주세요.'}));
+  assert.equal(await page.locator('#noticeAudience').inputValue(),'DRIVER');assert.equal(await page.locator('#noticeDriver').inputValue(),'D1');
+  assert.equal(await page.locator('#noticePublish').isEnabled(),false);
+  assert.equal(await page.evaluate(()=>noticeCalls.filter(b=>b.operation==='noticePublish').length),0);
+  await page.evaluate(()=>Bus70Notices.open({audience:'DRIVER',route:'5',driverId:'D1',vehicleId:'REPLACED',title:'변경 차량',message:'보내지 않음'}));
+  await page.getByText(/현재 기사 배차를 다시 확인/).waitFor();assert.equal(await page.locator('#noticePublish').isEnabled(),false);assert.equal(await page.locator('#noticeDriver').inputValue(),'');
+  await page.evaluate(()=>Bus70Notices.open({audience:'WORKING',route:'5',title:'합성 전체 노선',message:'전체 당일 배차 확인'}));
+  assert.equal(await page.locator('#noticeAudience').inputValue(),'WORKING');assert.equal(await page.locator('#noticeDriver').inputValue(),'');
   await page.locator('#noticeTitle').fill('합성 우회 안내');await page.locator('#noticeMessage').fill('<img src=x onerror=alert(1)> 긴 공지도 겹치지 않고 확인합니다.');
   await page.locator('#noticeCheck').click();await page.locator('#noticePreview strong').waitFor();assert.equal(await page.locator('#noticePreview img').count(),0);
   await page.locator('#noticeConfirm').check();await page.locator('#noticeMessage').fill('변경한 합성 안내');assert.equal(await page.locator('#noticePublish').isEnabled(),false);

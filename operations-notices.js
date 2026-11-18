@@ -67,7 +67,7 @@
       managerData=r;$('noticeDate').textContent=r.date+' 운행일 기준';const select=$('noticeDriver'),selected=select.value;select.replaceChildren(new Option('기사 선택',''));r.drivers.forEach(d=>select.add(new Option(d.name+(d.assignments.length?' · '+d.assignments.map(a=>a.route+'번 '+a.sequence+'순차 '+a.vehicleNo+'호').join(' / '):' · 당일 배차 없음'),d.id)));select.value=selected;renderManager(r.notices);invalidate();
       if(draft&&typeof draft==='object'){
         const driver=draft.audience==='DRIVER'?r.drivers.find(d=>d.id===draft.driverId&&d.assignments.some(a=>a.vehicleId===draft.vehicleId&&a.route===draft.route)):null;
-        if(draft.audience==='DRIVER'&&!driver){managerStatus('차량의 현재 기사 배차를 다시 확인하세요. 공지 대상을 자동 선택하지 않았습니다.',true);return;}
+        if(draft.audience==='DRIVER'&&!driver){$('noticeAudience').value='DRIVER';$('noticeDriver').value='';invalidate();managerStatus('차량의 현재 기사 배차를 다시 확인하세요. 공지 대상을 자동 선택하지 않았습니다.',true);return;}
         if(!['DRIVER','ROUTE','WORKING'].includes(draft.audience))return;
         $('noticeAudience').value=draft.audience;$('noticeRoute').value=draft.route;$('noticeDriver').value=driver?driver.id:'';
         $('noticeTitle').value=draft.title;$('noticeMessage').value=draft.message;$('noticePriority').value='NORMAL';invalidate();
