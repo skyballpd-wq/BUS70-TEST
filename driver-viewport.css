@@ -213,10 +213,11 @@
 /* Keep every time/notice visible on compact phones without clipping text. */
 @media(max-width:350px) and (max-height:600px){
   .driver-live-primary{gap:0}
-  .driver-live-primary .cockpit-now .current-clock{font-size:22px}
-  .driver-mode .driver-live-primary .orbit-weather{min-height:20px;font-size:11px}
-  .driver-live-primary .orbit-weather strong{font-size:13px}
-  .driver-live-primary .weather-icon{width:22px;height:18px}
+  .driver-live-primary .cockpit-now .current-clock{font-size:20px}
+  .driver-mode .driver-live-primary .orbit-weather{min-height:18px;font-size:11px}
+  .driver-live-primary .orbit-weather strong{font-size:12px}
+  .driver-live-primary .weather-icon{width:22px;height:16px}
+  .driver-mode .driver-live-primary .ring-peer-label{padding-top:6px}
   .driver-mode .driver-live-primary .planned-gaps>.headway-card{padding-top:2px;padding-bottom:2px}
   .driver-mode .driver-live-primary .recording-summary{min-height:28px}
 }

@@ -43,6 +43,13 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
+   const glyphSeparation=await page.evaluate(()=>{
+    const boxes=node=>{const result=[],walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);while(walker.nextNode()){if(!walker.currentNode.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(walker.currentNode);result.push(...range.getClientRects());}return result;};
+    const turn=document.querySelector('#driverRingPoints>.orbit-point.turn'),legend=document.getElementById('driverRingPeers');
+    if(!turn||!legend)return true;
+    return Math.max(...boxes(turn).map(r=>r.bottom))<=Math.min(...boxes(legend).map(r=>r.top))+1;
+   });
+   assert(glyphSeparation,label+' turnaround text does not paint over the vehicle legend');
    const points=await page.evaluate(()=>{
     const svg=document.querySelector('#driverTripProgressRing svg');
     // Check painted ticks/markers, including stroke width. The SVG canvas has
