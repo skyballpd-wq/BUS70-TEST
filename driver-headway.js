@@ -116,7 +116,7 @@
       const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=(m.identityBasis==='예정'?'예정 ':'')+m.identity;identity.title=m.identityBasis+' 차량 · 기사명은 등록된 배차 정보 기준';
       const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent='혼잡도 '+m.crowding;crowd.dataset.level=m.crowding;
       const meta=doc.createElement('div');meta.className='headway-meta';meta.append(identity,crowd);item.append(top,planned,actual,meta);
-      if(m.basis){const basis=doc.createElement('small');basis.className='headway-basis';basis.textContent=(m.distanceNotice?'거리 가까움 · ':'')+m.basis;basis.title=m.basis;item.append(basis);}
+      if(m.basis){const basis=doc.createElement('small');basis.className='headway-basis';basis.textContent=(m.distanceNotice?'거리 주의 · ':'')+m.basis.replace('통과시각 관측 중','시간 관측 중');basis.title=m.basis;item.append(basis);}
       if(m.notice){const notice=doc.createElement('small');notice.className='headway-reception';notice.textContent=m.notice;item.append(notice);}
       item.title=['예정 정류장 수는 최근 정류장 통과시간으로 환산',m.observedGap?'동일 정류장 통과 관측: '+m.observedGap.min+'~'+m.observedGap.max+'분':'실제 시간 간격은 동일 정류장 관측 수집 중',m.peer?.reference?'경기버스 조회 위치 기준':'앱 GPS 또는 배차 정보',m.second?(m.side==='front'?'앞2 ':'뒤2 ')+(m.second.fresh===false?'이전 위치':m.second.stopGap+'정류장'):''].filter(Boolean).join(' · ');host.append(item);
     }
