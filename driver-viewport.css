@@ -213,7 +213,8 @@
 @media(max-width:350px) and (max-height:600px){
   .driver-live-primary .cockpit-now .current-clock{font-size:22px}
   .driver-mode .driver-live-primary .orbit-weather{min-height:20px;font-size:11px}
-  .driver-live-primary .orbit-weather strong{font-size:15px}
+  .driver-live-primary .orbit-weather strong{font-size:13px}
   .driver-live-primary .weather-icon{width:22px;height:18px}
   .driver-mode .driver-live-primary .planned-gaps>.headway-card{padding-top:2px;padding-bottom:2px}
+  .driver-mode .driver-live-primary .recording-summary{min-height:28px}
 }
