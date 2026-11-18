@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "manager-live.js"
+      - "manager-gap-alerts.js"
+      - "driver-journey.js"
+      - "tests/manager-live.browser.cjs"
       - "operations-notices.*"
       - "maintenance-board.*"
       - "apps-script/MaintenanceDispatch.gs"
@@ -84,6 +88,7 @@ jobs:
           node tests/live-trip-guidance.test.js
           node tests/gbis-outage-recovery.test.js
           node tests/driver-viewport.browser.cjs
+          node tests/manager-live.browser.cjs
           node tests/maintenance-board.test.js
           node tests/maintenance-board-client.test.js
           node tests/maintenance-board.browser.cjs
@@ -169,6 +174,7 @@ jobs:
           node tests/live-trip-guidance.test.js
           node tests/gbis-outage-recovery.test.js
           node tests/driver-viewport.browser.cjs
+          node tests/manager-live.browser.cjs
           node tests/maintenance-board.test.js
           node tests/maintenance-board-client.test.js
           node tests/maintenance-board.browser.cjs

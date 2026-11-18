@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 94
-        versionName "0.94-ordered-checkpoints"
+        versionCode 95
+        versionName "0.95-journey-times"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

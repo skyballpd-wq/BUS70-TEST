@@ -6,6 +6,8 @@
   let resizeQueued=false;
   const resized=()=>{if(!resizeQueued){resizeQueued=true;root.requestAnimationFrame(()=>{resizeQueued=false;fitPanel?.();});}};
   root.addEventListener?.('resize',resized);
+  let wasLandscape=root.innerWidth>root.innerHeight;
+  root.addEventListener?.('resize',()=>{const landscape=root.innerWidth>root.innerHeight;if(landscape!==wasLandscape){wasLandscape=landscape;const p=root.document?.querySelector('.driver-live-primary');if(p){const r=p.getBoundingClientRect();if(r.top<=0&&r.bottom>root.innerHeight*.5)root.requestAnimationFrame(()=>root.scrollTo({top:root.scrollY+p.getBoundingClientRect().top,behavior:'instant'}));}}});
   root.visualViewport?.addEventListener('resize',resized);
   function element(doc,tag,cls,text){const node=doc.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;}
   function safetySummary(text){

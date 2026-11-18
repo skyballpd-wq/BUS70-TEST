@@ -38,8 +38,8 @@ public class AlarmPolicyTest {
             .put("commuteMinutes",new JSONArray().put(10)).put("tripMinutes",new JSONArray().put(3)).put("exact",true)
             .put("trips",new JSONArray().put(new JSONObject().put("trip",6).put("startTime","21:10").put("actualStart","21:09"))
                 .put(new JSONObject().put("trip",7).put("startTime","23:00")));
-        JSONArray alarms=AlarmPolicy.build(p,"");assertEquals(2,alarms.length());
-        for(int i=0;i<alarms.length();i++)assertEquals(7,alarms.getJSONObject(i).getInt("trip"));
+        JSONArray alarms=AlarmPolicy.build(p,"");assertEquals(3,alarms.length());
+        for(int i=0;i<alarms.length();i++){JSONObject a=alarms.getJSONObject(i);assertEquals(a.getString("type").startsWith("ACTUAL_START")?6:7,a.getInt("trip"));}
         p.put("enabled",false);assertEquals(0,AlarmPolicy.build(p,"").length());
     }
 }

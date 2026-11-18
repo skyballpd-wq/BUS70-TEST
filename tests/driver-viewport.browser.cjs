@@ -75,13 +75,15 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
    assert.deepEqual(result.outside,[],label+' child overflow '+JSON.stringify(result.geometry));assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks '+JSON.stringify(result.geometry));assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
   };
+  assert.match(await page.locator('[data-journey-time=departure]').innerText(),/기록 10:00:00/);
+  assert.match(await page.locator('[data-journey-time=arrival]').innerText(),/회차 기록 후/);
   await check('running '+width+'x'+height);
   await contained('running '+width+'x'+height);
   assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
   assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
   assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
-  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
-  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'도착 12:00');
+  assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'도착 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
   await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정[\s\S]*7분 · 약7정류장/);
@@ -124,8 +126,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    renderSchedule(false);window.scrollTo(0,0);
    document.querySelector('#driverRoadSafety .road-safety-status').textContent='보호시설 인근 안내 · 제한속도 미확인 · 안내 음성은 설치본 업데이트 필요';Bus70Viewport.refresh(document,true);
   });
-  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
-  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'');
+  assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'');
   assert.equal(await page.locator('.orbit-point.turn .after').innerText(),'영업종료 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
