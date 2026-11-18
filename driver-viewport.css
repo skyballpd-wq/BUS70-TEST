@@ -217,7 +217,10 @@
   .driver-mode .driver-live-primary .orbit-weather{min-height:18px;font-size:11px}
   .driver-live-primary .orbit-weather strong{font-size:12px}
   .driver-live-primary .weather-icon{width:22px;height:16px}
-  .driver-mode .driver-live-primary .ring-peer-label{padding-top:6px}
+  .driver-mode .driver-live-primary .ring-peer-label{padding-top:14px}
+  /* On the shortest phones an active notice takes weather's space. Keep
+     operating times, safety status and Korean glyphs fully separated. */
+  .driver-live-primary:has(.driver-notice-strip:not([hidden])) .current-weather{display:none}
   .driver-mode .driver-live-primary .planned-gaps>.headway-card{padding-top:2px;padding-bottom:2px}
   .driver-mode .driver-live-primary .recording-summary{min-height:28px}
 }
