@@ -277,6 +277,11 @@ public class DriverLocationService extends Service implements LocationListener {
                 JSONObject notices=state.optJSONObject("roadSafetyNotices");if(notices==null)notices=new JSONObject();
                 String key=warning.getString("key");long last=notices.optLong(key);
                 if((last==0||now-last>warning.getLong("cooldownMs"))&&arrivalVoice.speak(warning.getString("message"))){notices.put(key,now);state.put("roadSafetyNotices",notices);}
+            }else{
+                JSONObject estimate=state.optJSONObject("arrivalEstimate");
+                String etaMessage=estimate==null?null:JourneyVoicePolicy.message(schedule,trip,estimate,state,now);
+                // ETA is interruptible: a later safety warning takes precedence.
+                if(etaMessage!=null&&arrivalVoice.speakNotice(etaMessage,null))JourneyVoicePolicy.accepted(state,estimate,now);
             }
         }catch(Exception ignored){}
 
@@ -425,7 +430,7 @@ public class DriverLocationService extends Service implements LocationListener {
             EventOutbox.overlay(items,schedule);scheduleRaw=schedule.toString();store.trackingSchedule(scheduleRaw);
             // Only durable actual events may announce completion. Network retries
             // and corrected timestamps share the same delivery receipt.
-            if("ARRIVE".equals(event)||"SERVICE_END".equals(event)||"DEADHEAD_RETURN".equals(event))try{AlarmScheduler.sync(this,schedule);}catch(Exception ignored){}
+            if("DEPART".equals(event)||"ARRIVE".equals(event)||"SERVICE_END".equals(event)||"DEADHEAD_RETURN".equals(event))try{AlarmScheduler.sync(this,schedule);}catch(Exception ignored){}
             setStatus(tripNo+"탕 "+eventLabel(event)+" 기기 저장 · 서버 전송 대기");
         } catch(Exception error) { setStatus("기기 저장 실패 · 휴대폰 저장 공간을 확인하세요."); }
         inFlight.remove(key);flushEvents();

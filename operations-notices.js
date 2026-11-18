@@ -62,9 +62,17 @@
   function form(){return {date:managerData?.date||'',audience:$('noticeAudience').value,route:$('noticeRoute').value,driverId:$('noticeDriver').value,title:$('noticeTitle').value.trim(),message:$('noticeMessage').value.trim(),priority:$('noticePriority').value,minutes:Number($('noticeMinutes').value)};}
   function invalidate(){preview=null;pending=null;$('noticePreview').replaceChildren();$('noticeConfirm').checked=false;$('noticePublish').disabled=true;const a=$('noticeAudience').value;$('noticeRouteField').hidden=a!=='ROUTE';$('noticeDriverField').hidden=a!=='DRIVER';$('noticeMessage').maxLength=$('noticePriority').value==='URGENT'?140:500;}
   function managerStatus(text,error=false){const n=$('noticeManagerStatus');n.textContent=text;n.classList.toggle('error',error);}
-  async function open(){
+  async function open(draft=null){
     const e=epoch;$('noticeManagerPanel').hidden=false;try{const r=await request('noticeManagerLoad');if(e!==epoch)return;if(!r.ok){managerStatus(r.message||'공지 관리 연결을 확인하세요.',true);return;}
       managerData=r;$('noticeDate').textContent=r.date+' 운행일 기준';const select=$('noticeDriver'),selected=select.value;select.replaceChildren(new Option('기사 선택',''));r.drivers.forEach(d=>select.add(new Option(d.name+(d.assignments.length?' · '+d.assignments.map(a=>a.route+'번 '+a.sequence+'순차 '+a.vehicleNo+'호').join(' / '):' · 당일 배차 없음'),d.id)));select.value=selected;renderManager(r.notices);invalidate();
+      if(draft&&typeof draft==='object'){
+        const driver=draft.audience==='DRIVER'?r.drivers.find(d=>d.id===draft.driverId&&d.assignments.some(a=>a.vehicleId===draft.vehicleId&&a.route===draft.route)):null;
+        if(draft.audience==='DRIVER'&&!driver){$('noticeAudience').value='DRIVER';$('noticeDriver').value='';invalidate();managerStatus('차량의 현재 기사 배차를 다시 확인하세요. 공지 대상을 자동 선택하지 않았습니다.',true);return;}
+        if(!['DRIVER','ROUTE','WORKING'].includes(draft.audience))return;
+        $('noticeAudience').value=draft.audience;$('noticeRoute').value=draft.route;$('noticeDriver').value=driver?driver.id:'';
+        $('noticeTitle').value=draft.title;$('noticeMessage').value=draft.message;$('noticePriority').value='NORMAL';invalidate();
+        managerStatus('간격 경고에서 가져온 초안입니다. 대상·내용을 확인한 뒤 보내세요.');
+      }
     }catch(error){if(e===epoch)managerStatus('공지 관리 통신에 실패했습니다.',true);}
   }
   function renderManager(notices){const list=$('noticeManagerList');list.replaceChildren();if(!notices.length)list.append(node('p','발송한 공지가 없습니다.','hint'));

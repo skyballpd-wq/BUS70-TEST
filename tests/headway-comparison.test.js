@@ -10,7 +10,7 @@ function update(seconds,ownOrder,otherOrder,otherId='SYN-A'){
  h.observeFleet(state,scope,{configured:true,matchedIndex:ownOrder-1,path},fleet,peers,at);
  return h.model('front',{plannedFrontGapMinutes:8},fleet,peers,state);
 }
-let model=update(0,1,2);assert.equal(model.observedGap,null);assert.match(model.actualLine,/시간 대기/);assert.doesNotMatch(model.actualLine,/약 1분/,'pace conversion is never presented as an observed time gap');
+let model=update(0,1,2);assert.equal(model.observedGap,null);assert.match(model.actualLine,/관측 중/);assert.doesNotMatch(model.actualLine,/약 1분/,'pace conversion is never presented as an observed time gap');
 update(45,1,3);update(90,1,3);update(135,2,4);model=update(180,3,4);
 assert.equal(model.observedGap.minutes,2.3);assert.equal(model.observedGap.min,1.5);assert.equal(model.observedGap.max,3);assert.match(model.actualLine,/약 2.3분 · 1정류장/);
 assert.match(model.plannedLine,/8분 · 약8정류장/);

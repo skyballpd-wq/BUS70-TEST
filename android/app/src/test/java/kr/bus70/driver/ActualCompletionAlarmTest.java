@@ -6,7 +6,7 @@ import static org.junit.Assert.*;
 public class ActualCompletionAlarmTest {
     JSONObject payload()throws Exception{return new JSONObject().put("driverId","SYN-D").put("dispatchId","SYN-DSP").put("date","2099-01-10").put("route","5").put("sequence",1).put("electricVehicle",true).put("exact",false).put("endOfShift",new JSONObject()).put("trips",new JSONArray().put(new JSONObject().put("trip",6).put("startTime","21:00").put("endTime","22:00").put("endPlace","시험 종점").put("deadheadDestination","시험 차고지").put("actualStart","21:01:05")));}
     @Test public void timetableEndNeverClaimsCompletion()throws Exception{
-        JSONObject p=payload();assertEquals(0,AlarmPolicy.build(p,"").length());
+        JSONObject p=payload();assertEquals("ACTUAL_START_6",AlarmPolicy.build(p,"").getJSONObject(0).getString("type"));
         JSONObject old=new JSONObject().put("type","END_OF_SHIFT").put("at",1000);
         assertFalse(AlarmPolicy.due(old,1000,new JSONObject()));old.put("type","BREAK_CHARGE_6");assertFalse(AlarmPolicy.due(old,1000,new JSONObject()));
     }

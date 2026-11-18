@@ -38,10 +38,18 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    assert(rects.primary.top>=0&&rects.primary.top<=1,label+' starts at the visible top: '+JSON.stringify(rects));
    assert(rects.primary.bottom<=height+1,label+' fits the actual viewport: '+JSON.stringify(rects));
    assert(Math.abs(rects.ring.width/rects.ring.height-(width>=560&&height<=520?1.25:1))<.01,label+' responsive circle/ellipse ratio');
-   assert(rects.ring.width>=165&&rects.ring.height>=165&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
+   const minimumRing=width<=350&&height<=600?135:165;
+   assert(rects.ring.width>=minimumRing&&rects.ring.height>=minimumRing&&rects.ring.bottom<=height+1,label+' ring remains visible: '+JSON.stringify(rects.ring));
    for(const r of rects.essential){assert(r.bottom<=height+1&&r.top>=-1,label+' essential stays visible: '+JSON.stringify(r));assert(r.left>=-1&&r.right<=width+1,label+' no horizontal overflow: '+JSON.stringify(r));}
    assert(rects.secondary.top>=height-1,label+' secondary work starts below the first screen');
    assert(rects.scrollWidth<=width+1,label+' no page horizontal scroll');
+   const glyphSeparation=await page.evaluate(()=>{
+    const boxes=node=>{const result=[],walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);while(walker.nextNode()){if(!walker.currentNode.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(walker.currentNode);result.push(...range.getClientRects());}return result;};
+    const turn=document.querySelector('#driverRingPoints>.orbit-point.turn'),legend=document.getElementById('driverRingPeers');
+    if(!turn||!legend)return true;
+    return Math.max(...boxes(turn).map(r=>r.bottom))<=Math.min(...boxes(legend).map(r=>r.top))+1;
+   });
+   assert(glyphSeparation,label+' turnaround text does not paint over the vehicle legend');
    const points=await page.evaluate(()=>{
     const svg=document.querySelector('#driverTripProgressRing svg');
     // Check painted ticks/markers, including stroke width. The SVG canvas has
@@ -75,13 +83,15 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    if(process.env.CONTACT_LAYOUT_OUTPUT)await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/bounds-'+label.replace(/[^a-z0-9-]/gi,'-')+'.png'});
    assert.deepEqual(result.outside,[],label+' child overflow '+JSON.stringify(result.geometry));assert.deepEqual(result.overlaps,[],label+' live elements overlap');assert.deepEqual(result.textOutside,[],label+' text touches station ticks '+JSON.stringify(result.geometry));assert(result.secondaryClear&&result.horizontal,label+' secondary/page overflow');
   };
+  assert.match(await page.locator('[data-journey-time=departure]').innerText(),/기록 10:00:00/);
+  assert.match(await page.locator('[data-journey-time=arrival]').innerText(),/회차 기록 후/);
   await check('running '+width+'x'+height);
   await contained('running '+width+'x'+height);
   assert.equal(await page.locator('.orbit-point.depot strong').innerText(),'고강차고지');
   assert.equal(await page.locator('.orbit-point.turn strong').innerText(),'삼정복지회관');
   assert.equal(await page.locator('.orbit-point.turn strong').getAttribute('aria-label'),'삼정종합사회복지회관');
-  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
-  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'도착 12:00');
+  assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'도착 12:00');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/18%/);
   await page.evaluate(()=>{headwayState.samples=[60,65,55].map(seconds=>({at:Date.now()-60000,seconds}));updateDriverLiveDashboard();});
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/예정[\s\S]*7분 · 약7정류장/);
@@ -101,7 +111,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.route-peer').count(),4);
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
   assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
-  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/실제[\s\S]*시간 대기 · 2정류장/);
+  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/관측[\s\S]*관측 중 · 2정류장/);
   assert.equal(await page.locator('.driver-live-primary #driverRingPoints .orbit-point').count(),2);
   assert.equal(await page.locator('.driver-live-primary .quick-run-actions').count(),0);
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
@@ -124,9 +134,10 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
    renderSchedule(false);window.scrollTo(0,0);
    document.querySelector('#driverRoadSafety .road-safety-status').textContent='보호시설 인근 안내 · 제한속도 미확인 · 안내 음성은 설치본 업데이트 필요';Bus70Viewport.refresh(document,true);
   });
-  assert.equal(await page.locator('.orbit-point.depot .before').innerText(),'출발 10:00');
-  assert.equal(await page.locator('.orbit-point.depot .after').innerText(),'');
-  assert.equal(await page.locator('.orbit-point.turn .after').innerText(),'영업종료 12:00');
+  assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
+  assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'');
+  assert.equal(await page.locator('.orbit-point.turn .after>span').innerText(),'영업종료 12:00');
+  assert.equal(await page.locator('.orbit-point.turn [data-journey-time="arrival"]').innerText(),'노선 위치 확인 중');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
   await contained('terminal '+width+'x'+height);

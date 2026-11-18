@@ -525,6 +525,24 @@ function bus70GyeonggiFleet_(fetched,stops,assignment,registry,own){
     return {source:'GYEONGGI_BUS_LOCATION_V2',route:String(assignment.route),date:assignment.date,vehicleId:matches.length===1?matches[0].id:'GBIS:'+String(v.vehicleId||v.plateNo),vehicleNo:String(v.plateNo||''),own:Boolean(own&&own===v),matchedStopOrder:Number(stop.order),stateCd:v.stateCd,crowded:[1,2,3,4].includes(v.crowded)?v.crowded:null,direction:stop.direction||'',fetchedAt:at,observedAt:null,positionBasis:'PROVIDER_STOP_REFERENCE'};
   }).filter(Boolean);
 }
+// Read-only manager board; one shared provider fetch per route, never per bus.
+function bus70ManagerRouteLive_(body,driverId){
+  if(!bus70IsManager_(driverId))return {ok:false,error:'MANAGER_REQUIRED',message:'소장 권한이 필요합니다.'};
+  const route=String(body.route||''),date=normalizeDate_(body.date),now=Date.now();
+  if(bus70ActiveRouteIds_().indexOf(route)<0)return {ok:false,error:'ROUTE_REQUIRED',message:'등록 노선을 선택하세요.'};
+  if(date!==bus70GyeonggiToday_())return {ok:false,error:'LIVE_TODAY_ONLY',message:'실시간 차량 간격은 오늘 운행일에만 조회합니다.'};
+  const assignment={route:route,date:date,managerView:true},fetched=bus70GyeonggiLiveFetch_(route);
+  const stops=(bus70RouteStopsFromDb_(route,date).stops||[]).map(function(s){return {order:Number(s.order),name:s.name,direction:s.direction||'',id:s.id,stationId:s.stationId,externalStopId:s.externalStopId};});
+  const sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('차량DB');let registry=[];
+  if(sheet&&sheet.getLastRow()>1){const rows=sheet.getDataRange().getDisplayValues(),c=makeHeaderMap_(rows[0]);registry=rows.slice(1).map(function(r){return {id:String(r[c.vehicleId]||''),plate:String(r[c['차량번호']]||'')};});}
+  const roster=bus70LiveRoster_(route,date,assignment,bus70LiveRunningTrips_(route,date));
+  const vehicles=bus70GyeonggiFleet_(fetched,stops,assignment,registry,null).filter(function(v){return [0,1,2].includes(v.stateCd);}).map(function(v){
+    const raw=bus70GyeonggiSelectVehicle_(fetched.items,v.vehicleNo),person=roster.filter(function(r){return r.vehicleId===v.vehicleId;}),gaps=raw?bus70GyeonggiHeadways_(fetched.items,raw,stops,now):{};
+    return Object.assign({},v,{driverId:person.length===1?person[0].driverId:'',driverName:person.length===1?person[0].driverName:'',sequence:person.length===1?person[0].sequence:null,front:gaps.front||null,rear:gaps.rear||null});
+  });
+  return {ok:true,route:route,date:date,source:'GYEONGGI_BUS_LOCATION_V2',available:Boolean(fetched.available),fetchedAt:fetched.fetchedAt||null,serverAt:now,retryAt:fetched.retryAt||null,message:fetched.message||'',error:fetched.error||'',stops:stops,vehicles:vehicles,roster:roster,unmappedCount:Math.max(0,(fetched.items||[]).length-vehicles.length),historyStored:false};
+}
+
 function BUS70_checkGyeonggiLiveConnection(){
   const result=bus70GyeonggiLiveFetch_('5');
   const properties=PropertiesService.getScriptProperties(),config=bus70PublicTransitRouteConfig_('5');

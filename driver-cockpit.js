@@ -190,6 +190,7 @@
     const recent=state?.samples?.at(-1)?.at;
     if(!Number.isFinite(recent)||now-recent>180000||now<recent||!Number.isFinite(secondsPerStop)||secondsPerStop<10||secondsPerStop>300)return result;
     result.estimatedAt=now+Math.max(0,path.turnIndex-nav.fraction)*secondsPerStop*1000;
+    result.estimatedLatestAt=result.estimatedAt+Math.max(120000,(result.estimatedAt-now)*.25);
     return result;
   }
   // A planned one-way service has no turnaround, including on older native apps.

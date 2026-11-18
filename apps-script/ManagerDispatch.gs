@@ -45,6 +45,7 @@ function bus70ManagerAction_(body, driverId) {
   if (!bus70IsManager_(driverId)) {
     return {ok:false, error:'MANAGER_REQUIRED', message:'소장 권한이 필요합니다.'};
   }
+  if (action === 'managerRouteLive') return bus70ManagerRouteLive_(body,driverId);
   if (action === 'managerDispatchBootstrap') return bus70ManagerBootstrap_(body.date, body.route);
   if (action === 'saveManagerDispatchDay') return bus70SaveManagerDispatchDay_(body, driverId);
   if (action === 'routeTimetableEditorLoad') return bus70RouteTimetableEditorLoad_(body, driverId);
