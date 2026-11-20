@@ -139,6 +139,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.orbit-point.turn .after>span').innerText(),'영업종료 다음날 00:10');
   assert.match(await page.locator('#driverLiveState').innerText(),/상행 막차/);
   assert.match(await page.locator('#driverPlannedGaps .rear .headway-planned').innerText(),/상행 막차 · 뒷차 없음/);
+  assert(await page.locator('.cockpit-target').evaluate(n=>n.hidden),'one-way service end time is not duplicated below the stop names');
   assert.equal(await page.locator('.orbit-point.turn [data-journey-time="arrival"]').innerText(),'노선 위치 확인 중');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');

@@ -3168,7 +3168,7 @@
     const value=model.arrival?'기록 '+Bus70Journey.clock(model.arrival,date,true):model.forecast?'예상 약 '+Bus70Journey.clock(model.forecast.at,date):model.reason;
     for(const node of document.querySelectorAll('[data-journey-time]')){const departure=node.dataset.journeyTime==='departure';Bus70Cockpit.phraseText(node,departure?(model.departure?'기록 '+Bus70Journey.clock(model.departure,date,true):'기록 대기'):value);node.classList.toggle('recorded',Boolean(departure?model.departure:model.arrival));node.title=departure?(context.log.startRecordMode||'실제 출발 기록'):model.arrival?(context.log.endRecordMode||'실제 도착 기록'):model.forecast?model.forecast.basis+' · 참고 범위 '+Bus70Journey.clock(model.forecast.at,date)+'~'+Bus70Journey.clock(model.forecast.latest,date)+' · '+Bus70Journey.clock(model.forecast.observedAt,date,true)+' 갱신':model.reason;}
     // Endpoint already owns these times. Keep only exceptional diagnostics below.
-    const target=document.getElementById('driverLiveTarget')?.closest('.cockpit-target');if(target&&log.startAt&&!log.endAt&&log.turnAt)target.hidden=true;
+    const target=document.getElementById('driverLiveTarget')?.closest('.cockpit-target');if(target&&log.startAt&&!log.endAt&&(log.turnAt||!context.trip.turnPlace&&!context.trip.turnTime))target.hidden=true;
     if(hasAndroidBridge()||!live||document.hidden||!input.enabled||!roadSafetyAudioReady||!('speechSynthesis' in window)||speechSynthesis.speaking||speechSynthesis.pending||driverNoticePending)return;
     const receiptKey='bus70-journey-voice-'+currentDriverId+'-'+date;
     if(journeyReceiptOwner!==receiptKey){journeyReceiptOwner=receiptKey;journeyReceipts={};try{journeyReceipts=JSON.parse(sessionStorage.getItem(receiptKey)||'{}');}catch(ignore){}}
