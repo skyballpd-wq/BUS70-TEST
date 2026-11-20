@@ -37,6 +37,7 @@ on:
       - "tests/realtime-health.browser.cjs"
       - "tests/contact-layout.browser.cjs"
       - "tests/schedule-controls.browser.cjs"
+      - "tests/overnight-driver.browser.cjs"
       - "tests/driver-leave.test.js"
       - "tests/driver-leave.browser.cjs"
       - "apps-script/AuthStep9.gs"
@@ -83,6 +84,7 @@ jobs:
           node tests/contact-layout.browser.cjs
           node tests/emergency-contacts.test.js
           node tests/schedule-controls.browser.cjs
+          node tests/overnight-driver.browser.cjs
           node tests/mobile-compat.test.js
           node tests/mobile-compat.browser.cjs
           node tests/live-trip-guidance.test.js
@@ -187,6 +189,7 @@ jobs:
           node tests/field-cockpit.browser.cjs
           node tests/quick-record.browser.cjs
           node tests/schedule-controls.browser.cjs
+          node tests/overnight-driver.browser.cjs
           node tests/realtime-health.browser.cjs
           node tests/accident-report.browser.cjs
           node tests/accident-flow.browser.cjs

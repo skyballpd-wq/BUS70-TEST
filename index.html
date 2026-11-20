@@ -1335,7 +1335,7 @@
   </main>
 
   <footer id="footerBrand" class="footer">
-    소신여객 통합 운행관리 TEST · v89.9
+    소신여객 통합 운행관리 TEST · v89.10
   </footer>
 
 </div>
@@ -1568,7 +1568,7 @@
     document.getElementById("appRouteLabel").textContent=key&&key!=="ALL"?"소신여객 "+brand:"소신여객 통합운행";
     document.getElementById("appTitle").textContent=key&&key!=="ALL"?"BUS "+key:"운행관리";
     document.getElementById("appSubtitle").textContent=role==="MASTER"?"마스터 통합관리 TEST":role==="MANAGER"?"소장 노선별 배차관리 TEST":role==="CENTER"?"정비소 차량관리 TEST":"기사 운행관리 TEST";
-    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.9";
+    document.getElementById("footerBrand").textContent="소신여객 "+brand+" 운행관리 TEST · v89.10";
   }
   // BUS70 운행일은 달력 자정이 아니라 03:30에 바뀝니다.
   // 자정 이후 마지막 운행이 끝나는 02:30까지는 전날 운행일이며,
@@ -1580,7 +1580,7 @@
   }
   const todayLocal = () => serviceDateInSeoul();
 
-  // 기본 조회 날짜는 달력상의 오늘. 야간 운행의 03:30 경계와 구분합니다.
+  // 관리자 업무 날짜·화면 시계는 달력상의 오늘. 기사 배차 조회는 운행일을 사용합니다.
   function calendarDateInSeoul(now = Date.now()) {
     return new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(now));
   }
@@ -1611,7 +1611,7 @@
 
   function refreshScheduleDate() {
     if(document.hidden||!authToken||currentRole)return false;
-    const today=calendarDateInSeoul();
+    const today=serviceDateInSeoul();
     if(!scheduleFollowToday||document.getElementById("workDate").value===today)return false;
     document.getElementById("workDate").value=today;
     resetScheduleView();
@@ -1678,7 +1678,7 @@
     if(isStaff||!verified)stopDriverLiveTimer();else startDriverLiveTimer();
     resetConfirmation();
     scheduleFollowToday=true;
-    document.getElementById("workDate").value = calendarDateInSeoul();
+    document.getElementById("workDate").value = serviceDateInSeoul();
     document.getElementById("boardDate").value = calendarDateInSeoul();
     document.getElementById("managerDate").value = calendarDateInSeoul();
     syncManagerShiftToDate();
@@ -1871,7 +1871,7 @@
         );
       }
       try {
-        const requestedDate=calendarDateInSeoul();
+        const requestedDate=serviceDateInSeoul();
         const result = await apiPost({action:"session", token:saved.token, date:requestedDate});
         if (requestId !== authRequestId) return;
         if (result.ok && result.driver) {
@@ -1879,7 +1879,7 @@
           if (result.alertSettings) fillAlertSettings(result.alertSettings);
           saveLegacyDriver(result.driver, result.role || "");
           openDriverScreen(result.driver, false, result.manager, result.role);
-          if (!result.role && result.schedule && requestedDate===calendarDateInSeoul()) {
+          if (!result.role && result.schedule && requestedDate===serviceDateInSeoul()) {
             lastSchedule = scheduleForRequestedDate(result.schedule,requestedDate);
             scheduleRefreshedAt=scheduleRefreshAttemptAt=Date.now();
             renderSchedule();
@@ -1928,7 +1928,7 @@
         localStorage.removeItem(LEGACY_REMEMBER_KEY);
       }
       openDriverScreen(data.driver, false, data.manager, data.role);
-      if (!data.role && data.schedule && requestedDate===calendarDateInSeoul()) {
+      if (!data.role && data.schedule && requestedDate===serviceDateInSeoul()) {
         lastSchedule = scheduleForRequestedDate(data.schedule,requestedDate);
         scheduleRefreshedAt=scheduleRefreshAttemptAt=Date.now();
         renderSchedule();
@@ -1954,7 +1954,7 @@
       // 배포된 서버는 loginSecure를 지원합니다. 통신 실패 때 구형 GET 로그인을
       // 다시 호출하면 대기시간이 두 배가 되고 오래된 사번 판정이 섞일 수 있어
       // 보안 로그인 한 번의 결과만 사용합니다.
-      const requestedDate=calendarDateInSeoul();
+      const requestedDate=serviceDateInSeoul();
       const data = await apiPost({action:"loginSecure", name, empId, date:requestedDate});
       if (requestId !== authRequestId) return;
       if (!data.ok || !data.driver) {
@@ -3764,7 +3764,7 @@
     const token = authToken, driverId = currentDriverId;
     const isCurrentRequest = () => requestId === scheduleRequestId && authToken === token &&
       currentDriverId === driverId && document.getElementById("workDate").value === date &&
-      (!scheduleFollowToday||date===calendarDateInSeoul());
+      (!scheduleFollowToday||date===serviceDateInSeoul());
     if(!silent){
       followCurrentTrip=true;
       lastSchedule = null;
@@ -3840,7 +3840,7 @@
   document.querySelectorAll("[data-driver-menu]").forEach(button=>button.addEventListener("click",()=>toggleDriverWorkMenu(button.dataset.driverMenu)));
   document.getElementById("timeMode").addEventListener("change",()=>renderSchedule(false));
   document.getElementById("workDate").addEventListener("change", () => {
-    scheduleFollowToday=document.getElementById("workDate").value===calendarDateInSeoul();
+    scheduleFollowToday=document.getElementById("workDate").value===serviceDateInSeoul();
     resetScheduleView();
     loadMySchedule();
   });
@@ -3927,7 +3927,7 @@
       status.replaceChildren(el("div", result.message || "배차가 등록되었습니다.", "notice"));
       if (result.schedule) {
         document.getElementById("workDate").value = date;
-        scheduleFollowToday=date===calendarDateInSeoul();
+        scheduleFollowToday=date===serviceDateInSeoul();
         lastSchedule = scheduleForRequestedDate(result.schedule,date);
         renderSchedule();
         document.getElementById("schedulePanel").scrollIntoView({behavior:"smooth", block:"start"});
