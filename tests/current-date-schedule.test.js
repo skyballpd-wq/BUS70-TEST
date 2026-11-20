@@ -73,6 +73,33 @@ function fixture() {
   } finally { if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz; }
   assert.equal(f.c.serviceDateInSeoul(Date.parse('2099-01-10T15:00:00Z')),'2099-01-10','overnight record date is unchanged');
 
+  // Active trips, including upper-only services, survive calendar midnight.
+  // Their telemetry/matching history must not be reset by the periodic timer.
+  for (const route of ['5','23','70']) {
+    const night=fixture();
+    night.c.Bus70Notices={tick(){}};
+    const plan={ok:true,type:'WORK',date:'2099-01-10',route,trips:[{trip:6,startTime:'22:50',endTime:'01:15'}]};
+    night.c.lastSchedule=plan;night.c.activeTripIndex=5;
+    night.c.navigationMemory.set('bound-trip',{fraction:90});
+    night.c.scheduleRefreshAttemptAt=night.c.Date.now();
+    night.c.startDriverLiveTimer();night.setTime('2099-01-10T15:00:00Z');night.intervals[0]();
+    assert.equal(night.node('workDate').value,'2099-01-10');
+    assert.equal(night.c.lastSchedule,plan);assert.equal(night.c.activeTripIndex,5);
+    assert.equal(night.c.navigationMemory.get('bound-trip').fraction,90);
+    assert.equal(night.calls.length,0);
+    night.c.renderSchedule=()=>{};
+    night.handlers.respond=body=>({ok:true,driver:{driverId:night.c.currentDriverId,status:'재직'},schedule:{...plan,date:body.date}});
+    night.c.refreshScheduleOnResume();await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(night.calls.at(-1).date,'2099-01-10','resume uses the same overnight service date');
+    assert.equal(night.c.lastSchedule.route,route);
+  }
+  // A response requested just before midnight remains valid after midnight.
+  const crossing=fixture();let deliver;
+  crossing.handlers.respond=()=>new Promise(resolve=>{deliver=resolve;});
+  const pending=crossing.c.loadMySchedule();crossing.setTime('2099-01-10T15:00:00Z');
+  deliver({ok:true,driver:{driverId:crossing.c.currentDriverId},schedule:{ok:true,type:'NO_DISPATCH',date:'2099-01-10'}});
+  await pending;assert.equal(crossing.c.lastSchedule.date,'2099-01-10');
+
   await f.c.loadMySchedule();
   assert.match(f.screen(),/\? 오늘 스케줄 없음/);
   assert.match(f.screen(),/2099-01-10/);
@@ -84,10 +111,10 @@ function fixture() {
   await rest.c.loadMySchedule();assert.match(rest.screen(),/개인 지정휴무/);assert.match(rest.screen(),/B조 근무일 · 개인 휴무/);assert.match(rest.screen(),/2099-01-10 \(1일\)/);assert.doesNotMatch(rest.screen(),/휴무 여부는 별도 확인|다시 조회/);
   assert.equal(rest.node('confirmScheduleButton').hidden,true);
 
-  // A long-lived empty screen must roll over and request today's date, even
+  // A long-lived empty screen rolls at the service-day cutoff, even
   // without an existing trip card to drive its refresh timer.
   f.c.startDriverLiveTimer();
-  f.setTime('2099-01-10T15:00:00Z');
+  f.setTime('2099-01-10T18:30:00Z');
   f.intervals[0]();
   assert.equal(f.node('workDate').value,'2099-01-11');
   assert.equal(f.c.lastSchedule,null,'clear yesterday before awaiting the server');
@@ -98,7 +125,7 @@ function fixture() {
 
   const resume=fixture();
   resume.c.document.hidden=true;
-  resume.setTime('2099-01-10T15:00:00Z');
+  resume.setTime('2099-01-10T18:30:00Z');
   resume.c.refreshScheduleOnResume();assert.equal(resume.calls.length,0);
   resume.c.document.hidden=false;
   resume.c.refreshScheduleOnResume();
@@ -143,7 +170,7 @@ function fixture() {
   const late=fixture();let resolveOld,resolveNew;
   late.handlers.respond=body=>new Promise(resolve=>{if(body.date==='2099-01-10')resolveOld=resolve;else resolveNew=resolve;});
   const old=late.c.loadMySchedule();
-  late.setTime('2099-01-10T15:00:00Z');late.c.refreshScheduleDate();
+  late.setTime('2099-01-10T18:30:00Z');late.c.refreshScheduleDate();
   resolveOld({ok:true,driver:{driverId:late.c.currentDriverId},schedule:{ok:true,type:'NO_DISPATCH',date:'2099-01-10'}});
   await old;
   assert.equal(late.c.lastSchedule,null);assert.equal(late.c.scheduleRefreshInFlight,true);
@@ -162,5 +189,5 @@ function fixture() {
   await retry.click();
   assert.match(offline.screen(),/\? 오늘 스케줄 없음/);
   assert.equal(f.errors.length,0);assert.equal(late.errors.length,0);assert.equal(resume.errors.length,0);
-  console.log('Calendar-today schedule: KST midnight, rollover, resume, history, absent schedule, wrong-date responses, request races and offline state passed');
+  console.log('Driver service-day schedule: KST midnight, 03:30 rollover, resume, history, absent schedule, wrong-date responses, request races and offline state passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -10,11 +10,12 @@ const output=process.env.CONTACT_LAYOUT_OUTPUT||require('os').tmpdir()+'/bus70-s
 fs.mkdirSync(output,{recursive:true});
 const fixture=`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><body class="driver-mode"><div class="app"><main class="content"><section id="schedulePanel" class="schedule-panel">${controls}</section></main></div><script>
 let scheduleFollowToday=true,requests=[],renders=0,resets=0;
-const calendarDateInSeoul=()=> '2099-01-10';
+const calendarDateInSeoul=()=> '2099-01-11';
+const serviceDateInSeoul=()=> '2099-01-10';
 function resetScheduleView(){resets++}
 function loadMySchedule(){requests.push(document.getElementById('workDate').value)}
 function renderSchedule(){renders++}
-document.getElementById('workDate').value=calendarDateInSeoul();
+document.getElementById('workDate').value=serviceDateInSeoul();
 ${handlers}
 loadMySchedule();
 </script>`;
