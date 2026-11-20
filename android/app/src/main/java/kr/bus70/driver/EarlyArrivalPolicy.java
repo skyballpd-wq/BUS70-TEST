@@ -8,14 +8,15 @@ final class EarlyArrivalPolicy {
     static final String INBOUND_KKACHIUL="212000105";
     static final String INBOUND_HWAGOK="115000108";
     static final String INBOUND_HWAGOK_ROUTE23="115000051";
+    static final String FORECAST_TECHNO="212000047";
     static final String MESSAGE="차고지에 예정 시각보다 10분 이상 일찍 도착할 것으로 예상됩니다. 배차 시간을 확인하고 안전하게 운행하세요.";
     static void resetMotion(JSONObject state){state.remove("samples");state.remove("candidate");}
     static JSONObject update(JSONObject state,JSONObject trip,JSONObject nav,String binding,String route,long planned,long fix,long now,double accuracy,double lat,double lng)throws Exception {
         String station="5".equals(route)?INBOUND_KKACHIUL:"70".equals(route)?INBOUND_HWAGOK:"23".equals(route)?INBOUND_HWAGOK_ROUTE23:"";
         String gateName="70".equals(route)?"하행 화곡역5번출구":"23".equals(route)?"하행 화곡역6번출구":"하행 까치울역5번출구";
-        String key="stops-v4|"+route+"|"+station+"|"+binding+"|"+trip.optInt("trip")+"|"+planned+"|"+trip.optString("actualStart");
+        String key="stops-v5|"+route+"|"+station+"|"+binding+"|"+trip.optInt("trip")+"|"+planned+"|"+trip.optString("actualStart");
         if(!key.equals(state.optString("key"))){for(String k:new String[]{"samples","candidate","lastEstimate","checkedIndex","lastAttemptAt","attemptIndex"})state.remove(k);state.put("key",key);}
-        JSONObject out=new JSONObject().put("available",false).put("timestamp",fix).put("trip",trip.optInt("trip")).put("plannedAt",planned).put("warning",false).put("notify",false);
+        JSONObject out=new JSONObject().put("policyVersion",5).put("available",false).put("timestamp",fix).put("trip",trip.optInt("trip")).put("plannedAt",planned).put("warning",false).put("notify",false);
         if(station.isEmpty()){resetMotion(state);return out.put("reason","노선별 전착 안내 기준 미등록");}
         out.put("route",route).put("gateStationId",station);
         JSONObject course=trip.optJSONObject("course");JSONArray stops=course==null?null:course.optJSONArray("stops");
@@ -26,12 +27,13 @@ final class EarlyArrivalPolicy {
         if(!valid){state.remove("lastEstimate");resetMotion(state);return out.put("reason",!depot?"고강차고지 도착계획 확인 필요":!active?"운행 중 출발 확인 필요":"최신 하행 위치 확인 중");}
         JSONObject endpoint=trip.optJSONObject("endLocation"),last=stops.getJSONObject(stops.length()-1);
         if(endpoint==null||!Double.isFinite(endpoint.optDouble("lat"))||!Double.isFinite(endpoint.optDouble("lng"))||RouteMatcher.distance(last.optDouble("lat"),last.optDouble("lng"),endpoint)>100){resetMotion(state);return out.put("reason","차고지 기준점 확인 필요");}
-        double[] positions=new double[stops.length()];int gate=-1;
+        double[] positions=new double[stops.length()];int gate=-1,forecastGate=-1,forecastMatches=0;
         for(int i=0;i<stops.length();i++){
             JSONObject stop=stops.getJSONObject(i);
             if(!Double.isFinite(stop.optDouble("lat"))||!Double.isFinite(stop.optDouble("lng"))){resetMotion(state);return out.put("reason","정류장 좌표 확인 필요");}
             if(i>0){JSONObject a=stops.getJSONObject(i-1);positions[i]=positions[i-1]+RouteMatcher.distance(a.optDouble("lat"),a.optDouble("lng"),stop);}
             if(station.equals(stop.optString("stationId"))||station.equals(stop.optString("id"))||stop.optString("id").endsWith("-"+station))gate=i;
+            if(FORECAST_TECHNO.equals(stop.optString("stationId"))||FORECAST_TECHNO.equals(stop.optString("id"))||stop.optString("id").endsWith("-"+FORECAST_TECHNO)){forecastGate=i;forecastMatches++;}
         }
         double meters=nav.optDouble("matchedMeters",Double.NaN),fraction=nav.optDouble("fraction",Double.NaN),remaining=positions[stops.length()-1]-meters;
         int segment=(int)Math.floor(fraction);
@@ -40,18 +42,21 @@ final class EarlyArrivalPolicy {
         JSONObject projected=new JSONObject().put("lat",segmentStart.optDouble("lat")+(segmentEnd.optDouble("lat")-segmentStart.optDouble("lat"))*part).put("lng",segmentStart.optDouble("lng")+(segmentEnd.optDouble("lng")-segmentStart.optDouble("lng"))*part);
         if(RouteMatcher.distance(lat,lng,projected)>Math.max(60,accuracy*2)){state.remove("lastEstimate");return out.put("reason","노선 위치 확인 중");}
         int pivot=course.optInt("pivotIndex",-1);if(pivot<0)pivot=course.optInt("turnIndex",-1);
+        if("5".equals(route)&&(forecastMatches!=1||forecastGate!=pivot||forecastGate>=stops.length()-1||fraction<=forecastGate+.15)){
+            state.remove("lastEstimate");resetMotion(state);return out.put("reason",forecastMatches!=1||forecastGate!=pivot?"예상 기준점 확인":"테크노파크 통과 후 예상");
+        }
         if(gate<0||gate<=pivot||pivot<0||gate>=stops.length()-2){resetMotion(state);return out.put("reason",gateName+" 기준점 확인 필요");}
         if(!Double.isFinite(remaining)||!Double.isFinite(fraction)||meters<0||remaining<=0||RouteMatcher.distance(lat,lng,endpoint)<=80){resetMotion(state);return out.put("reason","차고지 도착 구간 · 안내 종료");}
         JSONArray samples=state.optJSONArray("samples");if(samples==null)samples=new JSONArray();JSONObject previous=samples.optJSONObject(samples.length()-1);
         if(previous!=null&&(fix-previous.optLong("at")>30000||fix<previous.optLong("at")||meters<previous.optDouble("meters")-50||meters-previous.optDouble("meters")>Math.max(80,(fix-previous.optLong("at"))*.025+accuracy*2))){samples=new JSONArray();state.remove("candidate");state.remove("lastEstimate");previous=null;}
         if(previous==null||fix-previous.optLong("at")>=5000)samples.put(new JSONObject().put("at",fix).put("meters",meters));
-        while(samples.length()>1&&fix-samples.getJSONObject(0).optLong("at")>300000)samples.remove(0);state.put("samples",samples);
+        while(samples.length()>1&&fix-samples.getJSONObject(0).optLong("at")>600000)samples.remove(0);state.put("samples",samples);
         out.put("remainingM",Math.round(remaining));
         JSONObject first=samples.optJSONObject(0),recent=first;
         if(first==null||fix-first.optLong("at")<120000)return heldEstimate(state,out,now,"최근 이동 자료 수집 중");
         for(int i=0;i<samples.length();i++)if(fix-samples.getJSONObject(i).optLong("at")>=60000)recent=samples.getJSONObject(i);
         double travel=meters-first.optDouble("meters"),recentTravel=meters-recent.optDouble("meters");
-        double average=travel/((fix-first.optLong("at"))/1000.0),near=recentTravel/((fix-recent.optLong("at"))/1000.0),rate=Math.min(average,near);
+        double average=travel/((fix-first.optLong("at"))/1000.0),near=recentTravel/((fix-recent.optLong("at"))/1000.0),rate=average*.7+near*.3;
         if(travel<250||recentTravel<100||!Double.isFinite(rate)||rate<2||rate>22.22)return heldEstimate(state,out,now,"정차·이동 자료 추가 확인 중");
         long duration=(long)Math.ceil(remaining/rate*1000),margin=Math.max(120000L,(long)Math.ceil(duration*.25));
         long predicted=now+duration,conservative=predicted+margin;double early=(planned-conservative)/60000.0;
@@ -72,7 +77,7 @@ final class EarlyArrivalPolicy {
         boolean risk=early>=10,unchecked=checkpoint>state.optInt("checkedIndex",-1);
         boolean due=risk&&unchecked&&(state.optInt("attemptIndex",-1)!=checkpoint||now-state.optLong("lastAttemptAt")>=5000);
         if(!risk)state.put("checkedIndex",Math.max(checkpoint,state.optInt("checkedIndex",-1)));
-        return out.put("available",true).put("predictedAt",predicted).put("latestAt",conservative).put("remainingM",Math.round(remaining)).put("earlyMinutes",early).put("warning",risk).put("notify",due).put("message",risk?MESSAGE:"").put("reason","정류장 도착 · 최근 2~5분 이동·정차 기준 추정");
+        return out.put("available",true).put("predictedAt",predicted).put("latestAt",conservative).put("remainingM",Math.round(remaining)).put("earlyMinutes",early).put("warning",risk).put("notify",due).put("message",risk?MESSAGE:"").put("reason","정류장 도착 · 최근 2~10분 이동·정차 기준 추정");
     }
     private static JSONObject heldEstimate(JSONObject state,JSONObject out,long now,String reason)throws Exception{
         JSONObject saved=state.optJSONObject("lastEstimate");

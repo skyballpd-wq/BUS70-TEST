@@ -10,7 +10,7 @@ function update(seconds,ownOrder,otherOrder,otherId='SYN-A'){
  h.observeFleet(state,scope,{configured:true,matchedIndex:ownOrder-1,path},fleet,peers,at);
  return h.model('front',{plannedFrontGapMinutes:8},fleet,peers,state);
 }
-let model=update(0,1,2);assert.equal(model.observedGap,null);assert.match(model.actualLine,/관측 중/);assert.doesNotMatch(model.actualLine,/약 1분/,'pace conversion is never presented as an observed time gap');
+let model=update(0,1,2);assert.equal(model.observedGap,null);assert.match(model.actualLine,/시간 수집 중/);assert.doesNotMatch(model.actualLine,/약 1분/,'pace conversion is never presented as an observed time gap');
 update(45,1,3);update(90,1,3);update(135,2,4);model=update(180,3,4);
 assert.equal(model.observedGap.minutes,2.3);assert.equal(model.observedGap.min,1.5);assert.equal(model.observedGap.max,3);assert.match(model.actualLine,/약 2.3분 · 1정류장/);
 assert.match(model.plannedLine,/8분 · 약8정류장/);
@@ -21,7 +21,7 @@ const ambiguous=JSON.parse(JSON.stringify(snapshot));ambiguous.observations['SYN
 const wrongLeg=JSON.parse(JSON.stringify(snapshot));wrongLeg.observations['SYN-A'].leg='BACK';assert.equal(h.observedGap(peers[0],'front',wrongLeg),null);
 h.observeFleet(snapshot,scope,{configured:true,matchedIndex:15,path},fleet,peers,base+180000);assert.equal(snapshot.observationsAvailable,false,'public own bus must agree with current route occurrence');
 
-model=update(225,4,null);assert.equal(model.observedGap,null);assert.match(model.notice,/마지막 관측 45초 전/);assert.equal(model.identityBasis,'마지막');assert.match(model.actualLine,/—정류장/);assert.equal(model.crowding,'미수신');assert.equal(h.warning([model],state,base+225000,true),null);
+model=update(225,4,null);assert.equal(model.observedGap,null);assert.match(model.notice,/마지막 관측 45초 전/);assert.equal(model.identityBasis,'마지막');assert.equal(model.actualLine,'미수신');assert.equal(model.crowding,'미수신');assert.equal(h.warning([model],state,base+225000,true),null);
 model=update(270,5,8);assert.equal(model.observedGap,null,'rejoining bus has no continuous passage history');
 model=update(315,6,9,'SYN-C');assert.equal(model.notice,'관측 차량 변경');assert.equal(model.observedGap,null,'new neighbour cannot borrow another vehicle’s time gap');
 const before=JSON.stringify(state.observations);h.observeFleet(state,scope,{configured:true,matchedIndex:5,path},fleet,peers,base+316000);assert.equal(JSON.stringify(state.observations),before,'cached response is not a second passage observation');

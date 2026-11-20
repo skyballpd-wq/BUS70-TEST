@@ -9,7 +9,7 @@ public class EarlyArrivalPolicyTest {
     double lat(double meters){return meters/6371000*180/Math.PI;}
     JSONObject trip()throws Exception{
         JSONArray stops=new JSONArray();
-        for(int i=0;i<=6;i++)stops.put(new JSONObject().put("id","synthetic-"+i).put("stationId",i==2?EarlyArrivalPolicy.INBOUND_KKACHIUL:i==0?"212000064":"synthetic-"+i).put("name",i==0||i==2?"까치울역":"합성 정류장 "+i).put("lat",lat(i*1000)).put("lng",0));
+        for(int i=0;i<=6;i++)stops.put(new JSONObject().put("id","synthetic-"+i).put("stationId",i==2?EarlyArrivalPolicy.INBOUND_KKACHIUL:i==1?EarlyArrivalPolicy.FORECAST_TECHNO:i==0?"212000064":"synthetic-"+i).put("name",i==0||i==2?"까치울역":"합성 정류장 "+i).put("lat",lat(i*1000)).put("lng",0));
         return new JSONObject().put("trip",2).put("actualStart","observed").put("endPlace","고강공영차고지").put("endLocation",stops.getJSONObject(6)).put("course",new JSONObject().put("pivotIndex",1).put("stops",stops));
     }
     JSONObject step(JSONObject state,JSONObject trip,long planned,int sec,double meters)throws Exception{
@@ -21,6 +21,34 @@ public class EarlyArrivalPolicyTest {
     JSONObject arrive(JSONObject s,JSONObject t,long planned)throws Exception{
         for(int sec=0;sec<=160;sec+=5)step(s,t,planned,sec,1400+sec*10);
         return step(s,t,planned,162,3000);
+    }
+    @Test public void route5ForecastStartsAfterPhysicalTechnoNotRecordedTurn()throws Exception{
+        JSONObject t=trip().put("actualTurn","observed"),s=new JSONObject();long p=base+2400000;
+        for(int sec=0;sec<=180;sec+=5){
+            JSONObject r=step(s,t,p,sec,100+sec*5);
+            assertFalse("recorded turnaround before Techno cannot start ETA",r.optBoolean("available"));
+            assertEquals("테크노파크 통과 후 예상",r.optString("reason"));
+        }
+        assertFalse(step(s,t,p,185,1150).optBoolean("available"));
+        for(int sec=190;sec<310;sec+=5)assertFalse(step(s,t,p,sec,1200+(sec-190)*10).optBoolean("available"));
+        JSONObject r=step(s,t,p,310,2400);assertTrue(r.optBoolean("available"));assertEquals(5,r.optInt("policyVersion"));
+    }
+    @Test public void wrongOrDuplicateTechnoOccurrenceNeverForecasts()throws Exception{
+        JSONObject t=trip();JSONArray stops=t.getJSONObject("course").getJSONArray("stops");
+        stops.getJSONObject(1).put("stationId","same-name-wrong-id");
+        assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        stops.getJSONObject(1).put("stationId",EarlyArrivalPolicy.FORECAST_TECHNO);
+        stops.getJSONObject(3).put("stationId",EarlyArrivalPolicy.FORECAST_TECHNO);
+        assertFalse(arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+        t=trip().put("endPlace","부천테크노파크4단지").put("deadheadDestination","고강공영차고지");
+        assertFalse("upper final service ends at Techno; deadhead is separate",arrive(new JSONObject(),t,base+2400000).optBoolean("available"));
+    }
+    @Test public void slowMinuteDoesNotSetWholeRemainingTripPace()throws Exception{
+        JSONObject s=new JSONObject(),t=trip(),r=null;long p=base+2400000;
+        for(int sec=0;sec<=240;sec+=5)r=step(s,t,p,sec,1400+(sec<=180?sec*10:1800+(sec-180)*3));
+        assertTrue(r.optBoolean("available"));
+        long duration=r.optLong("predictedAt")-(base+240000);
+        assertTrue(duration<(6000-3380)/3.0*1000);assertTrue(duration>(6000-3380)/10.0*1000);
     }
     @Test public void etaContinuesBetweenStopsWithoutVoiceAndExpiresWhenHeld()throws Exception{
         JSONObject s=new JSONObject(),t=trip(),r=arrive(s,t,base+2400000);

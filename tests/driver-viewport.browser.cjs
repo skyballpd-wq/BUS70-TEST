@@ -111,14 +111,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   assert.equal(await page.locator('.route-peer').count(),4);
   assert.match(await page.locator('#driverPlannedGaps .front').innerText(),/9002호 · 시험앞기사/);
   assert.match(await page.locator('#driverPlannedGaps .rear').innerText(),/9003호 · 시험뒷기사/);
-  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/관측[\s\S]*관측 중 · 2정류장/);
+  assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/관측[\s\S]*시간 수집 중 · 2정류장/);
   assert.equal(await page.locator('.driver-live-primary #driverRingPoints .orbit-point').count(),2);
   assert.equal(await page.locator('.driver-live-primary .quick-run-actions').count(),0);
   assert.equal(await page.locator('.driver-live-primary #roadSafetyEnable').count(),0);
   assert.equal(await page.locator('.driver-live-primary #driverLiveSafety').isVisible(),true);
   if(process.env.CONTACT_LAYOUT_OUTPUT){fs.mkdirSync(process.env.CONTACT_LAYOUT_OUTPUT,{recursive:true});await page.screenshot({path:process.env.CONTACT_LAYOUT_OUTPUT+'/first-screen-'+width+'x'+height+'.png'});}
   await page.evaluate(()=>{liveFleet.positions.forEach(p=>p.recordedAt=new Date(Date.now()-90000).toISOString());liveFleet.crossCheck.fleet.forEach(p=>p.fetchedAt=Date.now()-90000);updateDriverLiveDashboard();});
-  assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front .headway-reception').innerText(),/마지막 위치 90초 전/);assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/—분 · —정류장/);await check('stale '+width+'x'+height);
+  assert.equal(await page.locator('.route-peer.stale').count(),4);assert.match(await page.locator('#driverPlannedGaps .front .headway-reception').innerText(),/마지막 위치 90초 전/);assert.match(await page.locator('#driverPlannedGaps .front .headway-actual').innerText(),/미수신/);await check('stale '+width+'x'+height);
   // A feed outage must stay visible and must not turn old values into live data.
   await page.evaluate(()=>{liveFleet={route:'5',date:'2099-01-08',roster:[{sequence:2,vehicleId:'TEST-PEER-2',vehicleNo:'시험00가9002',driverName:'시험앞기사'},{sequence:3,vehicleId:'TEST-PEER-1',vehicleNo:'시험00가9003',driverName:'시험뒷기사'}],positions:[],error:'합성 수신 중단'};lastDriverPosition.timestamp=Date.now()-120000;routeNavigationState=()=>({configured:false,reason:'위치·방향 확인 중'});updateDriverLiveDashboard();});
   await check('outage '+width+'x'+height);
@@ -127,7 +127,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   // Field regressions: one-way final service, missing speed, a long status,
   // orientation change and enlarged text. All values are synthetic.
   await page.evaluate(()=>{
-   const trip=lastSchedule.trips[0];Object.assign(trip,{turnPlace:'',turnTime:'',endPlace:'시험산업단지 정류소',serviceEndPlace:'시험산업단지 정류소',deadheadDestination:'고강공영차고지',endLocation:{lat:37.05,lng:127}});
+   const trip=lastSchedule.trips[0];Object.assign(trip,{turnPlace:'',turnTime:'',endPlace:'시험산업단지 정류소',endTime:'00:10',serviceEndType:'UPBOUND_LAST',serviceEndPlace:'시험산업단지 정류소',deadheadDestination:'고강공영차고지',endLocation:{lat:37.05,lng:127}});
    lastSchedule.routeProfile.stops[50].name=trip.endPlace;
    lastDriverPosition={timestamp:Date.now(),coords:{latitude:37.049,longitude:127,accuracy:3,speed:null}};
    routeNavigationState=()=>({configured:true,trip:1,timestamp:Date.now(),matchedIndex:49,tripPassedStops:50,tripStopCount:51,tripProgressPercent:97,previousStop:'시험아파트.청소년문화센터',nextStop:'시험산업단지 정류소',direction:'회차 방면'});
@@ -136,7 +136,9 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium,webkit}=re
   });
   assert.equal(await page.locator('.orbit-point.depot .before>span').innerText(),'출발 10:00');
   assert.equal(await page.locator('.orbit-point.depot .after>span').innerText(),'');
-  assert.equal(await page.locator('.orbit-point.turn .after>span').innerText(),'영업종료 12:00');
+  assert.equal(await page.locator('.orbit-point.turn .after>span').innerText(),'영업종료 다음날 00:10');
+  assert.match(await page.locator('#driverLiveState').innerText(),/상행 막차/);
+  assert.match(await page.locator('#driverPlannedGaps .rear .headway-planned').innerText(),/상행 막차 · 뒷차 없음/);
   assert.equal(await page.locator('.orbit-point.turn [data-journey-time="arrival"]').innerText(),'노선 위치 확인 중');
   assert.match(await page.locator('#driverTripProgressValue').innerText(),/시험산업단지 방면/);
   assert.equal(await page.locator('#driverLiveSpeed .speed-unit').innerText(),'km/h');
