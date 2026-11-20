@@ -72,7 +72,7 @@
       const i=stops.findIndex(s=>Number(s.order)===Number(p.matchedStopOrder));
       const at=Date.parse(p.recordedAt),age=(now-at)/1000;
       if(i<0||!Number.isFinite(age)||age<0||age>180||p.accuracyM==null||p.accuracyM===''||!Number.isFinite(Number(p.accuracyM))||Number(p.accuracyM)<0||Number(p.accuracyM)>60)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index),fresh:age<=45&&!own.retained&&!fleet.error};
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),observedAt:at,source:'APP_GPS',binding:[p.dispatchId,p.trip].join('|'),vehicle:p.vehicleId,sequence:p.sequence,stopGap:Math.abs(i-index),fresh:age<=45&&!own.retained&&!fleet.error};
     }).filter(Boolean);
     // A route occurrence includes the return leg. Never wrap completed trips to the start.
     // Same-stop observations cannot establish front/rear order; other neighbours remain visible.
@@ -82,10 +82,11 @@
       if(i<0||!Number.isFinite(age)||age<0||age>180||![0,1,2].includes(p.stateCd))return null;
       // Exclude layover/deadhead ambiguity at route boundaries.
       if(i===0||i===stops.length-1)return null;
-      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),vehicle:p.vehicleId,vehicleNo:p.vehicleNo||'',stopGap:Math.abs(i-index),source:'GBIS',reference:true,crowded:[1,2,3,4].includes(p.crowded)?p.crowded:null,fresh:age<=60&&fleet.crossCheck===reference&&!reference.error&&!own.retained&&!fleet.error};
+      return {index:i,order:stops[i].order,stopName:stops[i].name,age:Math.floor(age),observedAt:Number(p.fetchedAt),vehicle:p.vehicleId,vehicleNo:p.vehicleNo||'',stopGap:Math.abs(i-index),source:'GBIS',reference:true,crowded:[1,2,3,4].includes(p.crowded)?p.crowded:null,fresh:age<=60&&fleet.crossCheck===reference&&!reference.error&&!own.retained&&!fleet.error};
     }).filter(Boolean);
     // Fresh authenticated phone fixes take priority over the same bus's public reference.
-    const unique=[...new Map([...publicPeers,...candidates].sort((a,b)=>Number(a.fresh)-Number(b.fresh)||b.age-a.age).map(p=>[p.vehicle,p])).values()];
+    const unique=[...new Map([...publicPeers,...candidates].sort((a,b)=>Number(a.fresh)-Number(b.fresh)||Number(!a.reference)-Number(!b.reference)||b.age-a.age).map(p=>[p.vehicle,p])).values()];
+    for(const p of unique){const publicFix=publicPeers.find(q=>q.vehicle===p.vehicle&&q.fresh);p.positionDisagreement=Boolean(!p.reference&&p.fresh&&publicFix&&Math.abs(p.index-publicFix.index)>2);}
     for(const side of ['front','rear']){
       const leg=i=>stops[i].direction||(path.pivotIndex>=0?(i<=path.pivotIndex?'out':'return'):'unknown');
       const peers=unique.filter(p=>leg(p.index)===leg(index)&&(side==='front'?p.index>index:p.index<index)).sort((a,b)=>Math.abs(a.index-index)-Math.abs(b.index-index)||a.age-b.age||String(a.vehicle).localeCompare(String(b.vehicle))).slice(0,2);
@@ -220,7 +221,7 @@
   function peerStatus(fleet,own,scope,peers,now){
     if(fleet?.error)return '차량정보 연결 실패 · 재시도 중';
     const ref=fleet?.crossCheck;
-    if(peers.some(p=>p.fresh&&!p.reference)&&ref?.error)return '앱 GPS 간격 표시 · 경기버스정보 수신 대기';
+    if(peers.some(p=>p.fresh&&!p.reference)&&ref?.error)return '앱 GPS 기준 · 경기정보 '+(['GBIS_HTTP_429','GBIS_DAILY_LIMIT','GBIS_RATE_LIMIT'].includes(ref.error)?'제한':'미수신');
     if(['GBIS_HTTP_429','GBIS_DAILY_LIMIT','GBIS_RATE_LIMIT'].includes(ref?.error))return (ref.error==='GBIS_DAILY_LIMIT'?'경기버스정보 일일 호출한도':'경기버스정보 요청 제한')+(ref.retryAt>now?' · '+Math.ceil((ref.retryAt-now)/60000)+'분 후 재시도':' · 재시도 대기');
     if(ref?.error==='GBIS_REFRESH_PENDING')return '경기버스정보 갱신 중';
     if(peers.length)return peers.some(p=>p.reference)?'경기버스정보 · 정류장 위치 기준':'앱 GPS · 정류장 위치 기준';

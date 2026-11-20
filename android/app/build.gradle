@@ -9,8 +9,8 @@ android {
         minSdk 26
         targetSdk 35
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        versionCode 95
-        versionName "0.95-journey-times"
+        versionCode 96
+        versionName "0.96-field-gps-guidance"
     }
 
     sourceSets { test.resources.srcDir "../../tests" }

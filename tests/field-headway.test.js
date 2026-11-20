@@ -6,10 +6,8 @@ let state={};for(let i=0;i<5;i++)state=h.sample(state,scope,{configured:true,mat
 const front={side:'front',rank:1,vehicle:'TEST-F',driverName:'시험앞기사',vehicleNo:'시험00가9001',fresh:true,age:3,stopGap:2};
 let models=['front','rear'].map(side=>h.model(side,{plannedFrontGapMinutes:8,plannedRearGapMinutes:9},{},[front],state));
 assert.equal(models[0].comparison.targetStops,8);assert.equal(models[0].comparison.estimatedMinutes,2);assert.equal(models[0].comparison.status,'close');assert.match(models[0].identity,/9001호 · 시험앞기사/);
-assert.equal(h.warning(models,state,now,true),null);let warning=h.warning(models,state,now+9000,true);assert(warning);h.notified(state,warning,now+9000);
-assert.equal(h.warning(models,state,now+20000,true),null);
-const stale=models.map(m=>({...m,peer:m.peer?{...m.peer,fresh:false}:null}));assert.equal(h.warning(stale,state,now+22000,true),null);
-assert.equal(h.warning(models,state,now+35000,true),null);assert.equal(h.warning(models,state,now+45000,true),null,'brief outage must not reset voice cooldown');
+// No voice from a peer without a source observation timestamp.
+assert.equal(h.warning(models,state,now,true),null);assert.equal(h.warning(models,state,now+180000,true),null);
 assert.equal(h.sample(state,{...scope,trip:6},{configured:true,matchedIndex:1,timestamp:now},now).samples.length,0);
 assert.equal(h.comparison({...front,fresh:false},8,state).estimatedMinutes,null);
 assert.equal(h.comparison(front,8,{samples:[]}).targetStops,null,'no assumed stop travel time');

@@ -47,8 +47,10 @@ renderDriverLiveDashboard(document.getElementById('test-root'),lastSchedule);upd
  await page.evaluate(()=>{
    log.actualStart='observed';trip.endPlace='고강공영차고지';trip.endTime='12:00';
    currentNavigation={configured:true,returnConfirmed:true,turnPassed:true,fraction:1.5,matchedMeters:1600,path:{turnIndex:1,stops:[{name:'기점',lat:37,lng:127},{name:'회차지',lat:37.01,lng:127},{name:'고강공영차고지',lat:37.02,lng:127}]}};
-   nativeArrivalEstimate={date:'2099-01-10',trip:5,timestamp:Date.now(),estimateAt:Date.now()-15000,available:true,retained:true,predictedAt:Date.now()+240000,latestAt:Date.now()+360000};updateDriverLiveDashboard();
+   nativeArrivalEstimate={policyVersion:4,date:'2099-01-10',trip:5,timestamp:Date.now(),estimateAt:Date.now()-15000,available:true,retained:true,predictedAt:Date.now()+240000,latestAt:Date.now()+360000};updateDriverLiveDashboard();
  });
+ assert.doesNotMatch(await page.locator('#driverArrivalEstimate').textContent(),/차고지 도착 추정/,'old native forecast policy cannot bypass the Techno gate');
+ await page.evaluate(()=>{nativeArrivalEstimate.policyVersion=5;updateDriverLiveDashboard();});
  assert.match(await page.locator('#driverArrivalEstimate').textContent(),/고강공영차고지 · 남은 노선거리 약/);
  assert.match(await page.locator('#driverArrivalEstimate').textContent(),/최근 추정 유지.*기준.*차고지 도착 추정/);
  assert(await page.locator('#driverArrivalEstimate').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'arrival estimate must wrap within narrow phones');
