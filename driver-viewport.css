@@ -233,7 +233,7 @@
   .driver-live-primary .current-clock{font-size:28px}
   .driver-mode .driver-live-primary .orbit-weather{min-height:22px}
   .driver-live-primary .headway-title{font-weight:700}
-  .driver-live-primary .headway-meta{gap:1px}
+  .driver-live-primary .headway-meta{gap:2px 6px}
   .driver-live-primary .headway-basis,.driver-live-primary .headway-reception{line-height:1.2}
   .driver-live-primary .orbit-route>.orbit-point{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr)}
 }

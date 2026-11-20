@@ -150,7 +150,7 @@
       const row=(label,text,cls)=>{const node=doc.createElement('div');node.className=cls;const tag=doc.createElement('span');tag.className='headway-row-label';tag.textContent=label;const value=doc.createElement('span');value.textContent=text;node.append(tag,value);return node;};
       const planned=row('예정',m.plannedLine,'headway-planned'),actual=row('관측',m.actualLine,'headway-actual');
       const identity=doc.createElement('span');identity.className='headway-identity';identity.textContent=(m.identityBasis==='예정'&&!m.noPlannedRear?'예정 ':'')+m.identity;identity.title=m.identityBasis+' 차량 · 기사명은 등록된 배차 정보 기준';
-      const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent=m.crowding==='미수신'?'혼잡 미수신':'혼잡 '+m.crowding;crowd.dataset.level=m.crowding;
+      const crowd=doc.createElement('span');crowd.className='headway-crowding';crowd.textContent=m.crowding==='미수신'?'혼잡 미수신':m.crowding;crowd.title='혼잡도';crowd.dataset.level=m.crowding;
       const meta=doc.createElement('div');meta.className='headway-meta';meta.append(identity,crowd);item.append(top,planned,actual,meta);
       if(m.basis){const basis=doc.createElement('small');basis.className='headway-basis';basis.textContent=(m.distanceNotice?'거리 주의 · ':'')+m.basis.replace('통과시각 관측 중','시간 관측 중');basis.title=m.basis;item.append(basis);}
       if(m.notice){const notice=doc.createElement('small');notice.className='headway-reception';notice.textContent=m.notice;item.append(notice);}
@@ -175,7 +175,7 @@
       if(at<=a.at&&at!==a.since)continue;
       a.at=at;
       if(at-a.since<180000||a.last&&now-a.last<600000)continue;
-      return {key,side,stopGap:p.stopGap,message:(side==='front'?'앞차와 ':'뒷차가 ')+p.stopGap+'정류장 간격이 지속됩니다. 운행 간격을 확인해 주세요.'};
+      return {key,side,stopGap:p.stopGap,message:(side==='front'?'앞차와 ':'뒷차와 ')+p.stopGap+'정류장 간격이 지속됩니다. 운행 간격을 확인해 주세요.'};
     }
     return null;
   }
