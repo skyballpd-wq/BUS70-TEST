@@ -69,7 +69,11 @@ jobs:
           node-version: "22"
       - name: Check all Node regression tests
         run: |
-          for test in tests/*.test.js; do node "$test" || exit 1; done
+          failed=0
+          for test in tests/*.test.js; do
+            if ! node "$test"; then failed=1; fi
+          done
+          exit "$failed"
       - name: Build public-only dual-host package
         run: node scripts/build-static-site.js
       - name: Save public static package
@@ -77,6 +81,7 @@ jobs:
         with:
           name: public-static-site
           path: .pages-dist/
+          include-hidden-files: true
           retention-days: 7
       - name: Install Korean font for visual evidence
         run: |
