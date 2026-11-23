@@ -6,7 +6,7 @@
     const key=[scope.route,scope.date,scope.vehicleId,scope.dispatchId,scope.trip,nav?.returnConfirmed?'return':'out'].join('|');
     if(state.key!==key)state={key,samples:[],alerts:{}};
     state.now=now;state.vehicleId=scope.vehicleId;state.running=scope.running;
-    if(!scope.running){state.neighbours={};state.observations={};}
+    if(!scope.running){state.neighbours={};state.observations={};state.appObservations={};}
     const i=nav?.matchedIndex;
     if(!scope.running||!nav?.configured||nav.retained||!Number.isInteger(i)||!numeric(nav.timestamp)||now-nav.timestamp>10000||now<nav.timestamp){state.last=null;return state;}
     now=Number(nav.timestamp);const last=state.last;
@@ -39,17 +39,32 @@
     if(!scope.running||!nav?.configured||nav.retained||nav.waiting||!numeric(nav.timestamp)||now-nav.timestamp<0||now-nav.timestamp>10000||fleet.error||fleet.route!==scope.route||fleet.date!==scope.date||!path)return;
     const ownStop=path.stops[nav.matchedIndex];if(!ownStop)return;
     const own={vehicleId:scope.vehicleId,matchedStopOrder:ownStop.order,recordedAt:new Date(Number(nav.timestamp)).toISOString(),dispatchId:scope.dispatchId,trip:scope.trip,running:true,accuracyM:0};
-    const rows=[own,...(fleet.positions||[]).filter(p=>p.vehicleId!==scope.vehicleId&&p.running===true&&p.route===scope.route&&p.date===scope.date)],next={};
+    // Native phones can send a stationary heartbeat every 60 seconds.
+    // Retain bounded HISTORY for 90 seconds, but keep live positions at 45.
+    const next={};
+    for(const [id,old] of Object.entries(state.appObservations||{})){
+      if(now>=old.at&&now-old.at<=90000)next[id]=old;
+    }
+    const rows=[own,...(fleet.positions||[]).filter(p=>p.vehicleId!==scope.vehicleId)];
     for(const p of rows){
       const at=Date.parse(p.recordedAt),stop=path.stops.find(s=>Number(s.order)===Number(p.matchedStopOrder));
-      if(!p.vehicleId||rows.filter(q=>q.vehicleId===p.vehicleId).length!==1||!p.dispatchId||!(Number(p.trip)>0)||!stop||!numeric(p.accuracyM)||p.accuracyM<0||p.accuracyM>60||!Number.isFinite(at)||now<at||now-at>45000)continue;
-      const binding=[p.dispatchId,p.trip].join('|'),old=state.appObservations?.[p.vehicleId],order=Number(stop.order),leg=stop.direction||'',continuous=old&&old.binding===binding&&old.leg===leg&&at>=old.at&&at-old.at<=45000&&order>=old.order;
-      if(continuous&&at===old.at){if(order===old.order)next[p.vehicleId]=old;continue;}
+      const binding=[p.dispatchId,p.trip].join('|'),old=next[p.vehicleId];
+      if(!p.vehicleId||rows.filter(q=>q.vehicleId===p.vehicleId).length!==1||!p.dispatchId||!(Number(p.trip)>0)||!stop||!numeric(p.accuracyM)||p.accuracyM<0||p.accuracyM>60||!Number.isFinite(at)||now<at||now-at>90000||p.running!==true||(p!==own&&(p.route!==scope.route||p.date!==scope.date))){
+        delete next[p.vehicleId];continue;
+      }
+      const order=Number(stop.order),leg=stop.direction||'';
+      if(now-at>45000){
+        // A stale response can retain an identical previous observation only.
+        if(!old||old.binding!==binding||old.leg!==leg||old.at!==at||old.order!==order)delete next[p.vehicleId];
+        continue;
+      }
+      const continuous=old&&old.binding===binding&&old.leg===leg&&at>=old.at&&at-old.at<=90000&&order>=old.order;
+      if(continuous&&at===old.at){if(order!==old.order)delete next[p.vehicleId];continue;}
       const passages=continuous?old.passages.filter(v=>at-v.hi<=1800000).slice(-39):[];
       if(continuous&&order===old.order+1)passages.push({order,lo:old.at,hi:at});
       next[p.vehicleId]={order,leg,at,binding,passages};
     }
-    state.appObservations=next;state.appAvailable=Boolean(next[scope.vehicleId]);
+    state.appObservations=next;state.appAvailable=Boolean(next[scope.vehicleId]&&now-next[scope.vehicleId].at<=10000);
   }
   // Reuse route-wide responses already received. These are bounded passage
   // intervals, never exact terminal headways or fabricated timetable times.
@@ -95,7 +110,7 @@
     const own=observations?.[state.vehicleId],other=observations?.[peer.vehicle];
     if(phone&&(!own||!other||state.now-own.at>10000||state.now-other.at>45000||other.binding!==peer.binding))return null;
     if(!own||!other||!own.leg||own.leg!==other.leg||other.order!==Number(peer.order)||(side==='front'?other.order<=own.order:other.order>=own.order))return null;
-    if(Object.values(observations).filter(v=>v.leg===own.leg&&v.order===other.order).length!==1)return null;
+    if(Object.values(observations).filter(v=>v.leg===own.leg&&v.order===other.order&&(!phone||state.now-v.at<=45000)).length!==1)return null;
     let best=null;
     for(const a of own.passages){const b=other.passages.find(p=>p.order===a.order);if(!b||state.now-Math.max(a.hi,b.hi)>180000)continue;
       const lo=side==='front'?a.lo-b.hi:b.lo-a.hi,hi=side==='front'?a.hi-b.lo:b.hi-a.lo;
@@ -123,10 +138,10 @@
     const c=comparison(peer,planned,state),gap=observedGap(peer,side,state);
     const fresh=peer&&peer.fresh!==false;
     const phone=peer?.source==='APP_GPS',observations=phone?state.appObservations:state.observations,own=observations?.[state.vehicleId],available=phone?state.appAvailable:state.observationsAvailable;
-    const sameStop=Boolean(available&&own&&Object.entries(observations||{}).some(([id,v])=>id!==state.vehicleId&&v.leg===own.leg&&v.order===own.order));
+    const sameStop=Boolean(available&&own&&Object.entries(observations||{}).some(([id,v])=>id!==state.vehicleId&&v.leg===own.leg&&v.order===own.order&&(!phone||state.now-v.at<=45000)));
     if(sameStop||peer?.positionDisagreement)c.status='unknown';
     const other=peer&&observations?.[peer.vehicle],matched=own&&other&&(own.passages||[]).some(a=>(other.passages||[]).some(b=>a.order===b.order));
-    const reason=gap?'통과 관측 '+Math.max(0,Math.floor((state.now-gap.at)/1000))+'초 전':sameStop?'같은 정류장 · 순서 확인 중':!fresh?'최신 위치 미수신':!state.observationsAvailable?'내 차 위치 대조 중':matched?'통과 관측 만료·재수집':'통과시각 관측 중';
+    const reason=gap?'통과 관측 '+Math.max(0,Math.floor((state.now-gap.at)/1000))+'초 전':sameStop?'같은 정류장 · 순서 확인 중':!fresh?'최신 위치 미수신':!available?'내 차 위치 대조 중':matched?'통과 관측 만료·재수집':'통과시각 관측 중';
     const plannedMismatch=peer&&plannedDriver.length===1&&plannedDriver[0].vehicleId!==peer.vehicle;
     const plannedPlate=plannedMismatch?String(plannedDriver[0].vehicleNo||'').match(/(\d{4})\s*$/):null;
     const notice=peer?.fresh===false?'마지막 위치 '+peer.age+'초 전':!peer&&remembered?'마지막 관측 '+Math.max(0,Math.floor((state.now-previous.at)/1000))+'초 전':plannedMismatch?'예정 '+(plannedPlate?plannedPlate[1]+'호':'차량')+' · 관측 다름':previous?.changedUntil>state.now?'관측 차량 변경':'';
