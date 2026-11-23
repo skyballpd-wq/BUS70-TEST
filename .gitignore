@@ -5,3 +5,6 @@ apps-script/PrivateRouteData.gs
 private-data/
 RoutePrivateData.js
 tmp/
+
+# Reproducible public-only Cloudflare Pages output
+.pages-dist/

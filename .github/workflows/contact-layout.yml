@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "index.html"
+      - "driver-headway.js"
+      - "scripts/build-static-site.js"
+      - "sw.js"
+      - "manifest.webmanifest"
       - "manager-live.js"
       - "manager-gap-alerts.js"
       - "driver-journey.js"
@@ -65,7 +69,20 @@ jobs:
           node-version: "22"
       - name: Check all Node regression tests
         run: |
-          for test in tests/*.test.js; do node "$test" || exit 1; done
+          failed=0
+          for test in tests/*.test.js; do
+            if ! node "$test"; then failed=1; fi
+          done
+          exit "$failed"
+      - name: Build public-only dual-host package
+        run: node scripts/build-static-site.js
+      - name: Save public static package
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-static-site
+          path: .pages-dist/
+          include-hidden-files: true
+          retention-days: 7
       - name: Install Korean font for visual evidence
         run: |
           timeout 60s sudo apt-get update -qq -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 || true
