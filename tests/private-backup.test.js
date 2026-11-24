@@ -2,6 +2,20 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('operations-backup/Code.gs', 'utf8');
+const manifest = JSON.parse(fs.readFileSync('operations-backup/appsscript.json', 'utf8'));
+
+// Apps Script's built-in SpreadsheetApp.openById requires the full spreadsheets scope;
+// a VM stub alone cannot detect an OAuth failure with spreadsheets.readonly.
+assert(manifest.oauthScopes.includes('https://www.googleapis.com/auth/spreadsheets'),
+  'SpreadsheetApp.openById requires the spreadsheets scope');
+assert(manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive'),
+  'DriveApp.makeCopy requires the drive scope');
+assert(manifest.oauthScopes.includes('https://www.googleapis.com/auth/script.scriptapp'),
+  'Installing a time trigger requires the script.scriptapp scope');
+assert(manifest.oauthScopes.includes('https://www.googleapis.com/auth/userinfo.email'),
+  'Owner identity checks require the userinfo.email scope');
+assert(!manifest.oauthScopes.some(scope => /script\.external_request|gmail|mail\.google\.com/.test(scope)),
+  'Standalone snapshots must not request external HTTP or email scopes');
 
 function fixture() {
   let now = Date.parse('2099-01-01T00:00:00Z'), modified = now - 1000;

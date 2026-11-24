@@ -16,7 +16,7 @@
 
 1. 소유자 Google 계정으로 별도 프로젝트를 만든다. `Code.gs`와 이 폴더의 `appsscript.json`만 넣는다. 프로젝트 공유와 웹앱/API 실행 배포는 하지 않는다.
 2. 프로젝트 설정 → 스크립트 속성에 `BUS70_BACKUP_SOURCE_ID`, `BUS70_BACKUP_FOLDER_ID`, `BUS70_BACKUP_OWNER_EMAIL`을 넣는다. 실제 값을 공개 GitHub에 쓰지 않는다. `BUS70_BACKUP_ENABLED`는 먼저 `false`로 설정한다.
-3. `bus70BackupPreflight`를 실행하고 필요한 Google 권한을 소유자가 검토한다. Drive 복사에 필요한 권한은 넓은 Drive 범위이므로 기존 웹앱과 프로젝트를 분리한다. 이메일 발송·외부 URL 전송 권한은 없다.
+3. `bus70BackupPreflight`를 실행하고 필요한 Google 권한을 소유자가 검토한다. Drive 복사에는 전체 `drive` 범위, 사본 열기 검증의 `SpreadsheetApp.openById`에는 전체 `spreadsheets` 범위가 필요하다. 읽기 전용 Sheets 범위로는 이 내장 API를 실행할 수 없다. 코드는 원본 셀과 공유 권한을 수정하지 않지만 승인 범위 자체는 넓으므로 기존 웹앱과 분리한 비공개 프로젝트에서만 설치한다. 시간 트리거 관리와 실행 소유자 확인 권한도 요청하며 이메일 발송·외부 URL 전송 권한은 없다. 저장소 반영만으로 계정 권한이 승인되거나 백업이 활성화되지 않는다.
 4. 속성 `BUS70_BACKUP_ENABLED`를 `true`로 바꾸고 `bus70BackupTick`을 수동 실행한다. `snapshot-created` 후 비공개 상태·사본 위치와 중요 셀을 원본에 대조한다. 별도 임시 문서에 복원하여 운행일, 배차, 정비, 계정 접근 제한과 실제 시각 보존을 검증한다. 운영 원장을 덮어써서 시험하지 않는다.
 5. `bus70BackupInstall`을 실행한다. 같은 계정의 동일 함수 트리거는 중복 생성하지 않는다. 다른 계정으로 설치하지 않는다. 트리거 목록의 함수명과 15분 간격을 확인하고 실패 알림을 설정한다.
 6. 다음 자동 실행 후 `bus70BackupStatus`의 성공 시각 및 사본을 확인해야 **자동 백업 활성화**로 기록한다. 상태는 비공개 프로젝트 속성에 보관하며 소장 앱 대시보드에는 아직 연결하지 않는다.
@@ -32,3 +32,4 @@
 - https://developers.google.com/apps-script/reference/drive/file
 - https://developers.google.com/apps-script/reference/drive/folder
 - https://developers.google.com/apps-script/reference/script/clock-trigger-builder
+- https://developers.google.com/apps-script/reference/spreadsheet/spreadsheet-app#openbyidid
