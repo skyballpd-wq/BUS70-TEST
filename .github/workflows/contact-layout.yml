@@ -6,6 +6,7 @@ on:
       - "index.html"
       - "driver-headway.js"
       - "scripts/build-static-site.js"
+      - "operations-backup/**"
       - "sw.js"
       - "manifest.webmanifest"
       - "manager-live.js"
